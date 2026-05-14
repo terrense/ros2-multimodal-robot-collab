@@ -10,6 +10,8 @@
 ![OpenCV](https://img.shields.io/badge/OpenCV-Perception-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
 ![Nav2](https://img.shields.io/badge/Nav2-Navigation-0A7EA4?style=for-the-badge)
 ![MoveIt2](https://img.shields.io/badge/MoveIt2-Manipulation-00A98F?style=for-the-badge)
+![YOLOv8](https://img.shields.io/badge/YOLOv8-Tool%20Detection-FF6F00?style=for-the-badge)
+![VINS-Mono](https://img.shields.io/badge/VINS--Mono-VIO%20SLAM-6A5ACD?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Research%20Prototype-brightgreen?style=for-the-badge)
 
 面向实验室和工业工作站场景的多模态机器人协作系统。  
@@ -28,6 +30,9 @@
 - **ROS2 分布式系统架构**：移动机器人、机械臂、感知算法、HRI 和任务调度模块独立封装，通过 Topic、Service、Action 异步协同。
 - **任务级状态机**：串联身份验证、目标识别、路径规划、移动导航、机械臂抓取、递送确认等阶段，并预留异常回退逻辑。
 - **多模态人机交互**：支持 ASR 文本输入、TTS 状态播报、手势确认/取消，以及人脸身份验证流程。
+- **手势驱动机械臂控制**：握拳暂停机械臂，张开手掌触发停止/关机保护，竖起大拇指启动或恢复工作。
+- **YOLOv8 工具检测适配**：提供 Ultralytics YOLOv8 ROS2 adapter，将检测结果转换为统一的 `ToolDetection` 消息。
+- **VINS-Mono 定位接入**：通过 ROS2 bridge 接收 VINS-Mono 视觉惯性里程计输出，为移动小车 SLAM/Nav2 定位链路提供位姿来源。
 - **机器人能力 Skill 化**：将导航、识别、抓取、状态查询等 ROS2 能力抽象成稳定接口，便于上层任务规划器调用。
 - **可替换硬件适配层**：当前节点可在无实体机器人环境中跑通流程，后续可替换为 Nav2、MoveIt2、YOLO/OpenCV、MediaPipe、FunASR/TTS 等真实模块。
 
@@ -59,8 +64,10 @@ src/
   robot_collab_perception/    # tool detection, face auth, gesture stubs
   robot_collab_hri/           # ASR/TTS/gesture gateway
   robot_collab_agent/         # command parser and skill dispatch gateway
+  robot_collab_slam/          # VINS-Mono / VIO bridge for mobile robot SLAM
   robot_collab_bringup/       # launch files and shared config
 skills/                       # capability cards for task-level planning
+third_party/                  # pinned external algorithm sources
 docs/                         # architecture notes and development roadmap
 ```
 
@@ -73,11 +80,21 @@ docs/                         # architecture notes and development roadmap
 | Action | `/skills/navigate_to_station` | Station-level mobile base navigation |
 | Action | `/skills/pick_and_place` | Tool grasp, transfer, and placement |
 | Service | `/system/query_state` | Mission status and system health query |
+| Topic | `/arm/control_command` | Gesture-to-arm command stream |
 | Topic | `/perception/tool_detections` | Tool pose and confidence stream |
 | Topic | `/hri/asr_text` | ASR text input |
 | Topic | `/hri/tts_text` | TTS text output |
 | Topic | `/hri/gesture_command` | Gesture command stream |
 | Topic | `/mission/events` | Mission progress and event stream |
+| Topic | `/slam/vins_pose` | VINS-Mono pose for mobile robot localization |
+
+## Gesture Control
+
+| Operator Gesture | ROS2 Command | Robot Behavior |
+| --- | --- | --- |
+| Fist | `arm_pause` | Pause arm motion and keep current mission state |
+| Open palm | `system_stop` | Emergency stop, cancel active goal, request safe shutdown path |
+| Thumb up | `arm_start` | Start or resume arm work |
 
 ## Quick Start
 
@@ -93,6 +110,7 @@ sudo apt update
 sudo apt install -y ros-humble-desktop python3-colcon-common-extensions python3-rosdep
 
 cd ros2-multimodal-robot-collab
+git submodule update --init --recursive --depth 1
 rosdep update
 rosdep install --from-paths src -y --ignore-src
 colcon build --symlink-install
@@ -103,6 +121,18 @@ Start the simulated full workflow:
 
 ```bash
 ros2 launch robot_collab_bringup demo_sim.launch.py
+```
+
+Start YOLOv8 + camera gesture adapters when camera topics are available:
+
+```bash
+ros2 launch robot_collab_bringup perception_yolov8_gesture.launch.py
+```
+
+Optional runtime dependencies for the camera-based adapters:
+
+```bash
+pip install ultralytics mediapipe numpy
 ```
 
 Send a delivery mission directly:
@@ -128,9 +158,26 @@ ros2 topic pub --once /hri/asr_text std_msgs/msg/String \
 | 2 | Agent Gateway | Parses delivery intent and dispatches mission |
 | 3 | Face Auth | Checks operator id against authorization list |
 | 4 | Tool Detection | Publishes target tool pose and confidence |
-| 5 | Navigation | Moves robot to pickup station and delivery station |
-| 6 | Manipulation | Executes pick, lift, transfer, and place sequence |
-| 7 | Mission Events | Streams progress to TTS and status monitor |
+| 5 | VINS-Mono Bridge | Feeds VIO pose into the mobile robot localization chain |
+| 6 | Navigation | Moves robot to pickup station and delivery station |
+| 7 | Manipulation | Executes pick, lift, transfer, and place sequence |
+| 8 | Gesture Control | Allows start/pause/stop commands during arm work |
+| 9 | Mission Events | Streams progress to TTS and status monitor |
+
+## Third-Party Algorithm Sources
+
+The repository uses Git submodules for external algorithm source code:
+
+```bash
+git submodule update --init --recursive --depth 1
+```
+
+| Component | Path | Role |
+| --- | --- | --- |
+| Ultralytics YOLO | `third_party/ultralytics` | YOLOv8 detection backend for tool recognition |
+| VINS-Mono | `third_party/VINS-Mono` | Monocular visual-inertial odometry algorithm for mobile robot SLAM/localization |
+
+See [THIRD_PARTY.md](THIRD_PARTY.md) for license notes.
 
 ## Experimental Notes
 
@@ -162,8 +209,11 @@ This makes the system easier to extend from deterministic state-machine control 
 - [x] Implement simulation-friendly Action servers for the full delivery loop
 - [x] Add HRI bridge for ASR/TTS text and gesture commands
 - [x] Add Agent gateway and skill documentation
+- [x] Add gesture-to-arm control commands: fist pause, palm stop, thumb-up start
+- [x] Add YOLOv8 and VINS-Mono third-party source integration points
+- [x] Add VINS-Mono ROS2 bridge for mobile robot localization
 - [ ] Connect Nav2 `NavigateToPose` with station registry
-- [ ] Replace tool detector stub with OpenCV/YOLO pipeline
+- [ ] Replace tool detector stub with calibrated YOLOv8 tool detector and depth pose estimation
 - [ ] Integrate MoveIt2 or vendor SDK for the manipulator
 - [ ] Add camera-base-arm TF calibration workflow
 - [ ] Add rosbag-based regression tests for perception and mission replay

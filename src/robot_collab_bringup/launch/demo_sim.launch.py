@@ -67,6 +67,12 @@ def generate_launch_description():
                 output="screen",
                 parameters=[params],
             ),
+            Node(
+                package="robot_collab_slam",
+                executable="vins_mono_bridge_node",
+                name="vins_mono_bridge_node",
+                output="screen",
+                parameters=[params],
+            ),
         ]
     )
-

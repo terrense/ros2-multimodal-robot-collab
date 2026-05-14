@@ -1,0 +1,6 @@
+[submodule "third_party/ultralytics"]
+	path = third_party/ultralytics
+	url = https://github.com/ultralytics/ultralytics.git
+[submodule "third_party/VINS-Mono"]
+	path = third_party/VINS-Mono
+	url = https://github.com/HKUST-Aerial-Robotics/VINS-Mono.git

@@ -1,21 +1,21 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>robot_collab_perception</name>
+  <name>robot_collab_slam</name>
   <version>0.1.0</version>
-  <description>Perception adapters for tool detection, face authorization, and gesture recognition.</description>
+  <description>ROS2 SLAM/VIO adapters for feeding VINS-Mono estimates into the mobile robot stack.</description>
   <maintainer email="terrense@example.com">terrense</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
 
   <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>rclpy</exec_depend>
-  <exec_depend>robot_collab_interfaces</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
   </export>
 </package>
+

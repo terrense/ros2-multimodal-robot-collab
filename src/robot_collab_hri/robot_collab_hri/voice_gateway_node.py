@@ -42,10 +42,12 @@ class VoiceGatewayNode(Node):
             self._publish_tts(spoken)
 
     def _handle_gesture(self, msg: GestureCommand) -> None:
-        if msg.command == "confirm_delivery":
-            self._publish_tts("Confirmation received. Continuing the delivery.")
-        elif msg.command == "cancel":
-            self._publish_tts("Cancel request received.")
+        if msg.command == "arm_start":
+            self._publish_tts("Thumb-up detected. Arm work is enabled.")
+        elif msg.command == "arm_pause":
+            self._publish_tts("Fist detected. Arm motion is paused.")
+        elif msg.command == "system_stop":
+            self._publish_tts("Open palm detected. Emergency stop requested.")
 
     def _event_to_spoken_text(self, event: MissionEvent) -> str:
         state_map = {
@@ -79,4 +81,3 @@ def main(args=None) -> None:
 
 if __name__ == "__main__":
     main()
-

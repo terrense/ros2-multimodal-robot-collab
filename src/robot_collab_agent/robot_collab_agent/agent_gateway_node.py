@@ -38,6 +38,7 @@ class AgentGatewayNode(Node):
             10,
         )
         self._mission_client = ActionClient(self, DeliverTool, "/mission/deliver_tool")
+        self._active_goal_handle = None
         self.get_logger().info("Agent gateway is ready.")
 
     def _handle_text_command(self, msg: String) -> None:
@@ -48,10 +49,14 @@ class AgentGatewayNode(Node):
         self._dispatch_delivery(command)
 
     def _handle_gesture_command(self, msg: GestureCommand) -> None:
-        if msg.command == "cancel":
-            self._speak("Cancel gesture received. Cancel support will be connected to active goals next.")
-        elif msg.command == "confirm_delivery":
-            self.get_logger().info(f"Confirmation gesture from {msg.operator_id}.")
+        if msg.command == "arm_pause":
+            self._speak("Arm pause gesture received.")
+        elif msg.command == "arm_start":
+            self._speak("Arm start gesture received.")
+        elif msg.command == "system_stop":
+            self._speak("Emergency stop gesture received.")
+            if self._active_goal_handle is not None:
+                self._active_goal_handle.cancel_goal_async()
 
     def _parse_delivery_command(self, text: str) -> DeliveryCommand | None:
         match = self.COMMAND_RE.search(text.strip())
@@ -82,6 +87,7 @@ class AgentGatewayNode(Node):
         if not goal_handle.accepted:
             self._speak("Delivery mission was rejected.")
             return
+        self._active_goal_handle = goal_handle
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self._handle_mission_result)
 
@@ -91,6 +97,7 @@ class AgentGatewayNode(Node):
 
     def _handle_mission_result(self, future) -> None:
         result = future.result().result
+        self._active_goal_handle = None
         self._speak(result.message)
 
     def _speak(self, text: str) -> None:
@@ -112,4 +119,3 @@ def main(args=None) -> None:
 
 if __name__ == "__main__":
     main()
-

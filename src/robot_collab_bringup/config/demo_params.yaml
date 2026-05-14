@@ -37,8 +37,22 @@ gesture_recognizer_node:
   ros__parameters:
     auto_emit: false
     emit_interval_sec: 8.0
-    command: confirm_delivery
+    gesture: thumb_up
     operator_id: operator_001
+
+yolov8_tool_detector_node:
+  ros__parameters:
+    model_path: models/yolov8n.pt
+    camera_topic: /camera/color/image_raw
+    source_frame: tool_camera_link
+    min_confidence: 0.45
+    class_to_tool_json: '{"wrench":"wrench","screwdriver":"screwdriver","hex_key":"hex_key_3mm"}'
+
+mediapipe_gesture_node:
+  ros__parameters:
+    camera_topic: /camera/color/image_raw
+    operator_id: operator_001
+    min_confidence: 0.65
 
 voice_gateway_node:
   ros__parameters:
@@ -50,3 +64,11 @@ agent_gateway_node:
     default_operator_id: operator_001
     require_confirmation: true
 
+vins_mono_bridge_node:
+  ros__parameters:
+    vins_odometry_topic: /vins_estimator/odometry
+    pose_topic: /slam/vins_pose
+    status_topic: /slam/vins_status
+    publish_tf: true
+    map_frame: map
+    base_frame: base_link

@@ -18,9 +18,15 @@ Action:
 - Type: `robot_collab_interfaces/action/PickAndPlace`
 - Name: `/skills/pick_and_place`
 
+Control topic:
+
+- Type: `robot_collab_interfaces/msg/ArmControlCommand`
+- Name: `/arm/control_command`
+- Commands: `arm_start`, `arm_pause`, `system_stop`
+
 Planner rules:
 
 - Do not call this skill until navigation has reached the manipulation workspace.
 - Tool pose must be fresh enough for the configured scene.
 - If grasp fails, request a new perception update before retrying.
-
+- If `system_stop` is active, do not issue new arm goals until the operator explicitly resumes.

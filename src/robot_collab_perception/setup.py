@@ -19,9 +19,10 @@ setup(
     entry_points={
         "console_scripts": [
             "tool_detector_node = robot_collab_perception.tool_detector_node:main",
+            "yolov8_tool_detector_node = robot_collab_perception.yolov8_tool_detector_node:main",
             "face_auth_node = robot_collab_perception.face_auth_node:main",
             "gesture_recognizer_node = robot_collab_perception.gesture_recognizer_node:main",
+            "mediapipe_gesture_node = robot_collab_perception.mediapipe_gesture_node:main",
         ],
     },
 )
-

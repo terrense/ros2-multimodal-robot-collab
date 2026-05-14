@@ -17,4 +17,4 @@ Planner rules:
 - Query state before retrying failed navigation or manipulation.
 - Include active warnings in HRI summaries.
 - If critical nodes are unavailable, stop dispatching new movement actions.
-
+- If an emergency gesture was observed, require an explicit `arm_start` resume command before new manipulation.

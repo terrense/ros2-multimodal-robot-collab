@@ -13,6 +13,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/ArmControlCommand.msg"
   "msg/GestureCommand.msg"
   "msg/IdentityStatus.msg"
   "msg/MissionEvent.msg"
@@ -27,4 +28,3 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
 ament_export_dependencies(rosidl_default_runtime)
 ament_package()
-

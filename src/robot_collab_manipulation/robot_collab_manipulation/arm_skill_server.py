@@ -5,6 +5,7 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
 
 from robot_collab_interfaces.action import PickAndPlace
+from robot_collab_interfaces.msg import ArmControlCommand
 
 
 class ArmSkillServer(Node):
@@ -14,6 +15,15 @@ class ArmSkillServer(Node):
         super().__init__("arm_skill_server")
         self.declare_parameter("simulate_step_seconds", 0.5)
         self.declare_parameter("min_detection_confidence", 0.75)
+        self._paused = False
+        self._stopped = False
+        self._last_control_command = "arm_start"
+        self._control_sub = self.create_subscription(
+            ArmControlCommand,
+            "/arm/control_command",
+            self._handle_control_command,
+            10,
+        )
         self._server = ActionServer(
             self,
             PickAndPlace,
@@ -24,7 +34,24 @@ class ArmSkillServer(Node):
         )
         self.get_logger().info("Manipulation skill server is ready.")
 
+    def _handle_control_command(self, msg: ArmControlCommand) -> None:
+        self._last_control_command = msg.command
+        if msg.command == "arm_pause":
+            self._paused = True
+            self.get_logger().warn(f"Arm paused by gesture from {msg.operator_id}: {msg.detail}")
+        elif msg.command == "arm_start":
+            self._paused = False
+            self._stopped = False
+            self.get_logger().info(f"Arm start/resume command from {msg.operator_id}.")
+        elif msg.command == "system_stop":
+            self._paused = False
+            self._stopped = True
+            self.get_logger().error(f"Emergency stop requested by {msg.operator_id}: {msg.detail}")
+
     def _handle_goal(self, goal_request: PickAndPlace.Goal) -> GoalResponse:
+        if self._stopped:
+            self.get_logger().warn("Rejected manipulation goal while emergency stop is active.")
+            return GoalResponse.REJECT
         if not goal_request.tool_id:
             self.get_logger().warn("Rejected manipulation goal without tool_id.")
             return GoalResponse.REJECT
@@ -51,6 +78,22 @@ class ArmSkillServer(Node):
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 return self._result(False, "Manipulation canceled.")
+            if self._stopped:
+                goal_handle.abort()
+                return self._result(False, "Manipulation stopped by operator gesture.")
+            while self._paused:
+                if goal_handle.is_cancel_requested:
+                    goal_handle.canceled()
+                    return self._result(False, "Manipulation canceled while paused.")
+                if self._stopped:
+                    goal_handle.abort()
+                    return self._result(False, "Manipulation stopped by operator gesture.")
+                pause_feedback = PickAndPlace.Feedback()
+                pause_feedback.state = "PAUSED"
+                pause_feedback.progress = progress
+                pause_feedback.detail = "Manipulator is paused by operator fist gesture."
+                goal_handle.publish_feedback(pause_feedback)
+                await asyncio.sleep(0.2)
             feedback = PickAndPlace.Feedback()
             feedback.state = state
             feedback.progress = progress
@@ -82,4 +125,3 @@ def main(args=None) -> None:
 
 if __name__ == "__main__":
     main()
-

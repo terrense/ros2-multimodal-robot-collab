@@ -18,10 +18,13 @@ The system is designed around replaceable ROS2 capabilities rather than one mono
 | Navigation | `nav_skill_server` | `/skills/navigate_to_station` action | Wraps Nav2 or simulation navigation |
 | Manipulation | `arm_skill_server` | `/skills/pick_and_place` action | Wraps MoveIt2/vendor arm control |
 | Perception | `tool_detector_node` | `/perception/tool_detections` topic | Publishes tool pose candidates |
+| Perception | `yolov8_tool_detector_node` | `/perception/tool_detections` topic | Runs Ultralytics YOLOv8 and maps classes to tool ids |
 | Perception | `face_auth_node` | `/skills/verify_operator` action | Verifies operator authorization |
 | Perception | `gesture_recognizer_node` | `/hri/gesture_command` topic | Publishes gesture commands |
 | HRI | `voice_gateway_node` | `/hri/asr_text`, `/hri/tts_text` topics | Bridges ASR/TTS and mission events |
 | Agent | `agent_gateway_node` | `/agent/command_text`, `/system/query_state` | Parses planner/HRI commands into ROS2 actions |
+| SLAM | `vins_mono_bridge_node` | `/slam/vins_pose` topic | Bridges VINS-Mono odometry into ROS2 localization |
+| Manipulation | `arm_skill_server` | `/arm/control_command` topic | Receives gesture-derived start/pause/stop commands |
 
 ## Data Flow
 
@@ -34,6 +37,21 @@ The system is designed around replaceable ROS2 capabilities rather than one mono
 7. Manipulation skill picks the tool and places it in the delivery zone.
 8. Mission state machine publishes completion/failure events.
 9. HRI gateway announces progress through TTS.
+
+## Gesture Safety Commands
+
+| Gesture | Command | Effect |
+| --- | --- | --- |
+| Fist | `arm_pause` | Pause the manipulator loop and keep publishing `PAUSED` feedback |
+| Open palm | `system_stop` | Trigger emergency stop behavior and cancel active mission goals |
+| Thumb up | `arm_start` | Start or resume manipulator execution |
+
+## YOLOv8 and VINS-Mono Integration
+
+The project keeps third-party algorithm sources under `third_party/` as Git submodules and exposes project-owned ROS2 adapters in `src/`:
+
+- `robot_collab_perception/yolov8_tool_detector_node.py` loads Ultralytics YOLO lazily, subscribes to camera images, and publishes `ToolDetection`.
+- `robot_collab_slam/vins_mono_bridge_node.py` accepts VINS-Mono odometry from a ROS2 port or `ros1_bridge`, republishes `/slam/vins_pose`, and can broadcast `map -> base_link`.
 
 ## Failure Handling
 
@@ -59,4 +77,3 @@ Use a supervisor-worker model:
 | `SafetyAgent` | Guardrails and preflight checks | Mission plan, zone state, auth result | Allow/deny/retry decision |
 
 The first implementation can run all agents in one process behind `agent_gateway_node`. When latency or ownership matters, each agent can become a separate process or remote service while preserving the same ROS2 skill contracts.
-
