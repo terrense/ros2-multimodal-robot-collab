@@ -1,0 +1,27 @@
+# ROS2 build outputs
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local runtime artifacts
+bags/
+maps/
+models/
+captures/
+*.db3
+*.mcap
+

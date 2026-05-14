@@ -1,0 +1,30 @@
+stations:
+  tool_shelf:
+    frame_id: map
+    pose:
+      x: 1.25
+      y: -0.75
+      yaw: 1.57
+    role: pickup
+  station_a:
+    frame_id: map
+    pose:
+      x: 3.20
+      y: 0.40
+      yaw: 0.00
+    role: workstation
+  station_b:
+    frame_id: map
+    pose:
+      x: 4.15
+      y: -1.10
+      yaw: 3.14
+    role: workstation
+  handover_zone:
+    frame_id: map
+    pose:
+      x: 2.10
+      y: 1.35
+      yaw: -1.57
+    role: delivery
+

@@ -1,0 +1,2 @@
+"""Manipulation skill server package."""
+

@@ -1,0 +1,11 @@
+string operator_id
+bool require_face_match
+---
+bool authorized
+float32 confidence
+string message
+---
+string state
+float32 progress
+string detail
+

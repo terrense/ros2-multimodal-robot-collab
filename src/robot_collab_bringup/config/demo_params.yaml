@@ -1,0 +1,52 @@
+mission_state_machine:
+  ros__parameters:
+    simulate_step_seconds: 0.6
+    motion_enabled: true
+    max_retries: 1
+
+nav_skill_server:
+  ros__parameters:
+    simulate_step_seconds: 0.4
+    known_stations:
+      - tool_shelf
+      - station_a
+      - station_b
+      - handover_zone
+
+arm_skill_server:
+  ros__parameters:
+    simulate_step_seconds: 0.45
+    min_detection_confidence: 0.75
+
+tool_detector_node:
+  ros__parameters:
+    tool_id: hex_key_3mm
+    tool_label: 3mm hex key
+    source_frame: tool_camera_link
+    publish_hz: 1.0
+    confidence: 0.88
+
+face_auth_node:
+  ros__parameters:
+    authorized_operators:
+      - operator_001
+      - operator_002
+    simulate_step_seconds: 0.35
+
+gesture_recognizer_node:
+  ros__parameters:
+    auto_emit: false
+    emit_interval_sec: 8.0
+    command: confirm_delivery
+    operator_id: operator_001
+
+voice_gateway_node:
+  ros__parameters:
+    tts_enabled: true
+    forward_asr_to_agent: true
+
+agent_gateway_node:
+  ros__parameters:
+    default_operator_id: operator_001
+    require_confirmation: true
+

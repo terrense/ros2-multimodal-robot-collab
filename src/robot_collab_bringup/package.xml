@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robot_collab_bringup</name>
+  <version>0.1.0</version>
+  <description>Launch and configuration files for the ROS2 robot collaboration demo.</description>
+  <maintainer email="terrense@example.com">terrense</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_collab_agent</exec_depend>
+  <exec_depend>robot_collab_core</exec_depend>
+  <exec_depend>robot_collab_hri</exec_depend>
+  <exec_depend>robot_collab_manipulation</exec_depend>
+  <exec_depend>robot_collab_navigation</exec_depend>
+  <exec_depend>robot_collab_perception</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
+

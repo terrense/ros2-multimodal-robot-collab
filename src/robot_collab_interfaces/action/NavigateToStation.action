@@ -1,0 +1,10 @@
+string station_id
+string reason
+---
+bool success
+string message
+---
+string state
+float32 progress
+string detail
+

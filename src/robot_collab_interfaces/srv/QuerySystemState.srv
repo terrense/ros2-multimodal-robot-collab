@@ -1,0 +1,8 @@
+string requester
+---
+string mission_id
+string state
+string[] active_nodes
+string[] warnings
+bool motion_enabled
+

@@ -1,0 +1,13 @@
+string tool_id
+string target_station
+string operator_id
+bool require_confirmation
+---
+bool success
+string mission_id
+string message
+---
+string state
+float32 progress
+string detail
+

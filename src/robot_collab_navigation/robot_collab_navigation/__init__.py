@@ -1,0 +1,2 @@
+"""Navigation skill server package."""
+
