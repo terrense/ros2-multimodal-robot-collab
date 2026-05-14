@@ -1,0 +1,10 @@
+{
+  "name": "navigation",
+  "actions": {
+    "navigate_to_station": {
+      "required": ["station_id", "reason"],
+      "ros_action": "/skills/navigate_to_station",
+      "ros_type": "robot_collab_interfaces/action/NavigateToStation"
+    }
+  }
+}

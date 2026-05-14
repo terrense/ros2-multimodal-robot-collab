@@ -1,0 +1,7 @@
+{
+  "skill": "hri",
+  "action": "publish_tts",
+  "args": {
+    "text": "Starting tool delivery."
+  }
+}

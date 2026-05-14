@@ -7,8 +7,8 @@ from robot_collab_interfaces.msg import ArmControlCommand, GestureCommand
 class GestureRecognizerNode(Node):
     """Publishes gesture commands and arm-control intents.
 
-    Set `auto_emit` to false for real deployments and publish commands from a
-    MediaPipe/OpenCV gesture pipeline instead.
+    Set `auto_emit` to false for real deployments and use
+    `openpose_gesture_node` for camera-driven hand-keypoint recognition.
     """
 
     GESTURE_TO_COMMAND = {

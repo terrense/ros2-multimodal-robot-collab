@@ -48,11 +48,13 @@ yolov8_tool_detector_node:
     min_confidence: 0.45
     class_to_tool_json: '{"wrench":"wrench","screwdriver":"screwdriver","hex_key":"hex_key_3mm"}'
 
-mediapipe_gesture_node:
+openpose_gesture_node:
   ros__parameters:
     camera_topic: /camera/color/image_raw
     operator_id: operator_001
-    min_confidence: 0.65
+    openpose_root: third_party/openpose
+    model_folder: third_party/openpose/models
+    min_keypoint_confidence: 0.25
 
 voice_gateway_node:
   ros__parameters:

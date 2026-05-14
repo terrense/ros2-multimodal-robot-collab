@@ -1,0 +1,7 @@
+{
+  "skill": "system-state",
+  "action": "query_state",
+  "args": {
+    "requester": "agent_supervisor"
+  }
+}

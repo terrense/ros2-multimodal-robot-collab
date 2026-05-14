@@ -20,7 +20,7 @@ The system is designed around replaceable ROS2 capabilities rather than one mono
 | Perception | `tool_detector_node` | `/perception/tool_detections` topic | Publishes tool pose candidates |
 | Perception | `yolov8_tool_detector_node` | `/perception/tool_detections` topic | Runs Ultralytics YOLOv8 and maps classes to tool ids |
 | Perception | `face_auth_node` | `/skills/verify_operator` action | Verifies operator authorization |
-| Perception | `gesture_recognizer_node` | `/hri/gesture_command` topic | Publishes gesture commands |
+| Perception | `openpose_gesture_node` | `/hri/gesture_command`, `/arm/control_command` topics | Recognizes hand gestures with OpenPose and controls the arm |
 | HRI | `voice_gateway_node` | `/hri/asr_text`, `/hri/tts_text` topics | Bridges ASR/TTS and mission events |
 | Agent | `agent_gateway_node` | `/agent/command_text`, `/system/query_state` | Parses planner/HRI commands into ROS2 actions |
 | SLAM | `vins_mono_bridge_node` | `/slam/vins_pose` topic | Bridges VINS-Mono odometry into ROS2 localization |
@@ -46,11 +46,12 @@ The system is designed around replaceable ROS2 capabilities rather than one mono
 | Open palm | `system_stop` | Trigger emergency stop behavior and cancel active mission goals |
 | Thumb up | `arm_start` | Start or resume manipulator execution |
 
-## YOLOv8 and VINS-Mono Integration
+## YOLOv8, OpenPose, and VINS-Mono Integration
 
-The project keeps third-party algorithm sources under `third_party/` as Git submodules and exposes project-owned ROS2 adapters in `src/`:
+The project keeps third-party algorithm sources as vendored source snapshots under `third_party/` and exposes project-owned ROS2 adapters in `src/`:
 
 - `robot_collab_perception/yolov8_tool_detector_node.py` loads Ultralytics YOLO lazily, subscribes to camera images, and publishes `ToolDetection`.
+- `robot_collab_perception/openpose_gesture_node.py` loads OpenPose Python bindings, reads hand keypoints, and publishes gesture-derived arm control commands.
 - `robot_collab_slam/vins_mono_bridge_node.py` accepts VINS-Mono odometry from a ROS2 port or `ros1_bridge`, republishes `/slam/vins_pose`, and can broadcast `map -> base_link`.
 
 ## Failure Handling
@@ -63,7 +64,9 @@ The mission state machine treats each capability as fallible:
 - manipulation failure moves into `RECOVER_MANIPULATION` and can retry grasp/place;
 - user cancellation propagates through active Actions.
 
-## Multi-Agent Design
+## Agent Supervisor Design
+
+`agent_gateway_node` is the first-process implementation of the Agent Supervisor. It is intentionally split from the mission state machine: the Agent layer owns intent parsing, skill selection, policy checks, and safety decisions; the mission state machine owns deterministic ROS2 execution.
 
 Use a supervisor-worker model:
 

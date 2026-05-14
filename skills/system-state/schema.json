@@ -1,0 +1,10 @@
+{
+  "name": "system-state",
+  "actions": {
+    "query_state": {
+      "required": ["requester"],
+      "ros_service": "/system/query_state",
+      "ros_type": "robot_collab_interfaces/srv/QuerySystemState"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "skill": "navigation",
+  "action": "navigate_to_station",
+  "args": {
+    "station_id": "station_a",
+    "reason": "deliver requested tool"
+  }
+}

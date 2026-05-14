@@ -13,6 +13,7 @@ APIs:
 - Identity verification: `/skills/verify_operator`, `robot_collab_interfaces/action/VerifyOperator`
 - Gesture command stream: `/hri/gesture_command`, `robot_collab_interfaces/msg/GestureCommand`
 - YOLOv8 detector adapter: `yolov8_tool_detector_node`
+- OpenPose gesture adapter: `openpose_gesture_node`
 
 Gesture mapping:
 

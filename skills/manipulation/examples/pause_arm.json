@@ -1,0 +1,9 @@
+{
+  "skill": "manipulation",
+  "action": "publish_arm_control",
+  "args": {
+    "command": "arm_pause",
+    "operator_id": "operator_001",
+    "detail": "Fist gesture detected."
+  }
+}

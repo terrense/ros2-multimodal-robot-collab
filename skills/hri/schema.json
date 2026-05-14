@@ -1,0 +1,10 @@
+{
+  "name": "hri",
+  "actions": {
+    "publish_tts": {
+      "required": ["text"],
+      "ros_topic": "/hri/tts_text",
+      "ros_type": "std_msgs/msg/String"
+    }
+  }
+}

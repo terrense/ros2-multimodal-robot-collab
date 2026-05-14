@@ -1,0 +1,10 @@
+{
+  "name": "mission-control",
+  "actions": {
+    "deliver_tool": {
+      "required": ["tool_id", "target_station", "operator_id"],
+      "ros_action": "/mission/deliver_tool",
+      "ros_type": "robot_collab_interfaces/action/DeliverTool"
+    }
+  }
+}

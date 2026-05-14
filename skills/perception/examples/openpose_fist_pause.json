@@ -1,0 +1,9 @@
+{
+  "skill": "perception",
+  "action": "recognize_openpose_gesture",
+  "observed_gesture": "fist",
+  "emits": {
+    "topic": "/arm/control_command",
+    "command": "arm_pause"
+  }
+}

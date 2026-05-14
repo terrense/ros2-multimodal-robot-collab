@@ -1,0 +1,11 @@
+{
+  "name": "manipulation",
+  "actions": {
+    "publish_arm_control": {
+      "required": ["command"],
+      "commands": ["arm_start", "arm_pause", "system_stop"],
+      "ros_topic": "/arm/control_command",
+      "ros_type": "robot_collab_interfaces/msg/ArmControlCommand"
+    }
+  }
+}

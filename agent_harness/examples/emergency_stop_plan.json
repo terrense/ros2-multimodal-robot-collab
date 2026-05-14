@@ -1,0 +1,20 @@
+{
+  "intent": "emergency_stop",
+  "operator_id": "operator_001",
+  "safety": {
+    "requires_face_auth": false,
+    "requires_handover_confirmation": false,
+    "stop_on_open_palm": true
+  },
+  "steps": [
+    {
+      "skill": "manipulation",
+      "action": "publish_arm_control",
+      "args": {
+        "command": "system_stop",
+        "emergency": true,
+        "detail": "Open palm gesture detected."
+      }
+    }
+  ]
+}

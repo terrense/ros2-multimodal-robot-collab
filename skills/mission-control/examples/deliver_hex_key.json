@@ -1,0 +1,10 @@
+{
+  "skill": "mission-control",
+  "action": "deliver_tool",
+  "args": {
+    "tool_id": "hex_key_3mm",
+    "target_station": "station_a",
+    "operator_id": "operator_001",
+    "require_confirmation": true
+  }
+}

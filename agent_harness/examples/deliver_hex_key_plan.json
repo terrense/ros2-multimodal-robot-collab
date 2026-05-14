@@ -1,0 +1,27 @@
+{
+  "intent": "deliver_tool",
+  "operator_id": "operator_001",
+  "tool_id": "hex_key_3mm",
+  "target_station": "station_a",
+  "safety": {
+    "requires_face_auth": true,
+    "requires_handover_confirmation": true,
+    "stop_on_open_palm": true
+  },
+  "steps": [
+    {
+      "skill": "perception",
+      "action": "verify_operator",
+      "args": { "operator_id": "operator_001" }
+    },
+    {
+      "skill": "mission-control",
+      "action": "deliver_tool",
+      "args": {
+        "tool_id": "hex_key_3mm",
+        "target_station": "station_a",
+        "operator_id": "operator_001"
+      }
+    }
+  ]
+}

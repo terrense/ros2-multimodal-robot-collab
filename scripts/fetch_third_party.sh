@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-git submodule update --init --recursive --depth 1
+for path in third_party/ultralytics third_party/VINS-Mono third_party/openpose; do
+  if [ ! -d "$path" ]; then
+    echo "Missing $path" >&2
+    exit 1
+  fi
+done
 
-echo "Third-party sources are ready:"
+echo "Vendored third-party sources are present:"
 echo "  - third_party/ultralytics"
 echo "  - third_party/VINS-Mono"
-
+echo "  - third_party/openpose"

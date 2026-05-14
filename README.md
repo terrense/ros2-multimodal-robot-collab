@@ -2,99 +2,131 @@
 
 # ROS2 Multimodal Robot Collaboration
 
-**移动机器人 × 机械臂 × 视觉感知 × 语音交互 × 任务级协作**
+**Agent-driven mobile robot + manipulator collaboration system for tool delivery**
 
 ![ROS2](https://img.shields.io/badge/ROS2-Humble-22314E?style=for-the-badge&logo=ros&logoColor=white)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![OpenCV](https://img.shields.io/badge/OpenCV-Perception-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
-![Nav2](https://img.shields.io/badge/Nav2-Navigation-0A7EA4?style=for-the-badge)
-![MoveIt2](https://img.shields.io/badge/MoveIt2-Manipulation-00A98F?style=for-the-badge)
+![Nav2](https://img.shields.io/badge/Nav2-Mobile%20Navigation-0A7EA4?style=for-the-badge)
+![MoveIt2](https://img.shields.io/badge/MoveIt2-Arm%20Control-00A98F?style=for-the-badge)
 ![YOLOv8](https://img.shields.io/badge/YOLOv8-Tool%20Detection-FF6F00?style=for-the-badge)
+![OpenPose](https://img.shields.io/badge/OpenPose-Gesture%20Control-8A2BE2?style=for-the-badge)
 ![VINS-Mono](https://img.shields.io/badge/VINS--Mono-VIO%20SLAM-6A5ACD?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-Research%20Prototype-brightgreen?style=for-the-badge)
 
-面向实验室和工业工作站场景的多模态机器人协作系统。  
-系统通过 ROS2 分布式节点架构，把移动底盘、机械臂、相机、视觉识别、人脸验证、手势/语音交互和任务调度解耦为可替换模块，实现工具定位、移动取物、机械臂抓取与人机协作递送闭环。
+面向实验室/工业工作站的多模态机器人协作系统。
+系统以 **Agent Supervisor** 作为任务大脑，统一调度移动小车、机械臂、相机、YOLOv8、OpenPose、人脸识别、VINS-Mono、Nav2、ASR/TTS 和 ROS2 Action/Service/Topic 通信链路，实现工具定位、移动取物、抓取转移与人机协作递送。
 
 </div>
 
-## Project Overview
+## 项目定位
 
-本项目围绕“工作站工具递送”这一典型场景设计：操作者通过语音或手势发起请求，系统完成身份校验后，在 SLAM/Nav2 地图中规划路径，移动机器人到达工具区域，视觉模块定位目标工具，机械臂完成抓取和转移，最后将工具递送至指定工作站或交互区域。
+这个仓库不是单节点 demo，而是一个完整的机器人系统工程骨架：移动底盘负责跨区域导航，机械臂负责抓取和递送，视觉模块负责工具/手势/身份感知，VINS-Mono 为移动小车提供视觉惯性定位输入，Agent Supervisor 负责把所有 ROS2 能力组织成可执行任务链。
 
-系统目标不是单一算法 demo，而是一套从感知、定位、导航、抓取到任务编排的完整机器人工作流。当前仓库提供可运行的 ROS2 工程骨架和仿真友好的 Action Server，方便逐步替换为真实传感器、Nav2、MoveIt2 或厂商机械臂 SDK。
+典型任务链：
 
-## Highlights
+```text
+语音/手势请求
+  -> Agent Supervisor 解析意图
+  -> 人脸识别验证操作者
+  -> YOLOv8 定位工具
+  -> VINS-Mono/Nav2 确定移动路线
+  -> 移动小车到达工具区域
+  -> 机械臂抓取工具
+  -> 移动小车前往目标工作站
+  -> OpenPose 手势确认/暂停/停止
+  -> 机械臂递送并完成任务
+```
 
-- **ROS2 分布式系统架构**：移动机器人、机械臂、感知算法、HRI 和任务调度模块独立封装，通过 Topic、Service、Action 异步协同。
-- **任务级状态机**：串联身份验证、目标识别、路径规划、移动导航、机械臂抓取、递送确认等阶段，并预留异常回退逻辑。
-- **多模态人机交互**：支持 ASR 文本输入、TTS 状态播报、手势确认/取消，以及人脸身份验证流程。
-- **手势驱动机械臂控制**：握拳暂停机械臂，张开手掌触发停止/关机保护，竖起大拇指启动或恢复工作。
-- **YOLOv8 工具检测适配**：提供 Ultralytics YOLOv8 ROS2 adapter，将检测结果转换为统一的 `ToolDetection` 消息。
-- **VINS-Mono 定位接入**：通过 ROS2 bridge 接收 VINS-Mono 视觉惯性里程计输出，为移动小车 SLAM/Nav2 定位链路提供位姿来源。
-- **机器人能力 Skill 化**：将导航、识别、抓取、状态查询等 ROS2 能力抽象成稳定接口，便于上层任务规划器调用。
-- **可替换硬件适配层**：当前节点可在无实体机器人环境中跑通流程，后续可替换为 Nav2、MoveIt2、YOLO/OpenCV、MediaPipe、FunASR/TTS 等真实模块。
-
-## System Architecture
+## Agent 总控架构
 
 ```mermaid
 flowchart LR
-  operator["Operator<br/>Speech / Gesture / Face"] --> hri["HRI Gateway<br/>ASR / TTS / Gesture"]
-  camera["RGB-D Camera<br/>Workspace View"] --> perception["Perception Layer<br/>Tool / Face / Gesture"]
-  hri --> agent["Agent Gateway<br/>Intent & Skill Routing"]
-  perception --> mission["Mission State Machine<br/>Task Orchestration"]
-  agent --> mission
-  mission --> nav["Navigation Skill<br/>Nav2 Adapter"]
-  mission --> arm["Manipulation Skill<br/>Arm & Gripper Adapter"]
-  nav --> base["Mobile Base"]
-  arm --> manipulator["Manipulator"]
-  mission --> events["Mission Events<br/>Status / Recovery"]
+  user["Operator<br/>ASR / Face / Gesture"] --> hri["HRI Gateway<br/>ASR + TTS"]
+  camera["RGB-D Camera"] --> yolo["YOLOv8<br/>Tool Detection"]
+  camera --> openpose["OpenPose<br/>Hand Gesture"]
+  camera --> face["Face Auth<br/>Identity Check"]
+  imu["Camera + IMU"] --> vins["VINS-Mono<br/>Visual-Inertial Odometry"]
+
+  hri --> supervisor["Agent Supervisor<br/>Task Brain"]
+  yolo --> supervisor
+  openpose --> supervisor
+  face --> supervisor
+  vins --> nav["Nav2 / SLAM<br/>Mobile Base"]
+
+  supervisor --> mission["Mission State Machine<br/>ROS2 Action Orchestration"]
+  mission --> nav
+  mission --> arm["Manipulator Skill<br/>Arm + Gripper"]
+  openpose --> arm_control["/arm/control_command"]
+  arm_control --> arm
+  mission --> events["Mission Events<br/>Feedback + Recovery"]
   events --> hri
 ```
 
-## Workspace Layout
+Agent Supervisor 的职责：
 
-```text
-src/
-  robot_collab_interfaces/    # msg / srv / action interface definitions
-  robot_collab_core/          # delivery mission state machine
-  robot_collab_navigation/    # station-level navigation skill server
-  robot_collab_manipulation/  # pick-and-place manipulation skill server
-  robot_collab_perception/    # tool detection, face auth, gesture stubs
-  robot_collab_hri/           # ASR/TTS/gesture gateway
-  robot_collab_agent/         # command parser and skill dispatch gateway
-  robot_collab_slam/          # VINS-Mono / VIO bridge for mobile robot SLAM
-  robot_collab_bringup/       # launch files and shared config
-skills/                       # capability cards for task-level planning
-third_party/                  # pinned external algorithm sources
-docs/                         # architecture notes and development roadmap
-```
+- 把自然语言、ASR 文本、手势和系统状态转成结构化任务计划。
+- 根据人脸验证结果决定是否允许机器人移动和机械臂动作。
+- 根据 YOLOv8 工具检测结果选择抓取目标。
+- 根据 VINS-Mono/Nav2 状态判断移动小车是否可以执行导航。
+- 在 OpenPose 检测到握拳/手掌/拇指时执行暂停、急停、启动。
+- 用 ROS2 Action 监控导航/抓取长耗时任务，并根据反馈做重试、取消或安全回退。
 
-## ROS2 Interfaces
+## 核心能力
+
+- **移动机器人导航**：通过 Nav2 风格 Action wrapper 连接 station-level navigation。
+- **机械臂抓取递送**：通过 `/skills/pick_and_place` 管理抓取、抬升、转移、放置。
+- **YOLOv8 工具检测**：`yolov8_tool_detector_node` 将检测框映射为 `ToolDetection`。
+- **OpenPose 手势控制**：`openpose_gesture_node` 使用手部关键点识别握拳、手掌和拇指。
+- **人脸身份验证**：`face_auth_node` 提供 `/skills/verify_operator` 授权 Action。
+- **VINS-Mono 视觉惯性定位**：`vins_mono_bridge_node` 将 VIO odometry 转成 `/slam/vins_pose`。
+- **Agent Harness**：`agent_harness/` 和 `skills/` 提供 schema、example、scripts，支持任务计划、技能调用和调试。
+- **ROS2 分布式通信**：Topic、Service、Action 三种通信方式分别承载感知流、状态查询和长耗时动作。
+
+## 手势控制语义
+
+| OpenPose 手势 | ROS2 Command | 机器人行为 |
+| --- | --- | --- |
+| 握拳 | `arm_pause` | 暂停机械臂动作，保持任务上下文 |
+| 张开手掌 | `system_stop` | 急停/停止任务，取消当前 Action，进入安全状态 |
+| 竖起大拇指 | `arm_start` | 启动或恢复机械臂工作 |
+
+## ROS2 接口
 
 | Type | Name | Purpose |
 | --- | --- | --- |
-| Action | `/mission/deliver_tool` | Full tool delivery mission |
-| Action | `/skills/verify_operator` | Face/operator authorization |
-| Action | `/skills/navigate_to_station` | Station-level mobile base navigation |
-| Action | `/skills/pick_and_place` | Tool grasp, transfer, and placement |
-| Service | `/system/query_state` | Mission status and system health query |
-| Topic | `/arm/control_command` | Gesture-to-arm command stream |
-| Topic | `/perception/tool_detections` | Tool pose and confidence stream |
-| Topic | `/hri/asr_text` | ASR text input |
-| Topic | `/hri/tts_text` | TTS text output |
-| Topic | `/hri/gesture_command` | Gesture command stream |
-| Topic | `/mission/events` | Mission progress and event stream |
-| Topic | `/slam/vins_pose` | VINS-Mono pose for mobile robot localization |
+| Action | `/mission/deliver_tool` | 完整工具递送任务 |
+| Action | `/skills/verify_operator` | 人脸/操作者身份验证 |
+| Action | `/skills/navigate_to_station` | 移动小车前往指定站点 |
+| Action | `/skills/pick_and_place` | 机械臂抓取、转移、放置 |
+| Service | `/system/query_state` | 查询任务状态、节点状态和告警 |
+| Topic | `/perception/tool_detections` | YOLOv8 工具检测结果 |
+| Topic | `/hri/asr_text` | ASR 文本输入 |
+| Topic | `/hri/tts_text` | TTS 播报输出 |
+| Topic | `/hri/gesture_command` | OpenPose 手势事件 |
+| Topic | `/arm/control_command` | 手势转机械臂控制命令 |
+| Topic | `/slam/vins_pose` | VINS-Mono 位姿输出 |
+| Topic | `/mission/events` | 任务进度、状态与异常反馈 |
 
-## Gesture Control
+## 工程结构
 
-| Operator Gesture | ROS2 Command | Robot Behavior |
-| --- | --- | --- |
-| Fist | `arm_pause` | Pause arm motion and keep current mission state |
-| Open palm | `system_stop` | Emergency stop, cancel active goal, request safe shutdown path |
-| Thumb up | `arm_start` | Start or resume arm work |
+```text
+agent_harness/                # Agent 调度 harness: schemas / examples / router scripts
+skills/                       # 每个机器人能力的 SKILL.md + schema + examples + scripts
+src/
+  robot_collab_interfaces/    # ROS2 msg / srv / action
+  robot_collab_core/          # mission state machine
+  robot_collab_agent/         # Agent Gateway: intent -> ROS2 actions
+  robot_collab_navigation/    # Nav2 station navigation adapter
+  robot_collab_manipulation/  # arm + gripper adapter with gesture control
+  robot_collab_perception/    # YOLOv8, OpenPose, face auth, tool detector
+  robot_collab_slam/          # VINS-Mono bridge for mobile robot localization
+  robot_collab_hri/           # ASR/TTS/gesture feedback gateway
+  robot_collab_bringup/       # launch and config
+third_party/
+  ultralytics/                # vendored Ultralytics YOLO source snapshot
+  VINS-Mono/                  # vendored VINS-Mono source snapshot
+  openpose/                   # vendored CMU OpenPose source snapshot
+```
 
 ## Quick Start
 
@@ -110,32 +142,25 @@ sudo apt update
 sudo apt install -y ros-humble-desktop python3-colcon-common-extensions python3-rosdep
 
 cd ros2-multimodal-robot-collab
-git submodule update --init --recursive --depth 1
 rosdep update
 rosdep install --from-paths src -y --ignore-src
 colcon build --symlink-install
 source install/setup.bash
 ```
 
-Start the simulated full workflow:
+启动模拟闭环：
 
 ```bash
 ros2 launch robot_collab_bringup demo_sim.launch.py
 ```
 
-Start YOLOv8 + camera gesture adapters when camera topics are available:
+启动 YOLOv8 + OpenPose 感知链路：
 
 ```bash
-ros2 launch robot_collab_bringup perception_yolov8_gesture.launch.py
+ros2 launch robot_collab_bringup perception_yolov8_openpose.launch.py
 ```
 
-Optional runtime dependencies for the camera-based adapters:
-
-```bash
-pip install ultralytics mediapipe numpy
-```
-
-Send a delivery mission directly:
+发送工具递送任务：
 
 ```bash
 ros2 action send_goal /mission/deliver_tool robot_collab_interfaces/action/DeliverTool \
@@ -143,90 +168,50 @@ ros2 action send_goal /mission/deliver_tool robot_collab_interfaces/action/Deliv
   --feedback
 ```
 
-Or publish an ASR-style command through the HRI/Agent gateway:
+通过 ASR/Agent 入口发起任务：
 
 ```bash
 ros2 topic pub --once /hri/asr_text std_msgs/msg/String \
   "{data: 'deliver hex_key_3mm to station_a for operator_001'}"
 ```
 
-## Demo Scenario
-
-| Stage | Module | Expected Behavior |
-| --- | --- | --- |
-| 1 | HRI Gateway | Receives speech text or gesture command |
-| 2 | Agent Gateway | Parses delivery intent and dispatches mission |
-| 3 | Face Auth | Checks operator id against authorization list |
-| 4 | Tool Detection | Publishes target tool pose and confidence |
-| 5 | VINS-Mono Bridge | Feeds VIO pose into the mobile robot localization chain |
-| 6 | Navigation | Moves robot to pickup station and delivery station |
-| 7 | Manipulation | Executes pick, lift, transfer, and place sequence |
-| 8 | Gesture Control | Allows start/pause/stop commands during arm work |
-| 9 | Mission Events | Streams progress to TTS and status monitor |
-
-## Third-Party Algorithm Sources
-
-The repository uses Git submodules for external algorithm source code:
+运行 Agent harness 示例：
 
 ```bash
-git submodule update --init --recursive --depth 1
+python3 agent_harness/scripts/skill_router.py agent_harness/examples/deliver_hex_key_plan.json
 ```
+
+## Third-Party Source
+
+第三方源码已作为 vendored source snapshot 放在 `third_party/`，不是子模块链接。对应许可证和来源见 [THIRD_PARTY.md](THIRD_PARTY.md)。
 
 | Component | Path | Role |
 | --- | --- | --- |
-| Ultralytics YOLO | `third_party/ultralytics` | YOLOv8 detection backend for tool recognition |
-| VINS-Mono | `third_party/VINS-Mono` | Monocular visual-inertial odometry algorithm for mobile robot SLAM/localization |
+| Ultralytics YOLO | `third_party/ultralytics` | YOLOv8 工具检测 |
+| VINS-Mono | `third_party/VINS-Mono` | 移动小车视觉惯性 SLAM/VIO |
+| OpenPose | `third_party/openpose` | 手部关键点与手势控制 |
 
-See [THIRD_PARTY.md](THIRD_PARTY.md) for license notes.
+## 实验目标
 
-## Experimental Notes
+- 典型工具递送任务闭环耗时：**2-3 分钟**
+- 相比人工跨区域取物预计节省：**40%-60%**
+- 结构化工作站中工具识别与抓取目标成功率：**85%-90%**
+- 导航/抓取等长耗时动作通过 ROS2 Action feedback 持续监控，降低模块阻塞风险。
 
-The initial system design targets structured laboratory/workstation scenes:
+## Roadmap
 
-- typical closed-loop task time: **2-3 minutes**
-- expected time reduction compared with manual cross-area retrieval: **40%-60%**
-- structured-scene tool recognition and grasp success target: **85%-90%**
-- long-running navigation/manipulation operations are tracked through ROS2 Action feedback and result states
-
-These metrics are intended as the baseline for lab validation. Real hardware results depend on camera placement, calibration quality, tool geometry, station layout, and navigation map quality.
-
-## Capability Cards
-
-The `skills/` directory documents each robot capability as a small, stable contract:
-
-- `mission-control`: complete tool delivery mission
-- `navigation`: move to named stations or recovery waypoints
-- `perception`: tool detection, identity verification, gesture interpretation
-- `manipulation`: pick, transfer, place, and handover
-- `hri`: ASR/TTS interaction and confirmation handling
-- `system-state`: query mission state, warnings, and node availability
-
-This makes the system easier to extend from deterministic state-machine control to task-level planning while keeping the ROS2 runtime interfaces stable.
-
-## Development Roadmap
-
-- [x] Define ROS2 package boundaries and interface contracts
-- [x] Implement simulation-friendly Action servers for the full delivery loop
-- [x] Add HRI bridge for ASR/TTS text and gesture commands
-- [x] Add Agent gateway and skill documentation
-- [x] Add gesture-to-arm control commands: fist pause, palm stop, thumb-up start
-- [x] Add YOLOv8 and VINS-Mono third-party source integration points
-- [x] Add VINS-Mono ROS2 bridge for mobile robot localization
-- [ ] Connect Nav2 `NavigateToPose` with station registry
-- [ ] Replace tool detector stub with calibrated YOLOv8 tool detector and depth pose estimation
-- [ ] Integrate MoveIt2 or vendor SDK for the manipulator
-- [ ] Add camera-base-arm TF calibration workflow
-- [ ] Add rosbag-based regression tests for perception and mission replay
-- [ ] Extend to multi-robot task allocation and shared workstation scheduling
-
-## Repository Description
-
-Recommended GitHub description:
-
-```text
-ROS2 multimodal robot collaboration system for tool detection, SLAM/Nav2 navigation, arm grasping, face/gesture/voice HRI, and task-level delivery orchestration.
-```
+- [x] ROS2 接口、节点和 bringup 工程骨架
+- [x] Agent Supervisor / Agent Gateway / skill harness
+- [x] YOLOv8 工具检测 adapter
+- [x] OpenPose 手势识别 adapter
+- [x] 人脸验证 Action server
+- [x] VINS-Mono ROS2 bridge
+- [x] 机械臂 start / pause / stop 手势控制
+- [ ] 接入真实 Nav2 `NavigateToPose`
+- [ ] 接入真实 MoveIt2 或厂商机械臂 SDK
+- [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定
+- [ ] 录制 rosbag 数据集做感知/调度回归测试
 
 ## License
 
-MIT License.
+Root project code is released under MIT. Third-party source directories keep their original licenses.

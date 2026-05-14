@@ -6,8 +6,9 @@
 - Define Actions, Services, and Topics.
 - Provide simulated action servers for the full delivery loop.
 - Document Agent skills and multi-agent ownership.
-- Add third-party source integration for YOLOv8 and VINS-Mono.
+- Add vendored third-party source integration for YOLOv8, OpenPose, and VINS-Mono.
 - Add gesture-to-arm control commands for start, pause, and stop.
+- Add Agent harness schemas, examples, and scripts.
 
 ## Phase 1: Single-Robot Lab Demo
 
@@ -15,6 +16,7 @@
 - Add station registry and TF frames.
 - Add OpenCV/YOLO tool detector.
 - Connect YOLOv8 detections with RGB-D depth and camera-to-arm TF.
+- Connect OpenPose hand keypoints with gesture safety policy.
 - Add arm pick/place adapter in simulation.
 - Add basic ASR/TTS loop.
 - Feed VINS-Mono VIO pose into mobile robot localization.

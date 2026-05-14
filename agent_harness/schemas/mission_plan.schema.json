@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RobotCollabMissionPlan",
+  "type": "object",
+  "required": ["intent", "operator_id", "steps"],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": ["deliver_tool", "pause_arm", "resume_arm", "emergency_stop", "query_state"]
+    },
+    "operator_id": { "type": "string" },
+    "tool_id": { "type": "string" },
+    "target_station": { "type": "string" },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "requires_face_auth": { "type": "boolean" },
+        "requires_handover_confirmation": { "type": "boolean" },
+        "stop_on_open_palm": { "type": "boolean" }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skill", "action"],
+        "properties": {
+          "skill": { "type": "string" },
+          "action": { "type": "string" },
+          "args": { "type": "object" }
+        }
+      }
+    }
+  }
+}

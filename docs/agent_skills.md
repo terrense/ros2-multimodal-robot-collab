@@ -1,12 +1,19 @@
-# Agent Skill Layer
+# Agent Skill Harness
 
-The `skills/` directory documents ROS2 capabilities as callable tools for an upper-level LLM/VLM planner. Each skill is intentionally small: it says when to use the capability, which ROS2 API it calls, required arguments, expected feedback, and failure modes.
+The `skills/` directory describes ROS2 capabilities as callable tools for the Agent Supervisor. Each skill now contains:
+
+- `SKILL.md`: usage rules and runtime notes
+- `schema.json`: machine-readable arguments and ROS2 endpoint mapping
+- `examples/`: concrete task calls
+- `scripts/`: small ROS2 helper scripts for manual testing
+
+The `agent_harness/` directory adds full mission-plan schemas, example plans, and a deterministic router script that converts a structured plan into ROS2 commands.
 
 ## Skill Routing
 
 ```mermaid
 flowchart TD
-  planner["LLM/VLM Planner"] --> router["Agent Skill Router"]
+  planner["Agent Supervisor"] --> router["Skill Router"]
   router --> mission["Mission Control Skill"]
   router --> nav["Navigation Skill"]
   router --> perception["Perception Skill"]
@@ -21,7 +28,7 @@ flowchart TD
   state --> ros
 ```
 
-## Recommended Planner Contract
+## Recommended Mission Plan Contract
 
 Planner output should be structured JSON:
 
@@ -37,6 +44,12 @@ Planner output should be structured JSON:
 
 The router should reject plans that omit identity, target station, or tool id unless the HRI skill has already obtained clarification.
 
+Example:
+
+```bash
+python3 agent_harness/scripts/skill_router.py agent_harness/examples/deliver_hex_key_plan.json
+```
+
 ## ASR/TTS Interaction
 
 Recommended HRI loop:
@@ -46,4 +59,3 @@ Recommended HRI loop:
 3. `MissionSupervisor` requests identity verification before motion.
 4. Mission events are converted into concise TTS messages on `/hri/tts_text`.
 5. For risky states, the HRI agent asks for confirmation before dispatching a robot or arm action.
-
