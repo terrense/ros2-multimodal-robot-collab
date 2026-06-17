@@ -10,6 +10,7 @@
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>robot_collab_agent</exec_depend>
   <exec_depend>robot_collab_core</exec_depend>
   <exec_depend>robot_collab_hri</exec_depend>
@@ -18,6 +19,7 @@
   <exec_depend>robot_collab_perception</exec_depend>
   <exec_depend>robot_collab_sim</exec_depend>
   <exec_depend>robot_collab_slam</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

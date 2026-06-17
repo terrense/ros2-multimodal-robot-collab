@@ -255,7 +255,182 @@ third_party/
   openpose/                   # vendored CMU OpenPose source snapshot
 ```
 
-## Quick Start
+## WSL Gazebo Quick Start
+
+Recommended target environment:
+
+- Windows 11 + WSL2
+- Ubuntu 22.04
+- ROS2 Humble
+- Gazebo Classic
+- Nav2
+- Python 3.10, colcon, rosdep
+
+This machine has multiple WSL distros. Use `Ubuntu-22.04` for this ROS2 project. Keep the older `Ubuntu-20.04-ROS1` distro for ROS1 Noetic experiments.
+
+### 1. Enter WSL
+
+From Windows PowerShell:
+
+```powershell
+wsl -d Ubuntu-22.04
+```
+
+Inside WSL:
+
+```bash
+cat /etc/os-release
+```
+
+You want Ubuntu 22.04 / Jammy for ROS2 Humble.
+
+### 2. Install ROS2 Humble, Gazebo, and Nav2
+
+```bash
+sudo apt update
+sudo apt install -y software-properties-common curl gnupg lsb-release
+sudo add-apt-repository universe
+
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /usr/share/keyrings/ros-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | \
+sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+sudo apt update
+sudo apt install -y \
+  ros-humble-desktop \
+  ros-humble-navigation2 \
+  ros-humble-nav2-bringup \
+  ros-humble-gazebo-ros-pkgs \
+  ros-humble-slam-toolbox \
+  ros-humble-robot-localization \
+  python3-colcon-common-extensions \
+  python3-rosdep \
+  python3-vcstool \
+  python3-pip
+```
+
+Initialize rosdep once:
+
+```bash
+sudo rosdep init || true
+rosdep update
+```
+
+Add ROS2 to your shell:
+
+```bash
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+ros2 doctor
+```
+
+### 3. Open the workspace
+
+Fastest path for the current Windows checkout:
+
+```bash
+cd /mnt/f/Downloads/ros2-multimodal-robot-collab-main
+```
+
+Building on `/mnt/f` is convenient but slower. For heavier Gazebo/Nav2 work, copy or clone into the WSL ext4 filesystem:
+
+```bash
+mkdir -p ~/work
+rsync -a --exclude build --exclude install --exclude log \
+  /mnt/f/Downloads/ros2-multimodal-robot-collab-main/ \
+  ~/work/ros2-multimodal-robot-collab-main/
+cd ~/work/ros2-multimodal-robot-collab-main
+```
+
+### 4. Build only `src`
+
+The `third_party/` directory contains source snapshots such as VINS-Mono and OpenPose. Do not let colcon build those by default.
+
+```bash
+source /opt/ros/humble/setup.bash
+rosdep install --from-paths src -y --ignore-src
+colcon build --symlink-install --base-paths src
+source install/setup.bash
+```
+
+### 5. Run the original API simulation
+
+This validates the ROS2 Actions, Services, Topics, Agent gateway, mission state machine, perception stubs, and arm/navigation stubs.
+
+```bash
+ros2 launch robot_collab_bringup demo_sim.launch.py
+```
+
+In a second WSL terminal:
+
+```bash
+cd /mnt/f/Downloads/ros2-multimodal-robot-collab-main
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 topic pub --once /hri/asr_text std_msgs/msg/String \
+  "{data: 'deliver hex_key_3mm to station_a for operator_001'}"
+```
+
+### 6. Run the Gazebo visible robot demo
+
+This launches a Gazebo lab, a differential-drive mobile base, the mission stack, the Agent gateway, and a VINS pose bridge. The first Gazebo demo routes Gazebo `/odom` into `/slam/vins_pose` as a stand-in before real VINS-Mono is connected.
+
+```bash
+ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py
+```
+
+If Gazebo opens but rendering is broken under WSLg:
+
+```bash
+export LIBGL_ALWAYS_SOFTWARE=1
+ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py
+```
+
+To prove the robot can physically move in Gazebo before Nav2 is fully wired:
+
+```bash
+ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.20}, angular: {z: 0.25}}"
+```
+
+Stop that publisher with `Ctrl-C`.
+
+### 7. Move toward real Nav2 station navigation
+
+The station-level skill API is stable:
+
+```bash
+ros2 action send_goal /skills/navigate_to_station robot_collab_interfaces/action/NavigateToStation \
+  "{station_id: 'station_a', reason: 'demo navigation'}" \
+  --feedback
+```
+
+By default it uses `backend:=simulated`. To start Slam Toolbox, Nav2, and the ROS2 station-navigation backend together:
+
+```bash
+ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py \
+  start_slam:=true \
+  start_nav2:=true \
+  nav_backend:=nav2
+```
+
+Then `/skills/navigate_to_station` resolves `station_a` from `src/robot_collab_bringup/config/stations.yaml` and dispatches Nav2 `NavigateToPose`.
+
+### 8. Agent harness example
+
+Before a live ROS2 graph is available, inspect what a structured mission plan would dispatch:
+
+```bash
+python3 agent_harness/scripts/skill_router.py agent_harness/examples/deliver_hex_key_plan.json
+```
+
+Next milestone: replace the print-only router with a real `rclpy` tool executor so LLM function calls can safely dispatch ROS2 Actions, Services, and Topics.
+
+## Legacy Quick Start
 
 Target environment:
 

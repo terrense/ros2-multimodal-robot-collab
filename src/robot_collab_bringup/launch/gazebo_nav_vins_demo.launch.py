@@ -1,5 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -9,16 +10,43 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     nav_backend = LaunchConfiguration("nav_backend")
+    start_slam = LaunchConfiguration("start_slam")
+    start_nav2 = LaunchConfiguration("start_nav2")
 
     bringup_share = FindPackageShare("robot_collab_bringup")
     params = PathJoinSubstitution([bringup_share, "config", "demo_params.yaml"])
     stations = PathJoinSubstitution([bringup_share, "config", "stations.yaml"])
+    nav2_params = PathJoinSubstitution([bringup_share, "config", "nav2_params.yaml"])
+    slam_params = PathJoinSubstitution([bringup_share, "config", "slam_toolbox_params.yaml"])
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([FindPackageShare("robot_collab_sim"), "launch", "gazebo_world.launch.py"])
         ),
         launch_arguments={"use_sim_time": use_sim_time}.items(),
+    )
+
+    slam = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([FindPackageShare("slam_toolbox"), "launch", "online_async_launch.py"])
+        ),
+        condition=IfCondition(start_slam),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+            "slam_params_file": slam_params,
+        }.items(),
+    )
+
+    nav2 = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([FindPackageShare("nav2_bringup"), "launch", "navigation_launch.py"])
+        ),
+        condition=IfCondition(start_nav2),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+            "params_file": nav2_params,
+            "autostart": "true",
+        }.items(),
     )
 
     common_params = [params, {"use_sim_time": use_sim_time}]
@@ -31,7 +59,19 @@ def generate_launch_description():
                 default_value="simulated",
                 description="Use 'simulated' for API demo or 'nav2' to dispatch NavigateToPose goals.",
             ),
+            DeclareLaunchArgument(
+                "start_slam",
+                default_value="false",
+                description="Start Slam Toolbox to publish map -> odom from the Gazebo laser scan.",
+            ),
+            DeclareLaunchArgument(
+                "start_nav2",
+                default_value="false",
+                description="Start Nav2 navigation servers for station-level NavigateToPose goals.",
+            ),
             gazebo,
+            slam,
+            nav2,
             Node(
                 package="robot_collab_core",
                 executable="mission_state_machine",
