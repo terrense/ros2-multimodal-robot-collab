@@ -25,3 +25,9 @@ captures/
 *.db3
 *.mcap
 
+# Local secrets and generated agent artifacts
+.env
+.env.*
+!.env.example
+agent_harness/generated/
+agent_harness/traces/

@@ -442,6 +442,33 @@ python3 agent_harness/scripts/ros_tool_executor.py \
 
 Use dry-run on Windows or before sourcing ROS2. Use `--mode execute` inside WSL after launching the ROS2 graph and sourcing both `/opt/ros/humble/setup.bash` and `install/setup.bash`.
 
+To use MiniMax M3 as the planner, keep credentials outside git:
+
+```bash
+cp .env.example .env
+# edit .env locally and set MINIMAX_API_KEY
+```
+
+For the mainland MiniMax console, keep `MINIMAX_BASE_URL` pointed at the URL shown in your console. Common OpenAI-compatible mainland values are `https://api.minimax.chat/v1` and `https://api.minimaxi.com/v1`.
+
+Generate a mission plan from natural language and immediately inspect the ROS2 calls it would make:
+
+```bash
+python3 agent_harness/scripts/minimax_mission_planner.py \
+  "deliver the 3mm hex key to station_a for operator_001" \
+  --output agent_harness/generated/last_plan.json \
+  --dry-run
+```
+
+Then execute the generated plan once the ROS2 graph is running:
+
+```bash
+python3 agent_harness/scripts/ros_tool_executor.py \
+  agent_harness/generated/last_plan.json \
+  --mode execute \
+  --timeout-sec 120
+```
+
 ## Legacy Quick Start
 
 Target environment:

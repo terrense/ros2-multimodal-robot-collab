@@ -91,6 +91,48 @@ Execution behavior:
 
 Skill schemas mark whether an action is `callable`, its `risk`, whether it `requires_confirmation`, and a suggested `timeout_sec`. Sensor outputs such as YOLO detections and OpenPose gesture recognition are marked `callable: false`; the agent may observe their topics indirectly, but should not dispatch them as commands.
 
+## MiniMax M3 Planner
+
+`minimax_mission_planner.py` adds the model-facing layer:
+
+```text
+natural language request
+  -> MiniMax M3
+  -> mission plan JSON
+  -> local SkillRegistry validation
+  -> optional ros_tool_executor dry-run / execute
+```
+
+Set the API key outside git:
+
+```bash
+export MINIMAX_API_KEY="..."
+export MINIMAX_MODEL="MiniMax-M3"
+export MINIMAX_BASE_URL="https://api.minimax.chat/v1"
+```
+
+For the mainland MiniMax console, use the base URL shown in your console. Common mainland OpenAI-compatible values are `https://api.minimax.chat/v1` or `https://api.minimaxi.com/v1`; the script keeps this configurable through `MINIMAX_BASE_URL` or `--base-url`.
+
+Generate and validate a plan:
+
+```bash
+python3 agent_harness/scripts/minimax_mission_planner.py \
+  "deliver the 3mm hex key to station_a for operator_001" \
+  --output agent_harness/generated/last_plan.json \
+  --dry-run
+```
+
+Then execute the generated plan after the ROS2 graph is running:
+
+```bash
+python3 agent_harness/scripts/ros_tool_executor.py \
+  agent_harness/generated/last_plan.json \
+  --mode execute \
+  --timeout-sec 120
+```
+
+The planner does not dispatch ROS2 by itself. It only creates a plan that must pass local validation before any robot side effect can happen.
+
 ## ASR/TTS Interaction
 
 Recommended HRI loop:
