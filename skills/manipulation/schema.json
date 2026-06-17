@@ -3,6 +3,10 @@
   "actions": {
     "publish_arm_control": {
       "required": ["command"],
+      "callable": true,
+      "risk": "arm_control",
+      "requires_confirmation": false,
+      "timeout_sec": 5,
       "commands": ["arm_start", "arm_pause", "system_stop"],
       "ros_topic": "/arm/control_command",
       "ros_type": "robot_collab_interfaces/msg/ArmControlCommand"

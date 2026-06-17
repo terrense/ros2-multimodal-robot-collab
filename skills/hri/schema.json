@@ -3,6 +3,10 @@
   "actions": {
     "publish_tts": {
       "required": ["text"],
+      "callable": true,
+      "risk": "operator_feedback",
+      "requires_confirmation": false,
+      "timeout_sec": 5,
       "ros_topic": "/hri/tts_text",
       "ros_type": "std_msgs/msg/String"
     }

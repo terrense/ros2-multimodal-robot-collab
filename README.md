@@ -428,7 +428,19 @@ Before a live ROS2 graph is available, inspect what a structured mission plan wo
 python3 agent_harness/scripts/skill_router.py agent_harness/examples/deliver_hex_key_plan.json
 ```
 
-Next milestone: replace the print-only router with a real `rclpy` tool executor so LLM function calls can safely dispatch ROS2 Actions, Services, and Topics.
+The real executor supports dry-run and live ROS2 dispatch:
+
+```bash
+python3 agent_harness/scripts/ros_tool_executor.py \
+  agent_harness/examples/deliver_hex_key_plan.json
+
+python3 agent_harness/scripts/ros_tool_executor.py \
+  agent_harness/examples/deliver_hex_key_plan.json \
+  --mode execute \
+  --timeout-sec 120
+```
+
+Use dry-run on Windows or before sourcing ROS2. Use `--mode execute` inside WSL after launching the ROS2 graph and sourcing both `/opt/ros/humble/setup.bash` and `install/setup.bash`.
 
 ## Legacy Quick Start
 

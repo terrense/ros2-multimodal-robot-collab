@@ -4,9 +4,14 @@
   "type": "object",
   "required": ["intent", "operator_id", "steps"],
   "properties": {
+    "trace_id": { "type": "string" },
     "intent": {
       "type": "string",
       "enum": ["deliver_tool", "pause_arm", "resume_arm", "emergency_stop", "query_state"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["dry-run", "execute"]
     },
     "operator_id": { "type": "string" },
     "tool_id": { "type": "string" },
@@ -23,13 +28,17 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["skill", "action"],
+        "required": ["skill", "action", "args"],
         "properties": {
           "skill": { "type": "string" },
           "action": { "type": "string" },
-          "args": { "type": "object" }
-        }
+          "args": { "type": "object" },
+          "reason": { "type": "string" },
+          "timeout_sec": { "type": "number" }
+        },
+        "additionalProperties": false
       }
     }
-  }
+  },
+  "additionalProperties": false
 }

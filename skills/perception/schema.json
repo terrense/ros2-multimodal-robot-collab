@@ -3,15 +3,23 @@
   "actions": {
     "verify_operator": {
       "required": ["operator_id"],
+      "callable": true,
+      "risk": "identity_check",
+      "requires_confirmation": false,
+      "timeout_sec": 30,
       "ros_action": "/skills/verify_operator",
       "ros_type": "robot_collab_interfaces/action/VerifyOperator"
     },
     "recognize_openpose_gesture": {
+      "callable": false,
+      "risk": "sensor_output",
       "outputs": ["arm_start", "arm_pause", "system_stop"],
       "ros_topic": "/hri/gesture_command",
       "ros_type": "robot_collab_interfaces/msg/GestureCommand"
     },
     "detect_tool_yolov8": {
+      "callable": false,
+      "risk": "sensor_output",
       "ros_topic": "/perception/tool_detections",
       "ros_type": "robot_collab_interfaces/msg/ToolDetection"
     }

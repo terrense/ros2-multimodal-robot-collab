@@ -3,6 +3,10 @@
   "actions": {
     "navigate_to_station": {
       "required": ["station_id", "reason"],
+      "callable": true,
+      "risk": "base_motion",
+      "requires_confirmation": false,
+      "timeout_sec": 120,
       "ros_action": "/skills/navigate_to_station",
       "ros_type": "robot_collab_interfaces/action/NavigateToStation"
     }

@@ -3,6 +3,10 @@
   "actions": {
     "query_state": {
       "required": ["requester"],
+      "callable": true,
+      "risk": "read_only",
+      "requires_confirmation": false,
+      "timeout_sec": 5,
       "ros_service": "/system/query_state",
       "ros_type": "robot_collab_interfaces/srv/QuerySystemState"
     }

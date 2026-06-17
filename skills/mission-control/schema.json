@@ -3,6 +3,10 @@
   "actions": {
     "deliver_tool": {
       "required": ["tool_id", "target_station", "operator_id"],
+      "callable": true,
+      "risk": "mission_motion",
+      "requires_confirmation": true,
+      "timeout_sec": 180,
       "ros_action": "/mission/deliver_tool",
       "ros_type": "robot_collab_interfaces/action/DeliverTool"
     }
