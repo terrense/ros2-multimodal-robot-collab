@@ -257,6 +257,95 @@ third_party/
 
 ## WSL Gazebo Quick Start
 
+这一节的目标很具体：你在 Windows 上打开 WSL，进入 Ubuntu 22.04，构建项目，然后在 Gazebo 里看见小车，并能用 ROS2 命令让它动起来。
+
+### 0. Fastest Visible Path
+
+Open Windows PowerShell:
+
+```powershell
+wsl -d Ubuntu-22.04
+```
+
+Inside WSL:
+
+```bash
+cd /mnt/f/Downloads/ros2-multimodal-robot-collab-main
+```
+
+Check whether ROS2/Gazebo/Nav2 are ready:
+
+```bash
+bash scripts/check_ros2_env.sh
+```
+
+If the check says ROS2 Humble or packages are missing, install the dependencies in step 2 below, then run the check again.
+
+Build the workspace:
+
+```bash
+bash scripts/build_ros2_workspace.sh
+```
+
+Open three WSL terminals for the first hands-on test.
+
+Terminal A, launch Gazebo and the robot collaboration stack:
+
+```bash
+cd /mnt/f/Downloads/ros2-multimodal-robot-collab-main
+bash scripts/run_gazebo_visible_demo.sh
+```
+
+Expected result: Gazebo opens with a small mobile robot in a lab scene.
+
+Terminal B, make the robot move for a few seconds:
+
+```bash
+cd /mnt/f/Downloads/ros2-multimodal-robot-collab-main
+bash scripts/send_motion_test.sh 5
+```
+
+Expected result: the robot visibly drives/turns in Gazebo, then stops.
+
+Terminal C, dry-run the Agent/Harness plan:
+
+```bash
+cd /mnt/f/Downloads/ros2-multimodal-robot-collab-main
+bash scripts/run_agent_plan_dry_run.sh
+```
+
+Expected result: the harness prints the ROS2 Action/Topic calls it would dispatch, including `/skills/verify_operator` and `/mission/deliver_tool`.
+
+With Terminal A still running, execute the checked-in plan against the live ROS2 graph:
+
+```bash
+bash scripts/execute_agent_plan.sh
+```
+
+Expected result: the mission state machine, face auth stub, tool detector stub, navigation skill, arm skill, HRI, and Agent-facing ROS2 contracts all exchange real ROS2 messages. In this first run, navigation still uses the simulated backend unless you launch Nav2 as shown later.
+
+For the Nav2 experiment that should physically drive to a station:
+
+```bash
+bash scripts/run_gazebo_visible_demo.sh \
+  start_slam:=true \
+  start_nav2:=true \
+  nav_backend:=nav2
+```
+
+Then in another terminal:
+
+```bash
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 action send_goal /skills/navigate_to_station robot_collab_interfaces/action/NavigateToStation \
+  "{station_id: 'station_a', reason: 'visible Nav2 test'}" \
+  --feedback
+```
+
+This is the first full visible navigation path: station skill -> Nav2 `NavigateToPose` -> Gazebo robot motion.
+
 Recommended target environment:
 
 - Windows 11 + WSL2
