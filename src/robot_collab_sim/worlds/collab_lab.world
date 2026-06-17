@@ -1,0 +1,123 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="collab_lab">
+    <physics name="default_physics" default="0" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <model name="tool_shelf_marker">
+      <pose>1.25 -0.75 0.15 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.45 0.35 0.30</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.42 0.8 1</ambient>
+            <diffuse>0.1 0.42 0.8 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.45 0.35 0.30</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="station_a_marker">
+      <pose>3.20 0.40 0.05 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius>
+              <length>0.10</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.0 0.55 0.28 1</ambient>
+            <diffuse>0.0 0.55 0.28 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="station_b_marker">
+      <pose>4.15 -1.10 0.05 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius>
+              <length>0.10</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.78 0.35 0.05 1</ambient>
+            <diffuse>0.78 0.35 0.05 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="handover_zone_marker">
+      <pose>2.10 1.35 0.03 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.55 0.55 0.06</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.65 0.12 0.52 1</ambient>
+            <diffuse>0.65 0.12 0.52 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="workbench_obstacle">
+      <pose>2.65 -0.55 0.25 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.80 0.28 0.50</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.45 0.48 1</ambient>
+            <diffuse>0.45 0.45 0.48 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.80 0.28 0.50</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+  </world>
+</sdf>

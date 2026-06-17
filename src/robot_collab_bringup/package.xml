@@ -16,6 +16,7 @@
   <exec_depend>robot_collab_manipulation</exec_depend>
   <exec_depend>robot_collab_navigation</exec_depend>
   <exec_depend>robot_collab_perception</exec_depend>
+  <exec_depend>robot_collab_sim</exec_depend>
   <exec_depend>robot_collab_slam</exec_depend>
 
   <export>

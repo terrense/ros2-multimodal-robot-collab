@@ -12,8 +12,12 @@
 
 ## Phase 1: Single-Robot Lab Demo
 
+- Add Gazebo Classic lab world, visible mobile base, lidar, RGB camera, and IMU.
+- Launch the agent/mission stack beside the Gazebo robot.
+- Route Gazebo odometry through the VINS bridge as a first visible localization stand-in.
 - Integrate Nav2 with a saved SLAM map.
 - Add station registry and TF frames.
+- Dispatch station goals through Nav2 `NavigateToPose`.
 - Add OpenCV/YOLO tool detector.
 - Connect YOLOv8 detections with RGB-D depth and camera-to-arm TF.
 - Connect OpenPose hand keypoints with gesture safety policy.
@@ -23,6 +27,8 @@
 
 ## Phase 2: Real Hardware
 
+- Replace Gazebo odometry stand-in with VINS-Mono `/vins_estimator/odometry`.
+- Decide whether VINS feeds `robot_localization`, Nav2 localization, or a dedicated `map -> odom` estimator.
 - Calibrate camera-to-base and camera-to-arm transforms.
 - Add gripper state feedback and force/torque stop logic.
 - Add navigation recovery behaviors.

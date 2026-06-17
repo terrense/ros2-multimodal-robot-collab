@@ -6,7 +6,12 @@ mission_state_machine:
 
 nav_skill_server:
   ros__parameters:
+    backend: simulated
     simulate_step_seconds: 0.4
+    station_file: ""
+    nav2_action_name: /navigate_to_pose
+    nav2_server_timeout_sec: 5.0
+    nav2_goal_timeout_sec: 120.0
     known_stations:
       - tool_shelf
       - station_a
