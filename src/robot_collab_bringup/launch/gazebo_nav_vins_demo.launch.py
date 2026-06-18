@@ -12,6 +12,8 @@ def generate_launch_description():
     nav_backend = LaunchConfiguration("nav_backend")
     start_slam = LaunchConfiguration("start_slam")
     start_nav2 = LaunchConfiguration("start_nav2")
+    camera_topic = LaunchConfiguration("camera_topic")
+    tool_image = LaunchConfiguration("tool_image")
 
     bringup_share = FindPackageShare("robot_collab_bringup")
     params = PathJoinSubstitution([bringup_share, "config", "demo_params.yaml"])
@@ -69,6 +71,19 @@ def generate_launch_description():
                 default_value="false",
                 description="Start Nav2 navigation servers for station-level NavigateToPose goals.",
             ),
+            DeclareLaunchArgument(
+                "camera_topic",
+                default_value="/camera/color/image_raw",
+                description="Live RGB camera topic used when tool_image is empty.",
+            ),
+            DeclareLaunchArgument(
+                "tool_image",
+                default_value="models/coco_sample.jpg",
+                description=(
+                    "Real photo for YOLOv8 static-image mode so the chain always gets a "
+                    "detection. Set to '' to run YOLO on the live Gazebo camera instead."
+                ),
+            ),
             gazebo,
             slam,
             nav2,
@@ -102,14 +117,16 @@ def generate_launch_description():
             ),
             Node(
                 package="robot_collab_perception",
-                executable="tool_detector_node",
-                name="tool_detector_node",
+                executable="yolov8_tool_detector_node",
+                name="yolov8_tool_detector_node",
                 output="screen",
                 parameters=[
                     params,
                     {
                         "use_sim_time": use_sim_time,
+                        "camera_topic": camera_topic,
                         "source_frame": "camera_link",
+                        "image_path": tool_image,
                     },
                 ],
             ),

@@ -611,6 +611,41 @@ ros2 topic pub --once /hri/asr_text std_msgs/msg/String \
 python3 agent_harness/scripts/skill_router.py agent_harness/examples/deliver_hex_key_plan.json
 ```
 
+## End-to-End Demo (v0 全链路)
+
+这一节把整条链路一次跑通：自然语言 → 计划 → 校验 → ROS2 派发 → 真实 YOLOv8 检测 → Nav2 导航 → 机械臂递送 → TTS 播报。目标是**先连通**，识别/抓取的保真度后置。
+
+### 1. 拉取预训练模型和样例图
+
+用官方 COCO 预训练 `yolov8n.pt`，不自训。准不准以后再说。
+
+```bash
+bash scripts/fetch_models.sh         # 下载 models/yolov8n.pt 和 models/coco_sample.jpg
+# Windows: pwsh scripts/fetch_models.ps1
+pip install ultralytics opencv-python numpy   # 若尚未安装
+```
+
+感知节点默认以 **静态图模式** 跑真实 YOLOv8 推理（对 `models/coco_sample.jpg`）。这样即使 Gazebo 场景里只有无纹理几何体（COCO 认不出），mission 也能拿到一个真实检测被放行。`class_to_tool_json` 里的 `"*"` 通配符把任意检出类映射成请求的工具 id。等场景里有带纹理、COCO 可识别的物体后，把 launch 的 `tool_image:=''` 清空即可切回实时相机。
+
+### 2. 起完整可见栈（终端 A）
+
+```bash
+FULL_NAV=1 bash scripts/run_gazebo_visible_demo.sh
+# 等价于:
+# ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py \
+#   start_slam:=true start_nav2:=true nav_backend:=nav2
+```
+
+Gazebo 打开后：小车 + 工具架（架顶有一个黄色工具）+ 各站点标记；SLAM 出 `map->odom`，Nav2 待命，YOLOv8 节点开始发 `/perception/tool_detections`。
+
+### 3. 跑一次完整任务（终端 B）
+
+```bash
+bash scripts/run_demo_mission.sh "deliver hex_key_3mm to station_a for operator_001"
+```
+
+有 `MINIMAX_API_KEY`（env 或 `.env`）就用 MiniMax 生成计划，否则回退到 checked-in 示例计划。随后 harness 校验并向活图派发真实 Action/Service/Topic 调用。预期：人脸白名单过 → YOLO 检测放行 → Nav2 驱动小车开到取料点 → 机械臂（仿真）抓取 → Nav2 开到 `station_a` → 递送 → TTS 播报完成。
+
 ## Third-Party Source
 
 第三方源码已作为 vendored source snapshot 放在 `third_party/`，不是子模块链接。对应许可证和来源见 [THIRD_PARTY.md](THIRD_PARTY.md)。
@@ -632,7 +667,7 @@ python3 agent_harness/scripts/skill_router.py agent_harness/examples/deliver_hex
 
 - [x] ROS2 接口、节点和 bringup 工程骨架
 - [x] Agent Supervisor / Agent Gateway / skill harness
-- [x] YOLOv8 工具检测 adapter
+- [x] YOLOv8 工具检测 adapter（已接入 Gazebo demo，预训练 COCO 权重 + 静态图/实时相机两种输入）
 - [x] OpenPose 手势识别 adapter
 - [x] 人脸验证 Action server
 - [x] VINS-Mono ROS2 bridge

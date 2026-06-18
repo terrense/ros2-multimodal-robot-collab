@@ -1,10 +1,13 @@
 stations:
   tool_shelf:
+    # Approach pose in free space in front of the shelf model (which is centered
+    # at 1.25,-0.75 with a collision box). Nav2 cannot plan a goal inside the
+    # obstacle, so the pickup pose stands off and faces it.
     frame_id: map
     pose:
-      x: 1.25
-      y: -0.75
-      yaw: 1.57
+      x: 0.95
+      y: -0.35
+      yaw: -0.93
     role: pickup
   station_a:
     frame_id: map

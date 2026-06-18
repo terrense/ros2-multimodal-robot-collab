@@ -77,6 +77,25 @@ for pkg in robot_collab_bringup robot_collab_sim robot_collab_agent robot_collab
   fi
 done
 
+printf "\n== Perception assets ==\n"
+if [ -f "$ROOT_DIR/models/yolov8n.pt" ]; then
+  pass "YOLOv8 weights present: models/yolov8n.pt"
+else
+  warn "models/yolov8n.pt missing (run scripts/fetch_models.sh; Ultralytics can also auto-download)"
+fi
+if [ -f "$ROOT_DIR/models/coco_sample.jpg" ]; then
+  pass "sample image present: models/coco_sample.jpg"
+else
+  warn "models/coco_sample.jpg missing (run scripts/fetch_models.sh for static-image YOLO mode)"
+fi
+for mod in ultralytics cv2 numpy; do
+  if python3 -c "import $mod" >/dev/null 2>&1; then
+    pass "python module found: $mod"
+  else
+    warn "python module missing: $mod (pip install ultralytics opencv-python numpy)"
+  fi
+done
+
 printf "\n== Result ==\n"
 if [ "$FAILURES" -eq 0 ]; then
   pass "environment looks ready enough to build/run the demo"
