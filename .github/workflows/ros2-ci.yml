@@ -6,6 +6,24 @@ on:
   pull_request:
 
 jobs:
+  harness-tests:
+    # Pure-Python agent harness checks. No ROS2 needed, so this stays fast and
+    # guards plan validation / dispatch rendering on every push and PR.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Run harness unit tests
+        run: python -m unittest discover -s agent_harness/tests -v
+      - name: Validate example plans (dry-run)
+        run: |
+          for plan in agent_harness/examples/*.json; do
+            echo "== $plan =="
+            python agent_harness/scripts/ros_tool_executor.py "$plan" --mode dry-run
+          done
+
   lint-and-build:
     runs-on: ubuntu-22.04
     steps:
