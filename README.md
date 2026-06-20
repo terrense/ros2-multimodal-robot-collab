@@ -349,6 +349,26 @@ ros2 action send_goal /skills/navigate_to_station robot_collab_interfaces/action
 
 This is the first full visible navigation path: station skill -> Nav2 `NavigateToPose` -> Gazebo robot motion.
 
+### 真实 YOLOv8 检测（可选）
+
+默认 demo 的工具检测是写死的桩节点（`tool_detector_node`），保证离线可跑。要换成在实时相机上跑真 YOLOv8：
+
+```bash
+# 先取权重（见 models/README.md）
+pip install ultralytics
+python3 -c "from ultralytics import YOLO; YOLO('yolov8n.pt')" && mv yolov8n.pt models/
+
+# 起栈时打开 use_yolo（可与 FULL_NAV 组合）
+FULL_NAV=1 bash scripts/run_gazebo_visible_demo.sh use_yolo:=true
+```
+
+COCO 预训练权重认不出项目工具，因此 `demo_params.yaml` 把若干常见 COCO 类（bottle/cup/cell phone…）映射到请求的 `tool_id`：在机器人相机前放一个这类物体，`/perception/tool_detections` 就会出真实检测、放行任务。验证：
+
+```bash
+ros2 topic echo /perception/tool_detections      # 应看到真实 label/confidence
+python3 scripts/snapshot_camera.py               # 确认相机里有目标物
+```
+
 Recommended target environment:
 
 - Windows 11 + WSL2

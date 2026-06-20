@@ -49,9 +49,13 @@ yolov8_tool_detector_node:
   ros__parameters:
     model_path: models/yolov8n.pt
     camera_topic: /camera/color/image_raw
-    source_frame: tool_camera_link
+    source_frame: camera_link
     min_confidence: 0.45
-    class_to_tool_json: '{"wrench":"wrench","screwdriver":"screwdriver","hex_key":"hex_key_3mm"}'
+    # Stock COCO weights cannot see project tools, so for the end-to-end demo we
+    # also map a few easy-to-place COCO classes onto the requested tool id: drop
+    # any of these objects in front of the camera and the mission unblocks.
+    # Tool-specific accuracy (custom weights) is a later phase.
+    class_to_tool_json: '{"wrench":"wrench","screwdriver":"screwdriver","hex_key":"hex_key_3mm","bottle":"hex_key_3mm","cup":"hex_key_3mm","cell phone":"hex_key_3mm","remote":"hex_key_3mm","scissors":"hex_key_3mm"}'
 
 openpose_gesture_node:
   ros__parameters:

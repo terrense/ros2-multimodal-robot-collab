@@ -20,7 +20,9 @@ Thumbs.db
 # Local runtime artifacts
 bags/
 maps/
-models/
+models/*
+!models/.gitignore
+!models/README.md
 captures/
 *.db3
 *.mcap

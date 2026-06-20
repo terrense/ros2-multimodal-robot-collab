@@ -1,0 +1,4 @@
+# Model weights and demo assets are fetched locally, not committed.
+*
+!.gitignore
+!README.md
