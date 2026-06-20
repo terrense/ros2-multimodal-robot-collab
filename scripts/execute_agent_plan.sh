@@ -23,10 +23,13 @@ if [ ! -f install/setup.bash ]; then
   exit 1
 fi
 
+# ROS2's setup.bash references unset variables internally; nounset breaks it.
+set +u
 # shellcheck disable=SC1091
 source /opt/ros/humble/setup.bash
 # shellcheck disable=SC1091
 source install/setup.bash
+set -u
 
 echo "Executing agent plan through ROS2 harness: $PLAN_PATH"
 python3 agent_harness/scripts/ros_tool_executor.py \

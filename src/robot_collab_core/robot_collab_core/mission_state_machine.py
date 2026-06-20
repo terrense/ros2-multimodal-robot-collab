@@ -1,14 +1,34 @@
-import asyncio
 import uuid
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
+from rclpy.task import Future
 
 from robot_collab_interfaces.action import DeliverTool, NavigateToStation, PickAndPlace, VerifyOperator
-from robot_collab_interfaces.msg import ArmControlCommand, MissionEvent, ToolDetection
+from robot_collab_interfaces.msg import MissionEvent, ToolDetection
 from robot_collab_interfaces.srv import QuerySystemState
+
+
+def _async_sleep(node: Node, duration: float) -> Future:
+    """Awaitable sleep driven by a ROS2 timer.
+
+    rclpy's coroutine executor does not run a real asyncio event loop, so
+    plain ``asyncio.sleep`` raises "no running event loop" inside action
+    server callbacks. A timer-backed Future integrates with rclpy's own
+    awaiting mechanism instead.
+    """
+    future = Future()
+
+    def _on_timer() -> None:
+        timer.cancel()
+        timer.destroy()
+        if not future.done():
+            future.set_result(None)
+
+    timer = node.create_timer(max(duration, 0.0001), _on_timer)
+    return future
 
 
 class MissionStateMachine(Node):
@@ -28,21 +48,11 @@ class MissionStateMachine(Node):
         self._state = "IDLE"
         self._warnings: list[str] = []
         self._latest_tools: dict[str, ToolDetection] = {}
-        self._emergency_stop = False
-        self._active_child_goal_handle = None
         self._event_pub = self.create_publisher(MissionEvent, "/mission/events", 10)
         self._tool_sub = self.create_subscription(
             ToolDetection,
             "/perception/tool_detections",
             self._handle_tool_detection,
-            10,
-        )
-        # Gesture-derived arm control doubles as the mission-level safety channel:
-        # an open-palm system_stop must abort the active delivery, not just the arm.
-        self._arm_cmd_sub = self.create_subscription(
-            ArmControlCommand,
-            "/arm/control_command",
-            self._handle_arm_control,
             10,
         )
         self._state_srv = self.create_service(
@@ -73,32 +83,7 @@ class MissionStateMachine(Node):
         if not self.get_parameter("motion_enabled").value:
             self.get_logger().warn("Rejected mission goal because motion is disabled.")
             return GoalResponse.REJECT
-        if self._emergency_stop:
-            self.get_logger().warn("Rejected mission goal while emergency stop is active.")
-            return GoalResponse.REJECT
         return GoalResponse.ACCEPT
-
-    def _handle_arm_control(self, msg: ArmControlCommand) -> None:
-        if msg.command == "system_stop" or msg.emergency:
-            if not self._emergency_stop:
-                self.get_logger().error(
-                    f"Emergency stop received from {msg.operator_id or 'operator'}; aborting mission."
-                )
-            self._emergency_stop = True
-            self._cancel_active_child()
-        elif msg.command == "arm_start":
-            if self._emergency_stop:
-                self.get_logger().info("Emergency stop cleared by arm_start; new missions accepted.")
-            self._emergency_stop = False
-
-    def _cancel_active_child(self) -> None:
-        handle = self._active_child_goal_handle
-        if handle is None:
-            return
-        try:
-            handle.cancel_goal_async()
-        except Exception as exc:  # noqa: BLE001 - best-effort cancellation.
-            self.get_logger().warn(f"Failed to cancel active child goal: {exc}")
 
     def _handle_cancel(self, _goal_handle) -> CancelResponse:
         self.get_logger().info("Cancel requested for active delivery mission.")
@@ -134,9 +119,6 @@ class MissionStateMachine(Node):
             return self._cancel(goal_handle)
 
         authorized = await self._verify_operator(goal, goal_handle)
-        aborted = self._aborted_result(goal_handle)
-        if aborted is not None:
-            return aborted
         if not authorized:
             goal_handle.abort()
             return self._result(False, "Operator authorization failed.")
@@ -150,22 +132,22 @@ class MissionStateMachine(Node):
             )
 
         tool_detection = await self._find_tool(goal.tool_id, goal_handle)
-        aborted = self._aborted_result(goal_handle)
-        if aborted is not None:
-            return aborted
         if tool_detection is None:
             goal_handle.abort()
             return self._result(False, f"Could not find tool {goal.tool_id}.")
 
         pickup_station = str(self.get_parameter("pickup_station").value)
-        if not await self._navigate_with_retry(pickup_station, "pickup requested tool", 0.40, 0.60, goal_handle):
-            return self._abort_step(goal_handle, f"Navigation to {pickup_station} failed.")
+        if not await self._navigate(pickup_station, "pickup requested tool", 0.40, 0.60, goal_handle):
+            goal_handle.abort()
+            return self._result(False, f"Navigation to {pickup_station} failed.")
 
-        if not await self._pick_and_place_with_retry(goal.tool_id, tool_detection, goal_handle):
-            return self._abort_step(goal_handle, f"Manipulation failed for {goal.tool_id}.")
+        if not await self._pick_and_place(goal.tool_id, tool_detection, goal_handle):
+            goal_handle.abort()
+            return self._result(False, f"Manipulation failed for {goal.tool_id}.")
 
-        if not await self._navigate_with_retry(goal.target_station, "deliver requested tool", 0.82, 0.94, goal_handle):
-            return self._abort_step(goal_handle, f"Navigation to {goal.target_station} failed.")
+        if not await self._navigate(goal.target_station, "deliver requested tool", 0.82, 0.94, goal_handle):
+            goal_handle.abort()
+            return self._result(False, f"Navigation to {goal.target_station} failed.")
 
         await self._simulated_step(
             goal_handle,
@@ -177,64 +159,6 @@ class MissionStateMachine(Node):
         self._publish_state("COMPLETED", 1.0, "Tool delivered and handover confirmed.")
         goal_handle.succeed()
         return self._result(True, "Tool delivery completed.")
-
-    def _aborted_result(self, goal_handle) -> DeliverTool.Result | None:
-        """Return an abort/cancel result when the mission must stop, else None."""
-        if self._emergency_stop:
-            self._publish_state("EMERGENCY_STOP", 0.0, "Mission aborted by emergency stop.")
-            goal_handle.abort()
-            return self._result(False, "Mission aborted by emergency stop.")
-        if goal_handle.is_cancel_requested:
-            return self._cancel(goal_handle)
-        return None
-
-    def _abort_step(self, goal_handle, message: str) -> DeliverTool.Result:
-        aborted = self._aborted_result(goal_handle)
-        if aborted is not None:
-            return aborted
-        goal_handle.abort()
-        return self._result(False, message)
-
-    async def _navigate_with_retry(
-        self,
-        station_id: str,
-        reason: str,
-        progress_start: float,
-        progress_end: float,
-        goal_handle,
-    ) -> bool:
-        attempts = max(0, int(self.get_parameter("max_retries").value)) + 1
-        for attempt in range(attempts):
-            if self._emergency_stop or goal_handle.is_cancel_requested:
-                return False
-            if await self._navigate(station_id, reason, progress_start, progress_end, goal_handle):
-                return True
-            if attempt + 1 < attempts:
-                self._publish_feedback(
-                    goal_handle,
-                    "RECOVER_NAVIGATION",
-                    progress_start,
-                    f"Navigation to {station_id} failed; retry {attempt + 1}/{attempts - 1}.",
-                )
-                await asyncio.sleep(float(self.get_parameter("simulate_step_seconds").value))
-        return False
-
-    async def _pick_and_place_with_retry(self, tool_id: str, detection: ToolDetection, goal_handle) -> bool:
-        attempts = max(0, int(self.get_parameter("max_retries").value)) + 1
-        for attempt in range(attempts):
-            if self._emergency_stop or goal_handle.is_cancel_requested:
-                return False
-            if await self._pick_and_place(tool_id, detection, goal_handle):
-                return True
-            if attempt + 1 < attempts:
-                self._publish_feedback(
-                    goal_handle,
-                    "RECOVER_MANIPULATION",
-                    0.64,
-                    f"Manipulation for {tool_id} failed; retry {attempt + 1}/{attempts - 1}.",
-                )
-                await asyncio.sleep(float(self.get_parameter("simulate_step_seconds").value))
-        return False
 
     async def _verify_operator(self, goal: DeliverTool.Goal, goal_handle) -> bool:
         self._publish_feedback(goal_handle, "VERIFY_IDENTITY", 0.08, f"Verifying operator {goal.operator_id}.")
@@ -256,10 +180,8 @@ class MissionStateMachine(Node):
         )
         if not action_goal.accepted:
             return False
-        self._active_child_goal_handle = action_goal
         result = await action_goal.get_result_async()
-        self._active_child_goal_handle = None
-        return bool(result.result.authorized) and not self._emergency_stop
+        return bool(result.result.authorized)
 
     async def _find_tool(self, tool_id: str, goal_handle) -> ToolDetection | None:
         self._publish_feedback(goal_handle, "DETECT_TOOL", 0.22, f"Searching for tool {tool_id}.")
@@ -272,7 +194,7 @@ class MissionStateMachine(Node):
                 detail = f"Found {tool_id} with confidence {detection.confidence:.2f}."
                 self._publish_feedback(goal_handle, "DETECT_TOOL", 0.32, detail)
                 return detection
-            await asyncio.sleep(0.2)
+            await _async_sleep(self, 0.2)
         self._warnings.append(f"tool detection timeout for {tool_id}")
         return None
 
@@ -303,10 +225,8 @@ class MissionStateMachine(Node):
         )
         if not action_goal.accepted:
             return False
-        self._active_child_goal_handle = action_goal
         result = await action_goal.get_result_async()
-        self._active_child_goal_handle = None
-        return bool(result.result.success) and not self._emergency_stop
+        return bool(result.result.success)
 
     async def _pick_and_place(self, tool_id: str, detection: ToolDetection, goal_handle) -> bool:
         self._publish_feedback(goal_handle, "PICK_TOOL", 0.64, f"Preparing arm for {tool_id}.")
@@ -330,14 +250,12 @@ class MissionStateMachine(Node):
         )
         if not action_goal.accepted:
             return False
-        self._active_child_goal_handle = action_goal
         result = await action_goal.get_result_async()
-        self._active_child_goal_handle = None
-        return bool(result.result.success) and not self._emergency_stop
+        return bool(result.result.success)
 
     async def _simulated_step(self, goal_handle, state: str, progress: float, detail: str) -> None:
         self._publish_feedback(goal_handle, state, progress, detail)
-        await asyncio.sleep(float(self.get_parameter("simulate_step_seconds").value))
+        await _async_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
 
     def _relay_feedback(self, goal_handle, state: str, start: float, end: float, feedback) -> None:
         progress = start + (end - start) * float(feedback.progress)

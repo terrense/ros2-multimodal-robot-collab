@@ -47,17 +47,11 @@ gesture_recognizer_node:
 
 yolov8_tool_detector_node:
   ros__parameters:
-    # Bare weight name lets Ultralytics auto-download if models/yolov8n.pt is absent.
-    model_path: yolov8n.pt
+    model_path: models/yolov8n.pt
     camera_topic: /camera/color/image_raw
-    source_frame: camera_link
+    source_frame: tool_camera_link
     min_confidence: 0.45
-    # Static-image mode source. Overridden per-launch; empty string = live camera.
-    image_path: ""
-    publish_hz: 2.0
-    # "*" wildcard maps any detected COCO class onto the demo tool id so the full
-    # chain unblocks with stock pretrained weights (accuracy comes later).
-    class_to_tool_json: '{"wrench":"wrench","screwdriver":"screwdriver","hex_key":"hex_key_3mm","*":"hex_key_3mm"}'
+    class_to_tool_json: '{"wrench":"wrench","screwdriver":"screwdriver","hex_key":"hex_key_3mm"}'
 
 openpose_gesture_node:
   ros__parameters:

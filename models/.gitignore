@@ -1,4 +1,0 @@
-# Model weights and demo assets are fetched by scripts/fetch_models.sh, not committed.
-*
-!.gitignore
-!README.md

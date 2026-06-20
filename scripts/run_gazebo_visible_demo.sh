@@ -14,24 +14,22 @@ if [ ! -f install/setup.bash ]; then
   exit 1
 fi
 
+# ROS2's setup.bash references unset variables internally; nounset breaks it.
+set +u
 # shellcheck disable=SC1091
 source /opt/ros/humble/setup.bash
 # shellcheck disable=SC1091
 source install/setup.bash
+set -u
 
 if [ "${SOFTWARE_RENDERING:-0}" = "1" ]; then
   export LIBGL_ALWAYS_SOFTWARE=1
 fi
 
-LAUNCH_ARGS=("$@")
-
-# FULL_NAV=1 starts the complete visible navigation stack (SLAM + Nav2 + the
-# nav2 station backend) unless the caller already passed those args.
-if [ "${FULL_NAV:-0}" = "1" ] && [ "$#" -eq 0 ]; then
-  LAUNCH_ARGS=(start_slam:=true start_nav2:=true nav_backend:=nav2)
-  echo "FULL_NAV=1: starting SLAM + Nav2 + nav2 station backend."
-fi
+# The lab world only references locally-defined models; skip Gazebo Classic's
+# online model database lookup so gzclient doesn't hang retrying network I/O.
+export GAZEBO_MODEL_DATABASE_URI=""
 
 echo "Launching Gazebo visible robot demo ..."
-echo "Launch args: ${LAUNCH_ARGS[*]:-<none>}"
-ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py "${LAUNCH_ARGS[@]}"
+echo "Extra launch args: $*"
+ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py "$@"

@@ -31,3 +31,6 @@ captures/
 !.env.example
 agent_harness/generated/
 agent_harness/traces/
+
+# Local debug captures (camera snapshots etc.) - keep on disk, never commit
+camera_*.png

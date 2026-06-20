@@ -1,11 +1,24 @@
-import asyncio
-
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
+from rclpy.task import Future
 
 from robot_collab_interfaces.action import PickAndPlace
 from robot_collab_interfaces.msg import ArmControlCommand
+
+
+def _async_sleep(node: Node, duration: float) -> Future:
+    """Awaitable sleep driven by a ROS2 timer (see mission_state_machine for why)."""
+    future = Future()
+
+    def _on_timer() -> None:
+        timer.cancel()
+        timer.destroy()
+        if not future.done():
+            future.set_result(None)
+
+    timer = node.create_timer(max(duration, 0.0001), _on_timer)
+    return future
 
 
 class ArmSkillServer(Node):
@@ -93,14 +106,14 @@ class ArmSkillServer(Node):
                 pause_feedback.progress = progress
                 pause_feedback.detail = "Manipulator is paused by operator fist gesture."
                 goal_handle.publish_feedback(pause_feedback)
-                await asyncio.sleep(0.2)
+                await _async_sleep(self, 0.2)
             feedback = PickAndPlace.Feedback()
             feedback.state = state
             feedback.progress = progress
             feedback.detail = detail
             goal_handle.publish_feedback(feedback)
             self.get_logger().info(f"[{state}] {detail}")
-            await asyncio.sleep(float(self.get_parameter("simulate_step_seconds").value))
+            await _async_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
 
         goal_handle.succeed()
         return self._result(True, f"Moved {goal.tool_id} into {goal.target_frame}.")

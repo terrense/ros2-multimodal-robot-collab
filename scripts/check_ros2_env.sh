@@ -39,8 +39,11 @@ fi
 
 printf "\n== ROS2 setup ==\n"
 if [ -f /opt/ros/humble/setup.bash ]; then
+  # ROS2's setup.bash references unset variables internally; nounset breaks it.
+  set +u
   # shellcheck disable=SC1091
   source /opt/ros/humble/setup.bash
+  set -u
   pass "found /opt/ros/humble/setup.bash"
 else
   fail "ROS2 Humble not found at /opt/ros/humble/setup.bash"
@@ -62,8 +65,10 @@ done
 printf "\n== Workspace ==\n"
 printf "repo: %s\n" "$ROOT_DIR"
 if [ -f "$ROOT_DIR/install/setup.bash" ]; then
+  set +u
   # shellcheck disable=SC1091
   source "$ROOT_DIR/install/setup.bash"
+  set -u
   pass "workspace overlay found: install/setup.bash"
 else
   warn "workspace is not built yet: install/setup.bash missing"
@@ -74,25 +79,6 @@ for pkg in robot_collab_bringup robot_collab_sim robot_collab_agent robot_collab
     pass "workspace package found: $pkg"
   else
     warn "workspace package not visible yet: $pkg"
-  fi
-done
-
-printf "\n== Perception assets ==\n"
-if [ -f "$ROOT_DIR/models/yolov8n.pt" ]; then
-  pass "YOLOv8 weights present: models/yolov8n.pt"
-else
-  warn "models/yolov8n.pt missing (run scripts/fetch_models.sh; Ultralytics can also auto-download)"
-fi
-if [ -f "$ROOT_DIR/models/coco_sample.jpg" ]; then
-  pass "sample image present: models/coco_sample.jpg"
-else
-  warn "models/coco_sample.jpg missing (run scripts/fetch_models.sh for static-image YOLO mode)"
-fi
-for mod in ultralytics cv2 numpy; do
-  if python3 -c "import $mod" >/dev/null 2>&1; then
-    pass "python module found: $mod"
-  else
-    warn "python module missing: $mod (pip install ultralytics opencv-python numpy)"
   fi
 done
 
