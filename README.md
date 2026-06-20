@@ -324,9 +324,12 @@ bash scripts/execute_agent_plan.sh
 
 Expected result: the mission state machine, face auth stub, tool detector stub, navigation skill, arm skill, HRI, and Agent-facing ROS2 contracts all exchange real ROS2 messages. In this first run, navigation still uses the simulated backend unless you launch Nav2 as shown later.
 
-For the Nav2 experiment that should physically drive to a station:
+For the Nav2 experiment that should physically drive to a station, use the
+`FULL_NAV=1` shorthand (brings up SLAM Toolbox + Nav2 + the nav2 backend):
 
 ```bash
+FULL_NAV=1 bash scripts/run_gazebo_visible_demo.sh
+# equivalent to:
 bash scripts/run_gazebo_visible_demo.sh \
   start_slam:=true \
   start_nav2:=true \

@@ -30,6 +30,17 @@ fi
 # online model database lookup so gzclient doesn't hang retrying network I/O.
 export GAZEBO_MODEL_DATABASE_URI=""
 
+# FULL_NAV=1 brings up the real navigation stack in one command: SLAM Toolbox
+# (map->odom from the laser scan), Nav2 servers, and the nav2 backend in
+# nav_skill_server so missions dispatch real NavigateToPose goals instead of
+# the simulated progress loop. Without it the offline-runnable baseline (all
+# simulated) is preserved.
+EXTRA_ARGS=("$@")
+if [ "${FULL_NAV:-0}" = "1" ]; then
+  EXTRA_ARGS+=("nav_backend:=nav2" "start_slam:=true" "start_nav2:=true")
+fi
+
 echo "Launching Gazebo visible robot demo ..."
-echo "Extra launch args: $*"
-ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py "$@"
+echo "FULL_NAV=${FULL_NAV:-0}"
+echo "Launch args: ${EXTRA_ARGS[*]:-（none）}"
+ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
