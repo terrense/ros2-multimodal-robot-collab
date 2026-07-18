@@ -1,0 +1,123 @@
+{
+  "version": "0.1.0",
+  "description": "Step-level agent action registry. Extends skills/*/schema.json with fine-grained actions for closed-loop training. Actions marked planned_endpoint are simulated in L1 and mapped onto existing ROS2 contracts by gazebo_adapter.",
+  "actions": {
+    "perception.verify_operator": {
+      "required": ["operator_id"],
+      "args": {"operator_id": "string"},
+      "risk": "identity_check",
+      "requires_confirmation": false,
+      "timeout_sec": 30,
+      "ros_action": "/skills/verify_operator",
+      "effect": "Authorizes the requesting operator via face match. Must succeed before any motion or manipulation."
+    },
+    "perception.request_tool_detection": {
+      "required": ["tool_id"],
+      "args": {"tool_id": "string"},
+      "risk": "sensor_request",
+      "requires_confirmation": false,
+      "timeout_sec": 10,
+      "planned_endpoint": "/perception/tool_detections (latched read with fresh-frame request)",
+      "effect": "Actively re-perceives the scene and returns the latest detection (confidence, station) for tool_id."
+    },
+    "navigation.navigate_to_station": {
+      "required": ["station_id", "reason"],
+      "args": {"station_id": "string", "reason": "string"},
+      "risk": "base_motion",
+      "requires_confirmation": false,
+      "timeout_sec": 120,
+      "ros_action": "/skills/navigate_to_station",
+      "effect": "Moves the base to a named station from stations.yaml."
+    },
+    "navigation.reposition": {
+      "required": ["strategy", "reason"],
+      "args": {"strategy": "viewpoint_left | viewpoint_right | step_back", "reason": "string"},
+      "risk": "base_motion",
+      "requires_confirmation": false,
+      "timeout_sec": 30,
+      "planned_endpoint": "/skills/navigate_to_station with local offset goal",
+      "effect": "Small base adjustment to change the camera viewpoint; primary recovery for occlusion / low confidence."
+    },
+    "manipulation.select_grasp_pose": {
+      "required": ["tool_id"],
+      "args": {"tool_id": "string"},
+      "risk": "planning_only",
+      "requires_confirmation": false,
+      "timeout_sec": 15,
+      "planned_endpoint": "MoveIt2 grasp candidate service",
+      "effect": "Plans grasp candidates for the detected tool; returns grasp_id. Requires a fresh detection with confidence >= 0.70."
+    },
+    "manipulation.pick_tool": {
+      "required": ["tool_id", "grasp_id"],
+      "args": {"tool_id": "string", "grasp_id": "string"},
+      "risk": "arm_motion",
+      "requires_confirmation": false,
+      "timeout_sec": 90,
+      "ros_action": "/skills/pick_and_place (pick phase)",
+      "effect": "Executes the selected grasp. Requires a valid grasp_id from select_grasp_pose."
+    },
+    "manipulation.verify_grasp": {
+      "required": ["tool_id"],
+      "args": {"tool_id": "string"},
+      "risk": "sensor_request",
+      "requires_confirmation": false,
+      "timeout_sec": 10,
+      "planned_endpoint": "gripper effort + in-hand detection check",
+      "effect": "Confirms the tool is held in the gripper. Should be called after pick and after any transit anomaly."
+    },
+    "manipulation.handover_tool": {
+      "required": ["operator_id"],
+      "args": {"operator_id": "string"},
+      "risk": "arm_motion",
+      "requires_confirmation": true,
+      "timeout_sec": 60,
+      "ros_action": "/skills/pick_and_place (place phase)",
+      "effect": "Places the held tool in the handover area for the operator. If the mission requires handover confirmation, hri.request_confirmation must succeed first."
+    },
+    "manipulation.publish_arm_control": {
+      "required": ["command"],
+      "args": {"command": "arm_start | arm_pause | system_stop"},
+      "risk": "arm_control",
+      "requires_confirmation": false,
+      "timeout_sec": 5,
+      "ros_topic": "/arm/control_command",
+      "effect": "Immediate arm-level control; system_stop halts all motion. Expected response to a user cancel or safety event."
+    },
+    "hri.publish_tts": {
+      "required": ["text"],
+      "args": {"text": "string"},
+      "risk": "operator_feedback",
+      "requires_confirmation": false,
+      "timeout_sec": 5,
+      "ros_topic": "/hri/tts_text",
+      "effect": "Speaks to the operator; used to report anomalies, request presence, or announce state."
+    },
+    "hri.request_confirmation": {
+      "required": ["question"],
+      "args": {"question": "string"},
+      "risk": "operator_feedback",
+      "requires_confirmation": false,
+      "timeout_sec": 30,
+      "planned_endpoint": "/hri/tts_text + ASR/gesture reply",
+      "effect": "Asks the operator a yes/no question and returns confirmed=true/false."
+    },
+    "system-state.query_state": {
+      "required": [],
+      "args": {},
+      "risk": "read_only",
+      "requires_confirmation": false,
+      "timeout_sec": 5,
+      "ros_service": "/system/query_state",
+      "effect": "Returns mission state, active nodes, warnings and motion_enabled."
+    },
+    "mission.terminate": {
+      "required": ["status", "reason"],
+      "args": {"status": "success | failure | cancelled", "reason": "string"},
+      "risk": "mission_control",
+      "requires_confirmation": false,
+      "timeout_sec": 5,
+      "planned_endpoint": "DeliverTool action result",
+      "effect": "Ends the episode and reports the outcome. success requires the tool to be handed over; failure/cancelled must state the cause."
+    }
+  }
+}

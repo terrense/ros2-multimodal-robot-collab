@@ -360,7 +360,8 @@ class RosToolExecutor:
             raise RuntimeError(f"Timed out waiting for action result: {result.endpoint}")
 
         response = result_future.result()
-        result.status = "succeeded" if getattr(response, "status", 0) == 4 else "finished"
+        # Goal status 4 = SUCCEEDED; anything else (aborted/canceled) must stop the plan.
+        result.status = "succeeded" if getattr(response, "status", 0) == 4 else "failed"
         result.result = {
             "status": getattr(response, "status", None),
             "result": ros_message_to_dict(getattr(response, "result", None)),

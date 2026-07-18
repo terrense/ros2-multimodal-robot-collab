@@ -1,14 +1,24 @@
-import asyncio
 import uuid
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
+from rclpy.task import Future
 
 from robot_collab_interfaces.action import DeliverTool, NavigateToStation, PickAndPlace, VerifyOperator
 from robot_collab_interfaces.msg import MissionEvent, ToolDetection
 from robot_collab_interfaces.srv import QuerySystemState
+
+
+async def rclpy_sleep(node: Node, seconds: float) -> None:
+    """Sleep usable inside rclpy-driven coroutines (no asyncio loop is running there)."""
+    future = Future()
+    timer = node.create_timer(seconds, lambda: future.done() or future.set_result(None))
+    try:
+        await future
+    finally:
+        node.destroy_timer(timer)
 
 
 class MissionStateMachine(Node):
@@ -174,7 +184,7 @@ class MissionStateMachine(Node):
                 detail = f"Found {tool_id} with confidence {detection.confidence:.2f}."
                 self._publish_feedback(goal_handle, "DETECT_TOOL", 0.32, detail)
                 return detection
-            await asyncio.sleep(0.2)
+            await rclpy_sleep(self, 0.2)
         self._warnings.append(f"tool detection timeout for {tool_id}")
         return None
 
@@ -235,7 +245,7 @@ class MissionStateMachine(Node):
 
     async def _simulated_step(self, goal_handle, state: str, progress: float, detail: str) -> None:
         self._publish_feedback(goal_handle, state, progress, detail)
-        await asyncio.sleep(float(self.get_parameter("simulate_step_seconds").value))
+        await rclpy_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
 
     def _relay_feedback(self, goal_handle, state: str, start: float, end: float, feedback) -> None:
         progress = start + (end - start) * float(feedback.progress)

@@ -1,4 +1,3 @@
-import asyncio
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,8 +10,19 @@ from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
+from rclpy.task import Future
 
 from robot_collab_interfaces.action import NavigateToStation
+
+
+async def rclpy_sleep(node: Node, seconds: float) -> None:
+    """Sleep usable inside rclpy-driven coroutines (no asyncio loop is running there)."""
+    future = Future()
+    timer = node.create_timer(seconds, lambda: future.done() or future.set_result(None))
+    try:
+        await future
+    finally:
+        node.destroy_timer(timer)
 
 
 @dataclass(frozen=True)
@@ -96,7 +106,7 @@ class NavSkillServer(Node):
                 return self._result(False, "Navigation canceled.")
             self._publish_feedback(goal_handle, state, progress, detail)
             self.get_logger().info(f"[{state}] {detail}")
-            await asyncio.sleep(float(self.get_parameter("simulate_step_seconds").value))
+            await rclpy_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
 
         goal_handle.succeed()
         return self._result(True, f"Reached {goal.station_id}.")
@@ -143,7 +153,7 @@ class NavSkillServer(Node):
                 await nav_goal_handle.cancel_goal_async()
                 goal_handle.abort()
                 return self._result(False, f"Navigation to {goal.station_id} timed out.")
-            await asyncio.sleep(0.1)
+            await rclpy_sleep(self, 0.1)
 
         result = await result_future
         if result.status == GoalStatus.STATUS_SUCCEEDED:

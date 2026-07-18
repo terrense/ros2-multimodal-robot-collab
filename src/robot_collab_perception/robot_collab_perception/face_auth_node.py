@@ -1,11 +1,20 @@
-import asyncio
-
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
+from rclpy.task import Future
 
 from robot_collab_interfaces.action import VerifyOperator
 from robot_collab_interfaces.msg import IdentityStatus
+
+
+async def rclpy_sleep(node: Node, seconds: float) -> None:
+    """Sleep usable inside rclpy-driven coroutines (no asyncio loop is running there)."""
+    future = Future()
+    timer = node.create_timer(seconds, lambda: future.done() or future.set_result(None))
+    try:
+        await future
+    finally:
+        node.destroy_timer(timer)
 
 
 class FaceAuthNode(Node):
@@ -56,7 +65,7 @@ class FaceAuthNode(Node):
             feedback.progress = progress
             feedback.detail = detail
             goal_handle.publish_feedback(feedback)
-            await asyncio.sleep(float(self.get_parameter("simulate_step_seconds").value))
+            await rclpy_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
 
         authorized = goal.operator_id in set(self.get_parameter("authorized_operators").value)
         confidence = 0.93 if authorized else 0.31

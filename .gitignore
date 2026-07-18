@@ -31,3 +31,6 @@ captures/
 !.env.example
 agent_harness/generated/
 agent_harness/traces/
+
+# Generated trajectory data (reproducible via agent_env/scripts/collect_trajectories.py)
+data/
