@@ -298,7 +298,7 @@ def scripted_policy() -> PolicyFn:
     state: dict[str, ScriptedExpert] = {}
 
     def policy(messages: list[dict[str, str]]) -> str:
-        observation = _observation_from_messages(messages)
+        observation = observation_from_messages(messages)
         if observation.step_index == 0 or "expert" not in state:
             state["expert"] = ScriptedExpert()  # one expert instance per episode
         return action_content(state["expert"].act(observation))
@@ -306,7 +306,7 @@ def scripted_policy() -> PolicyFn:
     return policy
 
 
-def _observation_from_messages(messages: Sequence[dict[str, str]]) -> Observation:
+def observation_from_messages(messages: Sequence[dict[str, str]]) -> Observation:
     for message in reversed(messages):
         if message.get("role") != "user":
             continue
@@ -392,6 +392,7 @@ __all__ = [
     "PolicyFn",
     "TurnRecord",
     "episode_from_records",
+    "observation_from_messages",
     "run_episode",
     "scripted_policy",
 ]

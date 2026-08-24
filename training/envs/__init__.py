@@ -10,6 +10,7 @@ from .multi_turn_env import (
     MultiTurnDeliveryEnv,
     TurnRecord,
     episode_from_records,
+    observation_from_messages,
     run_episode,
     scripted_policy,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "MultiTurnDeliveryEnv",
     "TurnRecord",
     "episode_from_records",
+    "observation_from_messages",
     "run_episode",
     "scripted_policy",
 ]
