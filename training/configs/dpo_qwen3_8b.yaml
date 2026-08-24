@@ -1,0 +1,43 @@
+# Stage 2: preference alignment over environment-verified pairs.
+# success & short & safe  >  success but redundant
+# re-perceive / replan    >  blind retry
+#
+#   deepspeed --num_gpus 4 -m training.train_dpo --config training/configs/dpo_qwen3_8b.yaml
+#
+# `model.path` and `reference_path` both point at the SFT checkpoint: DPO starts
+# from it and is regularised towards it.
+stage: dpo
+
+model:
+  path: runs/sft_qwen3_8b/final
+  dtype: bfloat16
+  attn_implementation: flash_attention_2
+  gradient_checkpointing: true
+  max_seq_len: 8192
+
+data:
+  train_path: data/dpo/train.jsonl
+  val_path: data/dpo/val.jsonl
+
+optim:
+  lr: 5.0e-7
+  warmup_ratio: 0.1
+  scheduler: cosine
+  max_grad_norm: 1.0
+
+run:
+  output_dir: runs/dpo_qwen3_8b
+  epochs: 1.0
+  micro_batch_size: 1
+  gradient_accumulation: 8
+  log_every: 10
+  eval_every: 100
+  save_every: 300
+  deepspeed: training/configs/deepspeed/zero3_bf16.json
+  seed: 42
+
+beta: 0.1
+loss_type: sigmoid
+label_smoothing: 0.0
+reference_path: runs/sft_qwen3_8b/final
+max_prompt_len: 6144

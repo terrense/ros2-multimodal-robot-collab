@@ -8,28 +8,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests.fakes import FakeTokenizer, UnstableTokenizer, decode as _decode
 from training.tokenization import tokenize_episode, tokenize_turn
-
-
-class FakeTokenizer:
-    """Character-level stand-in with a Qwen-style, prefix-stable chat template."""
-
-    chat_template = "{% for message in messages %}...{% endfor %}"
-
-    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=False, **kwargs):
-        text = "".join(f"<{message['role']}>{message['content']}</>" for message in messages)
-        if add_generation_prompt:
-            text += "<assistant>"
-        return [ord(char) for char in text] if tokenize else text
-
-
-class UnstableTokenizer(FakeTokenizer):
-    """Rewrites earlier turns when new ones arrive; spans cannot be trusted."""
-
-    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=False, **kwargs):
-        ids = super().apply_chat_template(messages, tokenize, add_generation_prompt, **kwargs)
-        return [len(messages)] + list(ids)
-
 
 MESSAGES = [
     {"role": "system", "content": "rules"},
@@ -38,10 +18,6 @@ MESSAGES = [
     {"role": "user", "content": "obs-2"},
     {"role": "assistant", "content": "act-2"},
 ]
-
-
-def _decode(ids) -> str:
-    return "".join(chr(value) for value in ids)
 
 
 def test_every_assistant_turn_gets_a_span() -> None:

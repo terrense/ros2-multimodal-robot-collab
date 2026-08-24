@@ -1,0 +1,41 @@
+# Stage 1: behaviour prior. Teaches the skill schema, observation digestion,
+# task decomposition and the basic recovery patterns.
+#
+#   deepspeed --num_gpus 4 -m training.train_sft --config training/configs/sft_qwen3_8b.yaml
+#
+# Target: 4x H20 (96 GB). Episode samples run ~3.5k tokens (p95 ~5k), so a
+# micro batch of 1 with accumulation 16 gives a global batch of 64 episodes.
+stage: sft
+
+model:
+  path: Qwen/Qwen3-8B
+  dtype: bfloat16
+  attn_implementation: flash_attention_2
+  gradient_checkpointing: true
+  max_seq_len: 8192
+  use_lora: false
+
+data:
+  train_path: data/sft/train.jsonl
+  val_path: data/sft/val.jsonl
+
+optim:
+  lr: 1.0e-5
+  weight_decay: 0.0
+  warmup_ratio: 0.03
+  scheduler: cosine
+  max_grad_norm: 1.0
+
+run:
+  output_dir: runs/sft_qwen3_8b
+  epochs: 2.0
+  micro_batch_size: 1
+  gradient_accumulation: 16
+  log_every: 10
+  eval_every: 200
+  save_every: 500
+  deepspeed: training/configs/deepspeed/zero3_bf16.json
+  seed: 42
+
+# Observations are inputs, not targets.
+mask_observations: true
