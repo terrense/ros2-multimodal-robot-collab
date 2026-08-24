@@ -1,0 +1,52 @@
+{
+  "name": "fault_injection_v1",
+  "description": "Frozen held-out fault-injection benchmark for the tool-delivery agent.",
+  "seed": 20260724,
+  "episodes": 400,
+  "composition": {
+    "clean": 40,
+    "nav_timeout": 60,
+    "visual_occlusion": 40,
+    "low_confidence": 30,
+    "tool_missing": 30,
+    "grasp_failure": 50,
+    "tool_drop": 30,
+    "identity_mismatch": 20,
+    "user_cancel": 20,
+    "no_progress": 20,
+    "mixed": 60
+  },
+  "buckets": {
+    "clean": 40,
+    "interaction": 60,
+    "manipulation": 80,
+    "mixed": 60,
+    "navigation": 60,
+    "perception": 100
+  },
+  "operator_pool": [
+    "operator_101",
+    "operator_102",
+    "operator_103",
+    "operator_104",
+    "operator_105",
+    "operator_106",
+    "operator_107",
+    "operator_108",
+    "operator_109",
+    "operator_110",
+    "operator_111",
+    "operator_112",
+    "operator_113",
+    "operator_114",
+    "operator_115",
+    "operator_116",
+    "operator_117",
+    "operator_118",
+    "operator_119",
+    "operator_120"
+  ],
+  "file": "benchmarks/fault_injection_v1.jsonl",
+  "sha256": "c703a6fc1b37a5fa4df4e2656953404d21fa334c1364da47b800a1100a5d0fdd",
+  "regenerate": "python -m training.data.build_benchmark"
+}

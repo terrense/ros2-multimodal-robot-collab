@@ -24,6 +24,12 @@ models/
 captures/
 *.db3
 *.mcap
+WORKLOG.md
+
+# Training run artifacts (checkpoints, rollouts, eval reports)
+/runs/
+/checkpoints/
+wandb/
 
 # Local secrets and generated agent artifacts
 .env
@@ -32,5 +38,9 @@ captures/
 agent_harness/generated/
 agent_harness/traces/
 
-# Generated trajectory data (reproducible via agent_env/scripts/collect_trajectories.py)
-data/
+# Generated trajectory data (reproducible via agent_env/scripts/collect_trajectories.py).
+# Anchored to the repo root so it does not swallow the training/data package.
+/data/
+
+# The frozen benchmark under benchmarks/ IS tracked: results are only comparable
+# across checkpoints if every run scores the same 400 episodes.

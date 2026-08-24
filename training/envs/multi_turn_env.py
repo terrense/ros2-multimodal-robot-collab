@@ -225,6 +225,11 @@ class MultiTurnDeliveryEnv:
         return [*head, marker, *tail[-keep:]]
 
     @property
+    def observation(self) -> Observation | None:
+        """Current structured observation; used by scripted policies and DPO corruptors."""
+        return self._observation
+
+    @property
     def full_messages(self) -> list[dict[str, str]]:
         """Untruncated history; what PPO/OPD tokenize for episode-mode credit."""
         return list(self._messages)
