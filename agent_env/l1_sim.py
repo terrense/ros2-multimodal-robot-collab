@@ -251,6 +251,8 @@ class L1DeliveryEnv:
             "outcome": self.outcome.value,
             "grounding_violations": self.grounding_violations,
             "safety_violations": self.safety_violations,
+            # Consumed by the no-progress term of the composite step reward.
+            "no_progress_count": self.no_progress_count,
         }
         return self._observation(), reward_components, done, info
 
