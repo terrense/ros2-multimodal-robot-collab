@@ -1,0 +1,61 @@
+# Main arm: step-level PPO with the composite reward.
+#
+# Terminal outcome + sub-goal progress + schema grounding + safety + action cost,
+# with GAE over turns and the advantage placed on the action tokens that earned
+# it. Identical to ppo_terminal.yaml except for the reward preset, so the two can
+# be diffed as an ablation rather than compared across two setups.
+#
+#   deepspeed --num_gpus 4 -m training.train_ppo --config training/configs/ppo_progress.yaml
+#
+# Credit-assignment ablation (same reward, naive attribution):
+#   ... --set credit.terminal_broadcast=true --set run.output_dir=runs/ppo_progress_flatcredit
+stage: ppo
+
+model:
+  path: runs/dpo_qwen3_8b/final
+  dtype: bfloat16
+  gradient_checkpointing: true
+  max_seq_len: 8192
+
+optim:
+  lr: 5.0e-7
+  warmup_ratio: 0.0
+  scheduler: constant
+  max_grad_norm: 1.0
+
+run:
+  output_dir: runs/ppo_progress
+  micro_batch_size: 1
+  gradient_accumulation: 8
+  deepspeed: training/configs/deepspeed/zero3_bf16.json
+  seed: 42
+
+rollout:
+  backend: vllm
+  split: train
+  episodes_per_iter: 64
+  concurrency: 32
+  temperature: 1.0
+  top_p: 0.95
+  max_new_tokens: 256
+  gpu_memory_utilization: 0.55
+
+reward:
+  preset: progress
+
+credit:
+  gamma: 0.99
+  lam: 0.95
+  broadcast: uniform
+  whiten_advantages: true
+  terminal_broadcast: false
+
+iterations: 200
+ppo_epochs: 1
+clip_ratio: 0.2
+vf_coef: 0.5
+kl_coef: 0.02
+critic_mode: shared
+eval_every_iters: 20
+eval_episodes: 100
+save_every_iters: 20

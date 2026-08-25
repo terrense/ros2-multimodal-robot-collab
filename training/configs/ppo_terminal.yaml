@@ -1,0 +1,57 @@
+# Baseline arm: outcome-only PPO.
+#
+# Reward is the episode outcome and nothing else. In an 8-15 step episode the
+# fourth action can be the one that doomed the run, and this arm has no way to
+# say so -- which is the sparse-credit problem the progress arm is meant to fix.
+#
+#   deepspeed --num_gpus 4 -m training.train_ppo --config training/configs/ppo_terminal.yaml
+stage: ppo
+
+model:
+  path: runs/dpo_qwen3_8b/final
+  dtype: bfloat16
+  gradient_checkpointing: true
+  max_seq_len: 8192
+
+optim:
+  lr: 5.0e-7
+  warmup_ratio: 0.0
+  scheduler: constant
+  max_grad_norm: 1.0
+
+run:
+  output_dir: runs/ppo_terminal
+  micro_batch_size: 1
+  gradient_accumulation: 8
+  deepspeed: training/configs/deepspeed/zero3_bf16.json
+  seed: 42
+
+rollout:
+  backend: vllm
+  split: train
+  episodes_per_iter: 64
+  concurrency: 32
+  temperature: 1.0
+  top_p: 0.95
+  max_new_tokens: 256
+  gpu_memory_utilization: 0.55
+
+reward:
+  preset: terminal_only
+
+credit:
+  gamma: 0.99
+  lam: 0.95
+  broadcast: uniform
+  whiten_advantages: true
+  terminal_broadcast: false
+
+iterations: 200
+ppo_epochs: 1
+clip_ratio: 0.2
+vf_coef: 0.5
+kl_coef: 0.02
+critic_mode: shared
+eval_every_iters: 20
+eval_episodes: 100
+save_every_iters: 20

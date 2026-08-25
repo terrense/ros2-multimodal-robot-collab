@@ -1,0 +1,70 @@
+# Arm: pure on-policy distillation. No environment reward at all.
+#
+# Answers "how far does dense teacher guidance alone get us?" -- and, by
+# construction, cannot exceed what the teacher believes about states it only
+# reads as text. Whatever this arm fails to fix is the part that needs a
+# grounded environment signal.
+#
+#   deepspeed --num_gpus 4 -m training.train_opd --config training/configs/opd_pure.yaml
+stage: opd
+
+model:
+  path: runs/dpo_qwen3_8b/final
+  dtype: bfloat16
+  gradient_checkpointing: true
+  max_seq_len: 8192
+
+optim:
+  lr: 5.0e-7
+  warmup_ratio: 0.0
+  scheduler: constant
+
+run:
+  output_dir: runs/opd_pure
+  micro_batch_size: 1
+  gradient_accumulation: 8
+  deepspeed: training/configs/deepspeed/zero3_bf16.json
+  seed: 42
+
+rollout:
+  backend: vllm
+  split: train
+  episodes_per_iter: 64
+  concurrency: 32
+  temperature: 1.0
+  top_p: 0.95
+  gpu_memory_utilization: 0.45
+
+teacher:
+  path: Qwen/Qwen3-30B-A3B
+  dtype: bfloat16
+  # Same family as the student, so tokenizer and tool-use style match and this
+  # stays distillation rather than cross-format translation. ~3B active
+  # parameters keeps the scoring pass affordable next to a dense 32B.
+  on_error: true
+  on_safety_event: true
+  no_progress_threshold: 2
+  entropy_threshold: 1.0
+  disagreement_threshold: 0.5
+  random_sample_prob: 0.05
+  max_scored_fraction: 0.5
+  base_weight: 1.0
+  uncertainty_scale: 0.5
+  disagreement_scale: 0.5
+  max_weight: 3.0
+
+mix:
+  opd_start: 1.0
+  opd_end: 1.0
+  env_start: 0.0
+  env_end: 0.0
+  warmup_fraction: 0.0
+  mode: cosine
+
+opd_loss: direct_kl
+use_environment_reward: false
+
+iterations: 200
+eval_every_iters: 20
+eval_episodes: 100
+save_every_iters: 20

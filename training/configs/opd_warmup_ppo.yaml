@@ -1,0 +1,89 @@
+# Arm: OPD warm-up -> progress PPO. The project's main hypothesis.
+#
+# Early iterations lean on dense teacher guidance, because a student that cannot
+# recover yet gets almost nothing from a sparse environment signal. Later
+# iterations hand over to the environment, because the teacher only reads text
+# and cannot know what the simulator will do -- it may prefer repositioning where
+# retrying the grasp would actually have worked.
+#
+# The crossover is the experiment, so it is a configured, logged schedule rather
+# than an implicit one: opd 1.0 -> 0.1 and env 0.2 -> 1.0 over the run, held at
+# the start value for the first 20% of iterations.
+#
+#   deepspeed --num_gpus 4 -m training.train_opd --config training/configs/opd_warmup_ppo.yaml
+stage: opd
+
+model:
+  path: runs/dpo_qwen3_8b/final
+  dtype: bfloat16
+  gradient_checkpointing: true
+  max_seq_len: 8192
+
+optim:
+  lr: 5.0e-7
+  warmup_ratio: 0.0
+  scheduler: constant
+
+run:
+  output_dir: runs/opd_warmup_ppo
+  micro_batch_size: 1
+  gradient_accumulation: 8
+  deepspeed: training/configs/deepspeed/zero3_bf16.json
+  seed: 42
+
+rollout:
+  backend: vllm
+  split: train
+  episodes_per_iter: 64
+  concurrency: 32
+  temperature: 1.0
+  top_p: 0.95
+  gpu_memory_utilization: 0.45
+
+reward:
+  preset: progress
+
+credit:
+  gamma: 0.99
+  lam: 0.95
+  broadcast: uniform
+  whiten_advantages: true
+
+teacher:
+  path: Qwen/Qwen3-30B-A3B
+  dtype: bfloat16
+  on_error: true
+  on_safety_event: true
+  no_progress_threshold: 2
+  entropy_threshold: 1.0
+  disagreement_threshold: 0.5
+  random_sample_prob: 0.05
+  max_scored_fraction: 0.5
+  base_weight: 1.0
+  uncertainty_scale: 0.5
+  disagreement_scale: 0.5
+  max_weight: 3.0
+
+mix:
+  opd_start: 1.0
+  opd_end: 0.1
+  env_start: 0.2
+  env_end: 1.0
+  warmup_fraction: 0.2
+  mode: cosine
+
+opd_loss: direct_kl
+use_environment_reward: true
+
+# PPO-specific hyperparameters. model / rollout / reward / credit / run above are
+# authoritative; this block only supplies the clipping and critic settings.
+ppo:
+  clip_ratio: 0.2
+  vf_coef: 0.5
+  kl_coef: 0.02
+  critic_mode: shared
+
+iterations: 200
+eval_every_iters: 20
+eval_episodes: 100
+save_every_iters: 20

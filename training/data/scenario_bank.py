@@ -200,14 +200,21 @@ def sample_scenarios(
     rng_seed: int | None = None,
     mix: tuple[float, float, float] = TRAIN_MIX,
     fault: FaultType | None = None,
+    start_index: int = 0,
 ) -> list[ScenarioSpec]:
-    """Sample training/dev scenarios with a none:single:double fault mix."""
+    """Sample training/dev scenarios with a none:single:double fault mix.
+
+    `start_index` shifts both the episode seeds and the RNG stream, so successive
+    RL iterations draw fresh scenarios instead of replaying the same ones.
+    """
     if split not in SEED_BLOCKS:
         raise KeyError(f"unknown split {split!r}")
-    rng = random.Random(rng_seed if rng_seed is not None else SEED_BLOCKS[split])
+    base_seed = rng_seed if rng_seed is not None else SEED_BLOCKS[split]
+    rng = random.Random(base_seed + start_index)
     none_weight, single_weight, _ = mix
     specs: list[ScenarioSpec] = []
-    for index in range(count):
+    for offset in range(count):
+        index = start_index + offset
         if fault is not None:
             faults = [FaultSpec(fault, default_params(fault, rng))]
         else:
