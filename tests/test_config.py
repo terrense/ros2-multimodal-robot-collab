@@ -82,12 +82,33 @@ def test_saved_config_reloads_identically(tmp_path) -> None:
 
 @pytest.mark.parametrize("path", sorted(CONFIG_DIR.glob("*.yaml")), ids=lambda path: path.name)
 def test_shipped_configs_load(path: Path) -> None:
-    """Every YAML in training/configs must still parse against the dataclasses."""
+    """Every stage YAML in training/configs must still parse against the dataclasses.
+
+    Files without a top-level `stage` are not stage configs (the experiment
+    matrix, for instance) and are checked separately.
+    """
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     stage = raw.get("stage")
-    assert stage in STAGES, f"{path.name} must declare a known stage, got {stage!r}"
+    if stage is None:
+        pytest.skip(f"{path.name} is not a stage config")
+    assert stage in STAGES, f"{path.name} declares unknown stage {stage!r}"
     config = load_config(stage, path)
     assert type(config) is STAGES[stage]
+
+
+def test_experiment_matrix_is_well_formed() -> None:
+    """Arms need a name, a metric target and a command that can be pasted verbatim."""
+    matrix = yaml.safe_load((CONFIG_DIR / "experiment_matrix.yaml").read_text(encoding="utf-8"))
+    assert matrix["metric"] == "recovery_success"
+    names = [arm["name"] for arm in matrix["arms"]]
+    assert len(names) == len(set(names))
+    assert {"rule_baseline", "ppo_terminal", "ppo_progress", "opd_pure", "opd_warmup_ppo"} <= set(names)
+    for arm in matrix["arms"]:
+        assert 0.0 < arm["target"] < 1.0, f"{arm['name']} target must be a rate"
+        assert arm["command"].startswith("python -m training.")
+        assert arm["description"].strip()
+    for ablation in matrix["ablations"]:
+        assert ablation["question"].strip() and ablation["command"].startswith("python -m training.")
 
 
 @pytest.mark.parametrize("path", sorted((CONFIG_DIR / "deepspeed").glob("*.json")), ids=lambda path: path.name)

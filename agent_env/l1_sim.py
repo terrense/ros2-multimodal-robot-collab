@@ -128,6 +128,14 @@ class L1DeliveryEnv:
         self._prev_progress = self.progress()
 
     def _signature(self) -> tuple:
+        """State fingerprint behind the no-progress counter.
+
+        `occlusion_cleared` / `low_conf_cleared` are included because
+        `navigation.reposition` is the primary recovery for a blocked view: it
+        changes nothing else visible here, so without them the correct recovery
+        action would be scored as making no progress -- penalising exactly the
+        behaviour the training is meant to produce.
+        """
         return (
             self.robot_location,
             self.tool_location,
@@ -140,6 +148,8 @@ class L1DeliveryEnv:
             self.valid_grasp_id,
             self.operator_called,
             self.motion_stopped,
+            self.occlusion_cleared,
+            self.low_conf_cleared,
         )
 
     # -------------------------------------------------------------- progress

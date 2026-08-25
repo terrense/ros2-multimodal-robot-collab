@@ -1,0 +1,101 @@
+# The experiment matrix: five arms, one question each.
+#
+# The question is which *source of supervision* fixes which failure mode, not
+# which algorithm scores highest. Adding GRPO/DAPO/GSPO/PRM would grow the table
+# without answering it, so they are deliberately absent.
+#
+# `targets` are PRE-REGISTERED ACCEPTANCE CRITERIA, written before the runs, not
+# results. `training/report.py` renders them next to whatever was actually
+# measured and marks each arm met / missed. An empty measurement column means the
+# run has not happened yet.
+#
+# Rationale for the target levels: the published ATOD/OPD trend on Qwen3-4B /
+# ALFWorld is roughly GRPO < OPD < OPD+RL hybrid, with about +4pt for pure OPD
+# over pure RL and another +4-5pt for the hybrid. Our student is an 8B that has
+# already been through SFT and DPO, so it starts stronger and the headroom is
+# smaller; the targets below are set more conservatively than a direct transfer
+# of those deltas would suggest.
+#
+# The metric is `recovery_success`: the share of fault-injected episodes that end
+# correctly (delivered, or aborted/cancelled for the right reason). Task success
+# alone would reward a policy that gets lucky on clean episodes.
+
+metric: recovery_success
+benchmark: benchmarks/fault_injection_v1.jsonl
+
+arms:
+  - name: rule_baseline
+    stage: baseline
+    description: >
+      Reconstruction of the deployed system: fixed happy path plus hand-written
+      recovery rules for the anticipated faults. No learning.
+    command: python -m training.evaluate --policy rules --label rule_baseline --out runs/eval/rule_baseline.json
+    target: 0.718
+
+  - name: sft
+    stage: sft
+    description: >
+      Behaviour prior. Learns the skill schema, observation digestion, task
+      decomposition and the basic recovery patterns from expert trajectories.
+    command: python -m training.evaluate --policy vllm:runs/sft_qwen3_8b/final --label sft --out runs/eval/sft.json
+    target: 0.759
+
+  - name: sft_dpo
+    stage: dpo
+    description: >
+      Adds preference over trajectories that both succeed: short and safe beats
+      long and redundant, replanning beats blind retry.
+    command: python -m training.evaluate --policy vllm:runs/dpo_qwen3_8b/final --label sft_dpo --out runs/eval/sft_dpo.json
+    target: 0.786
+
+  - name: ppo_terminal
+    stage: ppo
+    description: >
+      Outcome-only PPO. Tests how far a sparse terminal reward gets on 8-15 step
+      episodes where the decisive mistake happens early.
+    command: python -m training.evaluate --policy vllm:runs/ppo_terminal/final --label ppo_terminal --out runs/eval/ppo_terminal.json
+    target: 0.794
+
+  - name: ppo_progress
+    stage: ppo
+    description: >
+      Step-level PPO with the composite reward and turn-level credit assignment.
+      The comparison against ppo_terminal isolates reward density; the
+      credit.terminal_broadcast ablation isolates attribution.
+    command: python -m training.evaluate --policy vllm:runs/ppo_progress/final --label ppo_progress --out runs/eval/ppo_progress.json
+    target: 0.828
+
+  - name: opd_pure
+    stage: opd
+    description: >
+      Dense teacher guidance only, no environment reward. Upper bound on what a
+      teacher that only reads text can supply.
+    command: python -m training.evaluate --policy vllm:runs/opd_pure/final --label opd_pure --out runs/eval/opd_pure.json
+    target: 0.825
+
+  - name: opd_warmup_ppo
+    stage: opd
+    description: >
+      Teacher guidance early, environment reward late. The hypothesis: OPD fixes
+      policy-level failures (premature stop, invalid recovery, observation
+      misuse), environment reward fixes final task success and executability.
+    command: python -m training.evaluate --policy vllm:runs/opd_warmup_ppo/final --label opd_warmup_ppo --out runs/eval/opd_warmup_ppo.json
+    target: 0.845
+
+# Ablations run on top of the main arms. Each isolates one design decision.
+ablations:
+  - name: progress_no_grounding
+    question: Does the schema-legality term matter once the model has been SFT'd?
+    command: python -m training.train_ppo --config training/configs/ppo_progress.yaml --set reward.preset=progress_no_grounding --set run.output_dir=runs/ppo_progress_nogrounding
+  - name: progress_no_safety
+    question: Which failures come back when the safety term is removed?
+    command: python -m training.train_ppo --config training/configs/ppo_progress.yaml --set reward.preset=progress_no_safety --set run.output_dir=runs/ppo_progress_nosafety
+  - name: progress_no_cost
+    question: How much of the length reduction is the action-cost term?
+    command: python -m training.train_ppo --config training/configs/ppo_progress.yaml --set reward.preset=progress_no_cost --set run.output_dir=runs/ppo_progress_nocost
+  - name: flat_credit
+    question: >
+      Same dense reward, naive attribution. Separates "denser reward" from
+      "credit assigned to the turn that earned it" -- the two are routinely
+      conflated and this ablation is the only thing that tells them apart.
+    command: python -m training.train_ppo --config training/configs/ppo_progress.yaml --set credit.terminal_broadcast=true --set run.output_dir=runs/ppo_progress_flatcredit

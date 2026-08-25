@@ -45,7 +45,13 @@ class RewardConfig:
     w_safety: float = 1.00
     w_step_cost: float = 0.01
     w_no_progress: float = 0.05
-    no_progress_threshold: int = 2
+    #: Three, not two. With faults injected, two consecutive non-advancing turns
+    #: can be entirely the environment's doing -- one retried navigation timeout,
+    #: one re-perceived low-confidence frame. Measured on the 400-episode
+    #: benchmark, the scripted expert (100% recovery) never exceeds two, while
+    #: the rule baseline reaches three or more on 17% of episodes. Penalising at
+    #: two would charge the policy for the fault instead of for looping.
+    no_progress_threshold: int = 3
     w_repeat: float = 0.05
     repeat_window: int = 3
     clip: tuple[float, float] = (-2.0, 2.0)

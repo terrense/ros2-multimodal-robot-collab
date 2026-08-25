@@ -31,6 +31,9 @@ from typing import Any, Sequence
 class GateConfig:
     on_error: bool = True
     on_safety_event: bool = True
+    #: Deliberately lower than the reward's threshold of 3: the gate decides
+    #: whether a turn is worth asking the teacher about, and catching trouble one
+    #: turn earlier costs teacher budget rather than mislabelling the policy.
     no_progress_threshold: int = 2
     entropy_threshold: float = 1.0  # nats, mean over the sampled action tokens
     disagreement_threshold: float = 0.5  # nats, from the previous scored turn

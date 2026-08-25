@@ -57,9 +57,11 @@ def test_repeated_identical_call_is_penalized_once_per_repeat() -> None:
 
 
 def test_no_progress_penalty_needs_to_cross_the_threshold() -> None:
+    """Two stalled turns can be the injected fault; three is the policy looping."""
     config = PRESETS["progress"]
     assert compute_step_rewards([_step(stuck=1)], "running", config)[0].no_progress == 0.0
-    assert compute_step_rewards([_step(stuck=2)], "running", config)[0].no_progress < 0.0
+    assert compute_step_rewards([_step(stuck=2)], "running", config)[0].no_progress == 0.0
+    assert compute_step_rewards([_step(stuck=3)], "running", config)[0].no_progress < 0.0
 
 
 def test_terminal_values_separate_correct_abort_from_wrong_termination() -> None:
