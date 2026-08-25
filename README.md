@@ -237,6 +237,10 @@ sequenceDiagram
 ## 工程结构
 
 ```text
+agent_env/                    # 闭环训练环境: 协议 / 故障注入 / L1 模拟器 / 脚本专家
+training/                     # 后训练栈: 数据 / 奖励 / 信用分配 / SFT-DPO-PPO-OPD / 评测
+benchmarks/                   # 冻结的 400 条故障注入 held-out benchmark
+tests/                        # agent_env + training 的 pytest 用例
 agent_harness/                # Agent 调度 harness: schemas / examples / router scripts
 skills/                       # 每个机器人能力的 SKILL.md + schema + examples + scripts
 src/
@@ -254,6 +258,46 @@ third_party/
   VINS-Mono/                  # vendored VINS-Mono source snapshot
   openpose/                   # vendored CMU OpenPose source snapshot
 ```
+
+## 后训练：从规则恢复到可训练策略
+
+上面这套系统在标准化工作站里跑得稳，问题出在异常：Nav2 超时、工具被遮挡、抓取
+滑脱、转运途中掉件、操作者不在工位。每种异常都可以写一条 recovery rule，但组合
+数增长比覆盖率快。
+
+`agent_env/` 把高层决策抽象成闭环 Environment，`training/` 在它上面做后训练：
+SFT → DPO → Step-Level PPO → On-Policy Distillation。
+
+```bash
+# 冻结的 400 条故障注入 benchmark 必须与生成器一致
+python -m training.data.build_benchmark --check
+
+# 两个参照策略，不需要 GPU
+python -m training.evaluate --policy rules  --label rule_baseline --markdown
+python -m training.evaluate --policy expert --label expert_oracle
+
+# 完整流水线（需要 4×H20）
+bash training/scripts/run_pipeline.sh
+```
+
+已实测的参照点（400 条固定故障注入 benchmark）：
+
+| 策略 | recovery success | task success | premature stop | 停滞率 |
+| --- | --- | --- | --- | --- |
+| 规则基线（部署系统重建） | 76.1% | 63.0% | 21.5% | 9.5% |
+| 脚本专家（每类故障都有规则） | 100% | 84.5% | 0% | 0% |
+
+差的这 24 个点，大部分是"在还能救的局面下报失败退出"，也就是后训练要解决的目标。
+
+| 文档 | 内容 |
+| --- | --- |
+| [training/README.md](training/README.md) | 训练栈工程说明：模块、命令、奖励预设、评测口径 |
+| [docs/post_training.md](docs/post_training.md) | 设计取舍：为什么 Skill-level、为什么 process reward ≠ credit assignment、为什么 OPD → PPO |
+| [docs/results.md](docs/results.md) | 实验矩阵与实测结果（未跑的臂显示 pending） |
+| [agent_env/README.md](agent_env/README.md) | 闭环环境层：协议、故障注入、L1 模拟器、脚本专家 |
+
+模型训练的四个阶段脚本已写好并有 CPU 侧单测，但尚未在 GPU 上执行；
+`docs/results.md` 里标 pending 的行就是还没跑的实验臂。
 
 ## WSL Gazebo Quick Start
 
@@ -637,6 +681,11 @@ python3 agent_harness/scripts/skill_router.py agent_harness/examples/deliver_hex
 - [x] 人脸验证 Action server
 - [x] VINS-Mono ROS2 bridge
 - [x] 机械臂 start / pause / stop 手势控制
+- [x] 闭环 Agent Environment + 9 类故障注入 + 脚本专家 (`agent_env/`)
+- [x] 后训练栈: SFT / DPO / Step-Level PPO / OPD 与分桶评测 (`training/`)
+- [x] 冻结 400 条故障注入 benchmark 与训练/评测 split 隔离检查
+- [ ] 在 GPU 上跑完五条实验臂并填满 `docs/results.md`
+- [ ] `gazebo_adapter.py`: 用同一 `env.step()` 接口接 L2 Gazebo 闭环
 - [ ] 接入真实 Nav2 `NavigateToPose`
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定

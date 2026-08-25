@@ -42,3 +42,37 @@
 - Let PerceptionAgent request new viewpoints when confidence is low.
 - Let ManipulationAgent choose grasp strategy from tool geometry.
 - Add multi-robot task allocation when more than one mobile base is available.
+
+## Phase 4: Post-Training the High-Level Policy
+
+Motivation and design decisions: [post_training.md](post_training.md).
+Engineering guide: [../training/README.md](../training/README.md).
+
+### Done
+
+- Closed-loop agent environment: observation/action protocol, action registry,
+  nine fault families with compatible double-fault pairs, L1 text-level
+  simulator, scripted expert (`agent_env/`).
+- Single prompt surface shared by data generation, training and evaluation, with
+  format-tolerant / content-strict action parsing (`training/chat_format.py`).
+- Composite step reward with ablation presets, and turn-level credit assignment
+  that scatters GAE advantages onto the action token spans that earned them —
+  plus the flat-credit baseline as a runnable comparison.
+- Datasets: SFT corpus, DPO pairs whose preference direction is verified by
+  executing the alternative in a cloned environment, and a frozen 400-episode
+  held-out benchmark with enforced seed and operator-pool isolation.
+- Policies: rule baseline (the deployed system reconstructed, with its coverage
+  gaps made explicit), expert oracle, vLLM/HF backends, frozen OPD teacher with
+  a budgeted turn gate.
+- Training entry points for SFT, DPO, step-level PPO and OPD (DeepSpeed ZeRO-3).
+- Evaluation with a failure taxonomy and bucket breakdowns; report generator
+  that renders measured values against pre-registered acceptance targets.
+
+### Next
+
+- Run the five experiment arms on GPUs and fill in `results.md`.
+- `agent_env/gazebo_adapter.py`: expose the live ROS2/Gazebo stack behind the
+  same `env.step()` interface, for L2 calibration and evaluation.
+- Calibrate L1 transition probabilities against measured Gazebo outcomes, so the
+  fast simulator's failure rates match the real stack's.
+- Real-robot regression pass on the arms that survive simulation.

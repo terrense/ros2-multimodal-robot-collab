@@ -1,4 +1,4 @@
-name: ROS2 CI
+name: CI
 
 on:
   push:
@@ -6,7 +6,29 @@ on:
   pull_request:
 
 jobs:
-  lint-and-build:
+  python-tests:
+    # The agent_env and training layers are pure Python (stdlib + numpy + torch
+    # CPU), so the environment, reward, credit-assignment, data and evaluation
+    # logic is testable without ROS2 and without a GPU.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy pyyaml pytest
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Run tests
+        run: python -m pytest
+      - name: Verify the frozen benchmark still matches its generator
+        run: python -m training.data.build_benchmark --check
+      - name: Environment acceptance (140 episodes, expert must recover from every fault)
+        run: python -m agent_env.scripts.collect_trajectories --acceptance --out /tmp/l1_acceptance.jsonl
+
+  ros2-build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +46,8 @@ jobs:
           source /opt/ros/humble/setup.bash
           rosdep install --from-paths src -y --ignore-src
       - name: Build
+        # Only src/. third_party/ holds vendored source snapshots (Ultralytics,
+        # VINS-Mono, OpenPose) that are not colcon packages of this workspace.
         run: |
           source /opt/ros/humble/setup.bash
-          colcon build --event-handlers console_direct+
-
+          colcon build --base-paths src --event-handlers console_direct+
