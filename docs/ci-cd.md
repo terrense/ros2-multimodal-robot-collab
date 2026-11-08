@@ -76,6 +76,45 @@ From then on, every `git commit` runs ruff plus the hygiene hooks against the
 staged files. CI runs the same ruff check, so the gate should almost never be
 the first place you learn about a problem.
 
+## Three failures this pipeline found on day one
+
+Worth reading before you touch the Dockerfile or the ROS job. All three were
+invisible while the old pipeline was red or absent.
+
+1. **`ament_python` is not a rosdep key.** All nine Python packages declare it
+   as a build tool (the ROS 2 template does), and rosdep has a rule for
+   `ament_cmake` but none for `ament_python` — it is a build type, not a
+   dependency. `rosdep install` aborts on every Python package.
+   Fix: `--skip-keys ament_python`, explicitly. Do not reach for `-r`, which
+   would swallow genuinely unknown dependencies too.
+
+2. **rosdep needs the apt index you just deleted.** A layer that ends with
+   `rm -rf /var/lib/apt/lists/*` leaves nothing for rosdep's `apt-get install`
+   to read, and the error is `Unable to locate package ros-humble-cv-bridge`.
+   Fix: `apt-get update` inside the rosdep layer, cleanup after it.
+
+3. **`~/.bashrc` is not read by `bash -lc`.** Writing the overlay there made
+   `docker run IMAGE ros2 pkg list` come back empty while the smoke test
+   passed, because the test sourced the overlay by hand. A test that does not
+   use the product the way users do is not testing the product. Fix: an
+   entrypoint that sources base + overlay, and a smoke test that runs the
+   natural command.
+
+## Day-to-day
+
+```bash
+git switch -c feat/whatever
+# ... work ...
+git commit            # pre-commit runs ruff on the staged files
+git push -u origin feat/whatever
+# open a PR -- CI runs on it, and the PR cannot merge red
+```
+
+Turn the gate into a rule, not a habit: **Settings > Branches > Add branch
+protection rule** for `main`, require the status checks `lint`, `python-tests`,
+`harness-tests`, and require a branch to be up to date before merging. Without
+that, "the checks are green" is a convention one tired evening can break.
+
 ## Releasing and using the image
 
 ```bash
@@ -87,6 +126,10 @@ Every push to `main` also publishes `:edge`.
 
 ```bash
 docker pull ghcr.io/terrense/ros2-multimodal-robot-collab:0.2.0
+
+# The entrypoint sources the overlay, so this just works:
+docker run --rm ghcr.io/terrense/ros2-multimodal-robot-collab:0.2.0 ros2 pkg list
+
 docker run --rm -it ghcr.io/terrense/ros2-multimodal-robot-collab:0.2.0 \
   ros2 launch robot_collab_bringup demo.launch.py
 ```
@@ -102,6 +145,10 @@ nodes report a clear error when they are missing.
   define ROS-side tests; it passes vacuously. Adding `ament_cmake_pytest` /
   `launch_testing` tests to the packages is what turns this job from "it
   compiles" into "it works".
+- **The image is 4.7GB.** The runtime stage inherits the full `deps` stage,
+  which carries the ROS base plus every resolved dependency but no build
+  toolchain. Trimming means starting from `ros:humble-ros-core` and installing
+  only the packages the launch files actually need.
 - **No ARM image.** The robot's Jetson TX2 is `linux/arm64`; the published
   image is amd64. A `platforms: linux/amd64,linux/arm64` build (QEMU) is the
   next step if the Jetson should run the same artifact.
