@@ -14,13 +14,13 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T1 — Baseline (`00_baseline.md`)
 
-- [ ] Record target repo state: branch, HEAD SHA, worktree, remote
-- [ ] Inventory tracked files, packages, tests, dependencies, launch entrypoints
-- [ ] Clone OpenRUA outside the repo and pin its HEAD SHA
-- [ ] Record upstream inventory (top-level modules, test dirs, licence)
-- [ ] Capture baseline checks: `ruff`, `pytest`, `pytest agent_harness/tests`,
+- [x] Record target repo state: branch, HEAD SHA, worktree, remote
+- [x] Inventory tracked files, packages, tests, dependencies, launch entrypoints
+- [x] Clone OpenRUA outside the repo and pin its HEAD SHA
+- [x] Record upstream inventory (top-level modules, test dirs, licence)
+- [x] Capture baseline checks: `ruff`, `pytest`, `pytest agent_harness/tests`,
       ROS2 colcon build evidence (CI run id or container output)
-- [ ] Record what is NOT RUN and why
+- [x] Record what is NOT RUN and why
 
 ## T2 — Upstream callgraph (`01_upstream_callgraph.md`)
 
