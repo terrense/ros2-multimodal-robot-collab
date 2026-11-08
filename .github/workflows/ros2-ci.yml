@@ -28,6 +28,20 @@ jobs:
       - name: Environment acceptance (140 episodes, expert must recover from every fault)
         run: python -m agent_env.scripts.collect_trajectories --acceptance --out /tmp/l1_acceptance.jsonl
 
+  harness-tests:
+    # pytest.ini pins testpaths = tests, so the suite above never reaches the
+    # agent harness tests. They need no ROS2 and are cheap to run on their own.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: pip install pyyaml pytest
+      - name: Run agent harness tests (no ROS2 required)
+        run: pytest agent_harness/tests -q
+
   ros2-build:
     runs-on: ubuntu-22.04
     steps:

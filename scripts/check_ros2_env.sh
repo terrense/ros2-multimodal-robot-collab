@@ -39,8 +39,11 @@ fi
 
 printf "\n== ROS2 setup ==\n"
 if [ -f /opt/ros/humble/setup.bash ]; then
+  # ROS2's setup.bash references unset variables internally; nounset breaks it.
+  set +u
   # shellcheck disable=SC1091
   source /opt/ros/humble/setup.bash
+  set -u
   pass "found /opt/ros/humble/setup.bash"
 else
   fail "ROS2 Humble not found at /opt/ros/humble/setup.bash"
@@ -62,8 +65,10 @@ done
 printf "\n== Workspace ==\n"
 printf "repo: %s\n" "$ROOT_DIR"
 if [ -f "$ROOT_DIR/install/setup.bash" ]; then
+  set +u
   # shellcheck disable=SC1091
   source "$ROOT_DIR/install/setup.bash"
+  set -u
   pass "workspace overlay found: install/setup.bash"
 else
   warn "workspace is not built yet: install/setup.bash missing"

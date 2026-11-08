@@ -9,8 +9,11 @@ if [ ! -f /opt/ros/humble/setup.bash ]; then
   exit 1
 fi
 
+# ROS2's setup.bash references unset variables internally; nounset breaks it.
+set +u
 # shellcheck disable=SC1091
 source /opt/ros/humble/setup.bash
+set -u
 
 echo "Installing ROS dependencies from src/ ..."
 rosdep install --from-paths src -y --ignore-src

@@ -20,7 +20,9 @@ Thumbs.db
 # Local runtime artifacts
 bags/
 maps/
-models/
+models/*
+!models/.gitignore
+!models/README.md
 captures/
 *.db3
 *.mcap
@@ -44,3 +46,6 @@ agent_harness/traces/
 
 # The frozen benchmark under benchmarks/ IS tracked: results are only comparable
 # across checkpoints if every run scores the same 400 episodes.
+
+# Local debug captures (camera snapshots etc.) - keep on disk, never commit
+camera_*.png

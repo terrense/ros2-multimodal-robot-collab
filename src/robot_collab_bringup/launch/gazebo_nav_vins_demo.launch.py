@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -12,6 +12,7 @@ def generate_launch_description():
     nav_backend = LaunchConfiguration("nav_backend")
     start_slam = LaunchConfiguration("start_slam")
     start_nav2 = LaunchConfiguration("start_nav2")
+    use_yolo = LaunchConfiguration("use_yolo")
 
     bringup_share = FindPackageShare("robot_collab_bringup")
     params = PathJoinSubstitution([bringup_share, "config", "demo_params.yaml"])
@@ -69,6 +70,15 @@ def generate_launch_description():
                 default_value="false",
                 description="Start Nav2 navigation servers for station-level NavigateToPose goals.",
             ),
+            DeclareLaunchArgument(
+                "use_yolo",
+                default_value="false",
+                description=(
+                    "Run the real YOLOv8 detector on the live camera instead of the "
+                    "hardcoded tool_detector stub. Requires the ultralytics package and "
+                    "models/yolov8n.pt, plus a COCO-recognizable object in the scene."
+                ),
+            ),
             gazebo,
             slam,
             nav2,
@@ -100,15 +110,36 @@ def generate_launch_description():
                 output="screen",
                 parameters=common_params,
             ),
+            # Tool detection has two interchangeable backends publishing the same
+            # /perception/tool_detections contract. Default is the offline-safe
+            # stub; use_yolo:=true swaps in real YOLOv8 inference on the camera.
             Node(
                 package="robot_collab_perception",
                 executable="tool_detector_node",
                 name="tool_detector_node",
                 output="screen",
+                condition=UnlessCondition(use_yolo),
                 parameters=[
                     params,
                     {
                         "use_sim_time": use_sim_time,
+                        "source_frame": "camera_link",
+                    },
+                ],
+            ),
+            Node(
+                package="robot_collab_perception",
+                executable="yolov8_tool_detector_node",
+                name="yolov8_tool_detector_node",
+                output="screen",
+                condition=IfCondition(use_yolo),
+                parameters=[
+                    params,
+                    {
+                        "use_sim_time": use_sim_time,
+                        # The Gazebo RGB camera publishes /camera/color/image_raw in
+                        # the camera_link frame defined by the robot URDF.
+                        "camera_topic": "/camera/color/image_raw",
                         "source_frame": "camera_link",
                     },
                 ],
