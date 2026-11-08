@@ -67,11 +67,12 @@ Concretely:
    shared phase vocabulary (`protocol.py:24-48`). It is *not* decomposed in
    Phase 1.
 4. **The action vocabulary is a superset, not a rename.** The 13 L1 actions stay
-   exactly as they are (frozen for training). The 3 harness-only actions
-   (`mission-control.deliver_tool`, `perception.recognize_openpose_gesture`,
-   `perception.detect_tool_yolov8`) are registered as ROS 2-only capabilities
-   in the `CapabilityDescriptor` registry, marked `available_in: ["ros2"]`.
-   L1 does not gain or lose an action.
+   exactly as they are (frozen for training). The harness contributes 6
+   agent-callable actions, 5 of which already exist in L1; only
+   `mission-control.deliver_tool` is ROS 2-only and is registered with
+   `available_in: ["ros2"]`. The two actions marked `callable: false`
+   (`perception.recognize_openpose_gesture`, `perception.detect_tool_yolov8`)
+   are perception internals and are not model-visible capabilities at all.
 5. **Observation is the join point.** Path B already passes `last_result` into
    the next `Observation` (`protocol.py:127-141`). Path A gains the same
    structure: the receipt from step *n* becomes the observation input to step

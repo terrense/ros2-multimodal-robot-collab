@@ -79,7 +79,8 @@ They differ in five concrete ways:
 
 1. **Cardinality**: N steps per model call vs exactly 1 action per turn.
 2. **Validation unit**: plan-level vs action-level, with different schemas
-   (9 harness actions vs 13 training actions; 5 shared names).
+   (6 agent-callable harness actions vs 13 training actions; 5 shared names;
+   2 further harness actions are declared `callable: false`).
 3. **Granularity**: `mission-control.deliver_tool` hides the entire mission
    inside one action; path B requires the model to sequence pick/verify/handover.
 4. **Feedback channel**: path A has none; path B merges `StepResult` into the

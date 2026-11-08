@@ -12,3 +12,6 @@ numpy==2.4.6
 PyYAML==6.0.3
 pytest==9.2.0
 ruff==0.17.4
+# Test-only: validates the contract v1 schema documents against dataclass
+# output. The runtime contract package stays stdlib-only.
+jsonschema==4.26.0

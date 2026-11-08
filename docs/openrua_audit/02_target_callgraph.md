@@ -147,16 +147,19 @@ Two validators, two schemas, two vocabularies — see §5.
 
 ## 5. The contract split, measured
 
-Action vocabularies:
+Action vocabularies (re-measured during Phase 1; the first pass counted
+declared actions without checking `callable`):
 
 | Source | Actions |
 |---|---|
-| `skills/*/schema.json` (path A) | 9: `hri.publish_tts`, `manipulation.publish_arm_control`, `mission-control.deliver_tool`, `navigation.navigate_to_station`, `perception.{verify_operator,recognize_openpose_gesture,detect_tool_yolov8}`, `system-state.query_state` |
+| `skills/*/schema.json` (path A) | 8 declared, **6 agent-callable**: `hri.publish_tts`, `manipulation.publish_arm_control`, `mission-control.deliver_tool`, `navigation.navigate_to_station`, `perception.verify_operator`, `system-state.query_state`. Declared but `callable: false`: `perception.recognize_openpose_gesture`, `perception.detect_tool_yolov8` — perception internals the model cannot invoke. |
 | `agent_env/schemas/agent_skills.json` (path B) | 13: `hri.{publish_tts,request_confirmation}`, `manipulation.{handover_tool,pick_tool,publish_arm_control,select_grasp_pose,verify_grasp}`, `mission.terminate`, `navigation.{navigate_to_station,reposition}`, `perception.{request_tool_detection,verify_operator}`, `system-state.query_state` |
 
-Only **5 names** appear in both sets: `hri.publish_tts`,
+**5 names** appear in both callable sets: `hri.publish_tts`,
 `manipulation.publish_arm_control`, `navigation.navigate_to_station`,
-`perception.verify_operator`, `system-state.query_state`.
+`perception.verify_operator`, `system-state.query_state`. The union is 14
+capabilities, of which exactly one (`mission-control.deliver_tool`) exists only
+on the ROS 2 side and 8 exist only in L1.
 
 The mismatch is not only naming:
 
@@ -165,10 +168,11 @@ The mismatch is not only naming:
   `pick_tool`, `verify_grasp`, `handover_tool`, `mission.terminate` — the model
   decides each subgoal.
 - Path B has recovery primitives (`navigation.reposition`,
-  `perception.request_tool_detection`) that do not exist in path A.
-- Path A's `perception.detect_tool_yolov8` is a perception operation; path B's
-  `perception.request_tool_detection` is a request whose result arrives through
-  the next observation.
+  `perception.request_tool_detection`) that do not exist as callable path A
+  actions.
+- Path A declares `perception.detect_tool_yolov8` but marks it non-callable; in
+  path B the equivalent is `perception.request_tool_detection`, whose result
+  arrives through the next observation.
 
 Therefore: a plan written for path A cannot be replayed by path B, and a path B
 trajectory cannot be executed by path A without a translation layer that
