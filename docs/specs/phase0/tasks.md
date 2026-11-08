@@ -55,9 +55,9 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T5 — Licences (`04_licenses.md`)
 
-- [ ] Upstream licence + transitive obligations
-- [ ] Our licences and `third_party/` obligations (AGPL/GPL/noncommercial)
-- [ ] Rule for what can and cannot be copied
+- [x] Upstream licence + transitive obligations
+- [x] Our licences and `third_party/` obligations (AGPL/GPL/noncommercial)
+- [x] Rule for what can and cannot be copied
 
 ## T6 — Adoption decisions (`05_adoption_decisions.md`)
 
