@@ -27,7 +27,11 @@ COPY src ./src
 
 RUN [ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || rosdep init \
     && rosdep update --rosdistro humble \
-    && rosdep install --from-paths src --ignore-src -y --rosdistro humble
+    && rosdep install --from-paths src --ignore-src -y --rosdistro humble \
+                     --skip-keys ament_python
+# ament_python is a build type, not a dependency: rosdep has no rule for it
+# (ament_cmake does), so the nine Python packages fail resolution without the
+# explicit skip.
 
 
 FROM deps AS builder
