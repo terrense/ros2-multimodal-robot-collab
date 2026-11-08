@@ -25,13 +25,19 @@ RUN apt-get update \
 WORKDIR /ws
 COPY src ./src
 
-RUN [ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || rosdep init \
-    && rosdep update --rosdistro humble \
-    && rosdep install --from-paths src --ignore-src -y --rosdistro humble \
-                     --skip-keys ament_python
 # ament_python is a build type, not a dependency: rosdep has no rule for it
 # (ament_cmake does), so the nine Python packages fail resolution without the
 # explicit skip.
+#
+# rosdep shells out to `apt-get install` and never runs `apt-get update` itself,
+# and the layer above clears /var/lib/apt/lists. Without the update here every
+# resolution fails with "Unable to locate package".
+RUN [ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || rosdep init \
+    && rosdep update --rosdistro humble \
+    && apt-get update \
+    && rosdep install --from-paths src --ignore-src -y --rosdistro humble \
+                     --skip-keys ament_python \
+    && rm -rf /var/lib/apt/lists/*
 
 
 FROM deps AS builder
