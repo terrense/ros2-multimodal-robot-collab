@@ -38,8 +38,12 @@ def _units() -> dict[str, Any]:
 
     return {
         "type": "object",
+        "description": (
+            "Top-level argument or payload name -> unit token. Keys are literal "
+            "names, never dotted paths."
+        ),
         "additionalProperties": {"enum": sorted(UNIT_TOKENS)},
-        "propertyNames": {"minLength": 1},
+        "propertyNames": {"minLength": 1, "pattern": r"^[^.]+$"},
     }
 
 
@@ -113,6 +117,31 @@ def execution_receipt_schema() -> dict[str, Any]:
                 "resource_key": {"type": "string", "minLength": 1, "pattern": r"^\S+$"},
                 "result": {"type": "object"},
             },
+            # The two invariants a non-Python reader can still check. The
+            # dataclasses enforce more; these keep the wire format from
+            # accepting a receipt Python would reject.
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {"execution_status": {"const": "rejected"}},
+                        "required": ["execution_status"],
+                    },
+                    "then": {
+                        "properties": {"physical_effect_verified": {"const": False}},
+                        "required": ["physical_effect_verified"],
+                    },
+                },
+                {
+                    "if": {
+                        "properties": {"execution_status": {"const": "completed"}},
+                        "required": ["execution_status"],
+                    },
+                    "then": {
+                        "properties": {"call_ok": {"const": True}},
+                        "required": ["call_ok"],
+                    },
+                },
+            ],
         },
     )
 

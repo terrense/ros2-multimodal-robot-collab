@@ -35,7 +35,7 @@ One submission.
 | `arguments` | JSON object |
 | `requested_at` | unix seconds |
 | `frame_id` | `map`/`odom`/`base_link`/`tool0`/… or `None` |
-| `units` | argument path → `m`/`rad`/`s`/`unitless` |
+| `units` | top-level argument name → `m`/`rad`/`s`/`m/s`/`rad/s`/`N`/`Nm`/`unitless`; a key must name an argument that exists |
 | `state_version` | the client's view of robot state |
 | `resource_key` | `arm`, `base` or `episode` |
 | `timeout_s` | per-command budget |
@@ -62,6 +62,14 @@ Invariants enforced in `__post_init__`:
   provably had no effect.
 - `unknown` defaults to `failure_code=execution_uncertain`.
 - `finished_at` requires `started_at` and cannot precede it.
+- Unit keys are literal top-level names, not dotted paths, and must name an
+  argument that actually exists — a unit attached to a typo is rejected at
+  parse time.
+
+The published JSON Schema repeats the two invariants a non-Python reader can
+check (`rejected` ⇒ `physical_effect_verified=false`, `completed` ⇒
+`call_ok=true`), so a Go or TypeScript consumer cannot be more permissive than
+the Python side.
 
 ### The three questions
 
@@ -80,12 +88,15 @@ physical_effect_verified=None` is the normal case for a ROS 2 action.
 not_started -> queued | running | rejected
 queued      -> running | rejected | unknown
 running     -> completed | failed | unknown
-unknown     -> completed | failed     (only with reconciled=True)
+unknown     -> completed | failed     (only with reconciled_by=<evidence id>)
 terminal    -> nothing
 ```
 
 `unknown` is resolved by evidence, never by assumption. `require_transition`
-raises `InvalidTransition` without a reconciliation record.
+takes `reconciled_by` — the id of the receipt or snapshot that settled the
+outcome — and raises `InvalidTransition` when it is missing or empty. A bare
+boolean was rejected during review: it would let anyone resolve an unknown by
+assertion, and it would leave the actual evidence nowhere.
 
 ### ObservationSnapshot, TaskOutcome, CapabilityDescriptor
 

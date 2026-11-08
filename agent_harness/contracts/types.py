@@ -99,7 +99,7 @@ class ActionRequest:
         self.requested_at = _check_optional_timestamp(self.requested_at, "requested_at")
         if self.frame_id is not None:
             validate_frame(self.frame_id)
-        self.units = validate_units(self.units)
+        self.units = validate_units(self.units, arguments=self.arguments)
         self.state_version = _check_state_version(self.state_version)
         self.resource_key = _check_resource_key(self.resource_key)
         if self.timeout_s is not None:
@@ -226,8 +226,8 @@ class ObservationSnapshot:
         if version is None:
             raise ValueError("state_version is required")
         self.state_version = version
-        self.units = validate_units(self.units)
         self.payload = _check_json_object(self.payload, "payload")
+        self.units = validate_units(self.units, arguments=self.payload)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

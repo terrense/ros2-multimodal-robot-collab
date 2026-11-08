@@ -20,7 +20,7 @@ This phase is additive. It changes no behaviour and no existing schema.
 |---|---|---|
 | Where does the contract live? | `agent_harness/contracts/` | `agent_env/` is frozen for training; `src/` must stay ROS-only |
 | Validation dependency | stdlib `dataclasses` at runtime, `jsonschema` in tests only | keeps the ROS 2 image free of new runtime dependencies |
-| Frame/unit vocabulary | frame `map` for spatial arguments; units from `{"m", "rad", "s", "unitless"}` | one canonical vocabulary, rejected at parse time otherwise |
+| Frame/unit vocabulary | frame `map` for spatial arguments; units from `{"m", "rad", "s", "m/s", "rad/s", "N", "Nm", "unitless"}`, keys are top-level argument names | one canonical vocabulary, rejected at parse time otherwise |
 | Does `partial` exist? | Not as a status in v1 | represented as `FAILED` + `physical_effect_verified=True`; a status value we cannot populate is a lie waiting to happen |
 
 ## Contract v1
@@ -44,7 +44,7 @@ established — it is not a synonym for failure. Legal transitions:
 not_started -> queued | running | rejected
 queued      -> running | rejected | unknown
 running     -> completed | failed | unknown
-unknown     -> completed | failed        (only with a reconciliation record)
+unknown     -> completed | failed        (only with reconciled_by=<evidence id>)
 completed / failed / rejected            (terminal)
 ```
 
@@ -88,7 +88,7 @@ completed / failed / rejected            (terminal)
 |---|---|---|
 | P1-R1 | Every type round-trips through JSON without field loss | test |
 | P1-R2 | Unknown units, frames and failure codes are rejected | test |
-| P1-R3 | Illegal status transitions are rejected; `unknown → completed` requires a reconciliation record | test |
+| P1-R3 | Illegal status transitions are rejected; `unknown → completed` requires a named reconciliation record | test |
 | P1-R4 | All 13 L1 actions survive `Action → contract → Action` unchanged | test |
 | P1-R5 | Every `skills/*/schema.json` action resolves to exactly one descriptor | test |
 | P1-R6 | The 3 ROS-only actions are not exposed to L1 | test |

@@ -11,8 +11,9 @@ Two rules keep these useful:
 
 from __future__ import annotations
 
-# Physical quantities. "unitless" covers counts, identifiers and booleans.
-UNIT_TOKENS = frozenset({"m", "rad", "s", "unitless"})
+# Physical quantities. "unitless" covers counts, identifiers and booleans; it is
+# not a place to park a physical quantity whose unit we have not defined.
+UNIT_TOKENS = frozenset({"m", "rad", "s", "m/s", "rad/s", "N", "Nm", "unitless"})
 
 # Principal frames of the workspace TF tree. Extend with register_frame().
 KNOWN_FRAMES = frozenset(
@@ -57,15 +58,37 @@ def validate_frame(frame_id: str) -> str:
     return frame_id
 
 
-def validate_units(units: dict[str, str]) -> dict[str, str]:
+def validate_units(
+    units: dict[str, str], arguments: dict | None = None
+) -> dict[str, str]:
+    """Validate a unit map.
+
+    Key grammar: a unit key is a **top-level key of the object it describes**
+    (the request arguments or the snapshot payload). Dotted keys are literal
+    names, not nested paths — ``{"pose.x": "m"}`` describes a top-level key
+    called ``pose.x``, which almost nobody means.
+
+    When ``arguments`` is supplied, every unit key must name an argument that is
+    actually present. A unit attached to a non-existent argument is a typo that
+    would otherwise travel all the way to a robot.
+    """
     if not isinstance(units, dict):
-        raise TypeError("units must be a mapping of argument path -> unit token")
+        raise TypeError("units must be a mapping of argument name -> unit token")
     for path, token in units.items():
         if not isinstance(path, str) or not path:
-            raise ValueError("unit path must be a non-empty string")
+            raise ValueError("unit key must be a non-empty string")
+        if "." in path:
+            raise ValueError(
+                f"unit key {path!r} must be a top-level name, not a dotted path"
+            )
         if token not in UNIT_TOKENS:
             raise ValueError(
                 f"unknown unit {token!r} for {path!r}; allowed: {sorted(UNIT_TOKENS)}"
+            )
+        if arguments is not None and path not in arguments:
+            raise ValueError(
+                f"unit key {path!r} does not name an argument; "
+                f"arguments are {sorted(arguments)}"
             )
     return dict(units)
 

@@ -55,19 +55,20 @@ def can_transition(
     source: ExecutionStatus,
     target: ExecutionStatus,
     *,
-    reconciled: bool = False,
+    reconciled_by: str | None = None,
 ) -> bool:
     """Return whether ``source -> target`` is legal.
 
-    ``reconciled=True`` marks that the caller holds a reconciliation record
-    (a receipt read back from the executor). Only that flag permits leaving
-    ``UNKNOWN``.
+    ``reconciled_by`` is the id of the evidence that established the real
+    outcome — a receipt id, a snapshot id, or an equivalent record. A bare
+    boolean would let anyone resolve ``UNKNOWN`` by assertion; naming the
+    evidence makes the resolution auditable after the fact.
     """
     if source is target:
         return True
     if target not in LEGAL_TRANSITIONS[source]:
         return False
-    if source is ExecutionStatus.UNKNOWN and not reconciled:
+    if source is ExecutionStatus.UNKNOWN and not reconciled_by:
         return False
     return True
 
@@ -76,13 +77,15 @@ def require_transition(
     source: ExecutionStatus,
     target: ExecutionStatus,
     *,
-    reconciled: bool = False,
+    reconciled_by: str | None = None,
 ) -> None:
-    if not can_transition(source, target, reconciled=reconciled):
+    if not can_transition(source, target, reconciled_by=reconciled_by):
         extra = ""
-        if source is ExecutionStatus.UNKNOWN and not reconciled:
-            extra = " (UNKNOWN may only be resolved with a reconciliation record)"
-        raise InvalidTransition(f"illegal status transition {source.value} -> {target.value}{extra}")
+        if source is ExecutionStatus.UNKNOWN and not reconciled_by:
+            extra = " (UNKNOWN may only be resolved with the id of the evidence that settled it)"
+        raise InvalidTransition(
+            f"illegal status transition {source.value} -> {target.value}{extra}"
+        )
 
 
 class FailureCode(str, Enum):

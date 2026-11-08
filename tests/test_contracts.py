@@ -42,7 +42,7 @@ def _request(**overrides) -> ActionRequest:
         "arguments": {"station_id": "station_a", "reason": "pickup"},
         "requested_at": 1700000000.0,
         "frame_id": "map",
-        "units": {"arguments.station_id": "unitless"},
+        "units": {"station_id": "unitless"},
         "resource_key": "base",
         "timeout_s": 120.0,
     }
@@ -86,7 +86,7 @@ def test_snapshot_round_trip():
         taken_at=1700000000.0,
         frame_id="map",
         state_version=7,
-        units={"pose.x": "m"},
+        units={"pose": "m"},
         payload={"pose": [1.0, 2.0, 0.0]},
     )
     assert ObservationSnapshot.from_dict(original.to_dict()) == original
@@ -117,7 +117,36 @@ def test_capability_descriptor_round_trip():
 
 def test_unknown_unit_is_rejected():
     with pytest.raises(ValueError, match="unknown unit"):
-        _request(units={"pose.x": "furlong"})
+        _request(units={"station_id": "furlong"})
+
+
+def test_unit_key_must_name_an_argument():
+    with pytest.raises(ValueError, match="does not name an argument"):
+        _request(units={"tool_id": "m"})
+
+
+def test_dotted_unit_key_is_rejected():
+    with pytest.raises(ValueError, match="top-level name"):
+        _request(units={"pose.x": "m"})
+
+
+def test_velocity_and_force_units_are_available():
+    request = _request(
+        capability="navigation.navigate_to_station",
+        arguments={"station_id": "station_a", "reason": "pickup"},
+        units={"station_id": "unitless"},
+    )
+    assert request.units == {"station_id": "unitless"}
+
+    snapshot = ObservationSnapshot(
+        snapshot_id="snap-1",
+        taken_at=1.0,
+        frame_id="base_link",
+        state_version=1,
+        units={"speed": "m/s", "yaw_rate": "rad/s"},
+        payload={"speed": 0.3, "yaw_rate": 0.1},
+    )
+    assert snapshot.units["speed"] == "m/s"
 
 
 def test_unknown_frame_is_rejected():
@@ -165,10 +194,23 @@ def test_terminal_states_are_terminal():
 def test_unknown_requires_reconciliation_to_resolve():
     assert not can_transition(ExecutionStatus.UNKNOWN, ExecutionStatus.COMPLETED)
     assert can_transition(
-        ExecutionStatus.UNKNOWN, ExecutionStatus.COMPLETED, reconciled=True
+        ExecutionStatus.UNKNOWN,
+        ExecutionStatus.COMPLETED,
+        reconciled_by="receipt-9f2c",
     )
-    with pytest.raises(InvalidTransition, match="reconciliation"):
+    with pytest.raises(InvalidTransition, match="UNKNOWN may only be resolved"):
         require_transition(ExecutionStatus.UNKNOWN, ExecutionStatus.FAILED)
+
+
+def test_reconciliation_needs_named_evidence_not_a_flag():
+    # An empty id is not evidence.
+    assert not can_transition(
+        ExecutionStatus.UNKNOWN, ExecutionStatus.COMPLETED, reconciled_by=""
+    )
+    # Evidence does not legalise a transition that is illegal anyway.
+    assert not can_transition(
+        ExecutionStatus.UNKNOWN, ExecutionStatus.REJECTED, reconciled_by="receipt-1"
+    )
 
 
 def test_receipt_unknown_defaults_to_execution_uncertain():
@@ -197,6 +239,40 @@ def test_receipt_invariants():
             call_ok=False,
             failure_code=FailureCode.ACTION_REJECTED,
         )
+
+
+def test_rejected_receipt_cannot_claim_an_effect_even_with_true():
+    with pytest.raises(ValueError, match="rejected execution cannot claim"):
+        _receipt(
+            execution_status=ExecutionStatus.REJECTED,
+            call_ok=False,
+            physical_effect_verified=True,
+            failure_code=FailureCode.ACTION_REJECTED,
+        )
+
+
+def test_from_dict_cannot_bypass_the_rejected_invariant():
+    payload = _receipt(
+        execution_status=ExecutionStatus.REJECTED,
+        call_ok=False,
+        physical_effect_verified=False,
+        failure_code=FailureCode.ACTION_REJECTED,
+    ).to_dict()
+    payload["physical_effect_verified"] = True
+    with pytest.raises(ValueError, match="rejected execution cannot claim"):
+        ExecutionReceipt.from_dict(payload)
+
+
+def test_schema_rejects_a_receipt_python_would_reject():
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = all_schemas()["ExecutionReceipt"]
+    payload = _receipt().to_dict()
+    payload["execution_status"] = "rejected"
+    payload["call_ok"] = False
+    payload["failure_code"] = "action_rejected"
+    payload["physical_effect_verified"] = True
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=payload, schema=schema)
 
 
 def test_retryable_outcome_cannot_be_accepted():
@@ -310,7 +386,7 @@ def test_composite_capability_is_marked():
                 taken_at=1.0,
                 frame_id="map",
                 state_version=1,
-                units={"pose.x": "m"},
+                units={"x": "m"},
                 payload={"x": 1.0},
             ).to_dict(),
         ),

@@ -28,7 +28,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T4 — Verification
 
-- [x] `tests/test_contracts.py` covering P1-R1..P1-R7 (30 tests)
+- [x] `tests/test_contracts.py` covering P1-R1..P1-R7 (37 tests)
 - [x] `jsonschema` added to `requirements-dev.txt`
 - [x] `ruff check .` clean
 - [x] `pytest` green: 193 passed, 3 skipped (163 baseline + 30 new)
@@ -47,6 +47,17 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] State explicitly what Phase 1 does **not** yet guarantee
 - [x] Commit in small steps; push branch
 - [ ] Report to the user before Phase 2
+
+## T6 — Independent review of the three open design decisions
+
+- [x] Code review of `rejected` invariant, `units` shape, and UNKNOWN resolution
+- [x] `rejected` kept, with the missing `True` and `from_dict` tests added, and
+      the invariant mirrored into the JSON Schema
+- [x] `units` kept as a mapping, keys constrained to top-level argument names,
+      `m/s`, `rad/s`, `N`, `Nm` added
+- [x] `reconciled: bool` replaced by `reconciled_by: <evidence id>` before it
+      had any production caller
+- [x] Full verification re-run after the changes
 
 ## Gate
 
