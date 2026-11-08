@@ -41,7 +41,13 @@ from .trainers.common import (
     load_tokenizer,
     save_checkpoint,
 )
-from .trainers.experience import EpisodeExperience, attach_credit, build_experience, summarize, whiten_batch
+from .trainers.experience import (
+    EpisodeExperience,
+    attach_credit,
+    build_experience,
+    summarize,
+    whiten_batch,
+)
 from .trainers.ppo import (
     PPOLossConfig,
     ValueHead,
@@ -211,7 +217,7 @@ class PPORunner:
                 else:
                     hidden = self.actor(input_ids=input_ids, output_hidden_states=True).hidden_states[-1]
                     per_token = self.value_head(hidden)
-            for start, end in sequence.spans:
+            for _start, end in sequence.spans:
                 position = min(max(end - 2, 0), per_token.shape[1] - 1)
                 values.append(float(per_token[0, position].item()))
         return values

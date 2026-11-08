@@ -130,7 +130,7 @@ def broadcast_to_tokens(
     if len(credits) != len(spans):
         raise ValueError(f"credits ({len(credits)}) and spans ({len(spans)}) must align")
     out = np.zeros(seq_len, dtype=np.float64)
-    for credit, (start, end) in zip(credits, spans):
+    for credit, (start, end) in zip(credits, spans, strict=False):
         advantage = credit.advantage if isinstance(credit, TurnCredit) else float(credit)
         start = max(0, int(start))
         end = min(seq_len, int(end))

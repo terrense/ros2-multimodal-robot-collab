@@ -148,7 +148,7 @@ def build_turn_weight_tensor(
     import torch
 
     tensor = torch.zeros(seq_len, dtype=torch.float32, device=device)
-    for (start, end), weight in zip(spans, weights):
+    for (start, end), weight in zip(spans, weights, strict=False):
         start = max(0, int(start))
         end = min(seq_len, int(end))
         if end > start:

@@ -104,7 +104,7 @@ def main() -> None:
         on_disk = load_specs(args.out)
         drift = [
             (a.scenario_id, b.scenario_id)
-            for a, b in zip(on_disk, specs)
+            for a, b in zip(on_disk, specs, strict=False)
             if a.scenario_id != b.scenario_id or a.seed != b.seed
         ]
         if len(on_disk) != len(specs) or drift:

@@ -1,0 +1,140 @@
+name: CI
+
+# The gate. If this is green on a branch, the branch is mergeable.
+#
+#   lint           ~20s   ruff + conflict markers        (every push)
+#   python-tests   ~40s   163 tests, benchmark, 140-episode acceptance run
+#   harness-tests  ~25s   agent_harness suite (pytest.ini testpaths hides it)
+#   ros2-build     ~5min  10 colcon packages inside ros:humble-ros-base
+#                         (only when src/, scripts/ or the Dockerfile changed)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes the older run pointless: cancel it.
+# Without this, five quick fix-up commits burn five full ROS2 builds.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The workflows only read the repository. Grant nothing you do not need.
+permissions:
+  contents: read
+
+jobs:
+  # --------------------------------------------------------------- routing
+  # Cheap router that decides whether the expensive ROS2 job is worth its
+  # minutes. A README edit or a docstring fix in training/ must not rebuild
+  # ten colcon packages.
+  changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      ros: ${{ steps.filter.outputs.ros }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ros:
+              - 'src/**'
+              - 'scripts/**'
+              - 'Dockerfile'
+              - '.github/workflows/**'
+
+  # ------------------------------------------------------------------ fast
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff==0.17.4
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Reject leftover merge conflict markers
+        # Succeeds only when git grep finds nothing; third_party/ is vendored
+        # and full of legitimate '=======' markdown underlines.
+        run: "! git grep -n -E '^(<<<<<<< |>>>>>>> )' -- ':!third_party'"
+
+  python-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Unit tests (agent_env + training)
+        run: python -m pytest
+      - name: Frozen benchmark still matches its generator
+        run: python -m training.data.build_benchmark --check
+      - name: Environment acceptance (expert must recover from every fault)
+        run: python -m agent_env.scripts.collect_trajectories --acceptance --out /tmp/l1_acceptance.jsonl
+
+  harness-tests:
+    # pytest.ini pins testpaths = tests, so the job above never reaches
+    # agent_harness/tests. These need no ROS2 and no numpy, so run them apart.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run agent harness tests (no ROS2 required)
+        run: pytest agent_harness/tests -q
+
+  # ------------------------------------------------------------------ slow
+  ros2-build:
+    # The previous version of this job hand-rolled `apt install ros-humble-*`
+    # without adding packages.ros.org, so it failed on every single run and
+    # ten ROS2 packages never got a build check. Use the official image: the
+    # toolchain is someone else's maintenance problem now.
+    needs: changes
+    if: needs.changes.outputs.ros == 'true'
+    runs-on: ubuntu-22.04
+    container:
+      image: ros:humble-ros-base
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Mark the workspace safe for git inside the container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/checkout@v4
+      - name: Install colcon and rosdep
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3-colcon-common-extensions python3-rosdep
+      - name: Resolve package dependencies
+        run: |
+          [ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || rosdep init
+          rosdep update --rosdistro humble
+          rosdep install --from-paths src --ignore-src -y --rosdistro humble
+      - name: Build workspace
+        # Only src/. third_party/ holds vendored source snapshots (Ultralytics,
+        # VINS-Mono, OpenPose) that are not colcon packages of this workspace.
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --base-paths src --event-handlers console_direct+ \
+            --cmake-args -DCMAKE_BUILD_TYPE=Release
+      - name: Test workspace
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test --base-paths src --event-handlers console_direct+
+          colcon test-result --verbose

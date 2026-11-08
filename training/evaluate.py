@@ -32,7 +32,7 @@ import json
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Sequence
 
 from .envs import EpisodeRecord, episode_from_records
 
@@ -129,8 +129,8 @@ def fault_bucket(record: EpisodeRecord) -> str:
         return "clean"
     if len(faults) > 1:
         return "mixed"
-    from training.data.scenario_bank import _FAULT_BUCKET  # noqa: PLC0415 - avoids a cycle at import time
     from agent_env.faults import FaultType
+    from training.data.scenario_bank import _FAULT_BUCKET  # noqa: PLC0415 - avoids a cycle at import time
 
     return _FAULT_BUCKET.get(FaultType(faults[0]["fault"]), "other")
 

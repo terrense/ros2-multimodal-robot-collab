@@ -1,0 +1,27 @@
+# Local pre-flight gate: same rules as CI, but you find out in two seconds
+# instead of waiting for a runner.
+#
+#   uv pip install pre-commit      (or: pip install pre-commit)
+#   pre-commit install
+#
+# After that, every `git commit` runs these hooks against the staged files only,
+# so a 3000-file repository stays fast to work in.
+#
+# Skip in an emergency with `git commit --no-verify` -- but fix it before the
+# push, because CI runs the exact same ruff check without the escape hatch.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml             # a broken workflow file fails here, not on GitHub
+      - id: check-merge-conflict   # catches a committed <<<<<<< before CI does
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]     # third_party/ is vendored; keep new blobs small
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.4                   # keep in sync with requirements-dev.txt
+    hooks:
+      - id: ruff
+        args: ["--fix"]

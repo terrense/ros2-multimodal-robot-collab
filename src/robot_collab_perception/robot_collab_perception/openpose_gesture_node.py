@@ -115,7 +115,7 @@ class OpenPoseGestureNode(Node):
         finger_pips = [6, 10, 14, 18]
         extended = [
             float(keypoints[tip][1]) < float(keypoints[pip][1])
-            for tip, pip in zip(finger_tips, finger_pips)
+            for tip, pip in zip(finger_tips, finger_pips, strict=False)
         ]
         thumb_up = float(keypoints[4][1]) < float(keypoints[3][1]) and sum(extended) <= 1
         if thumb_up:

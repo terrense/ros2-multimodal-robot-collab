@@ -9,14 +9,13 @@ import pytest
 from agent_env.faults import FaultSpec, FaultType, default_params
 from agent_env.l1_sim import L1DeliveryEnv, Scenario
 from agent_env.protocol import Action, ActionRegistry
-from training.chat_format import parse_action
+from training.chat_format import parse_action, system_prompt
 from training.data.build_dpo import build_pairs, clone_env, simulate
 from training.data.build_sft import episode_sample, keep, turn_samples
 from training.data.corruptors import RULES, propose_all
 from training.data.scenario_bank import sample_scenarios
 from training.envs import run_episode, scripted_policy
 from training.rewards import PRESETS
-from training.chat_format import system_prompt
 
 
 def _scenario(fault: FaultType | None = None, seed: int = 5) -> Scenario:
@@ -109,9 +108,9 @@ def test_every_rule_declares_a_failure_mode() -> None:
 
 
 def test_corruptors_never_propose_the_expert_action() -> None:
-    from training.envs import MultiTurnDeliveryEnv
     from agent_env.expert_policy import ScriptedExpert
     from training.chat_format import action_content
+    from training.envs import MultiTurnDeliveryEnv
 
     env = MultiTurnDeliveryEnv(_scenario(FaultType.GRASP_FAILURE), seed=9)
     env.reset()

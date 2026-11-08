@@ -1,4 +1,5 @@
 from glob import glob
+
 from setuptools import setup
 
 package_name = "robot_collab_sim"

@@ -12,6 +12,9 @@
 ![OpenPose](https://img.shields.io/badge/OpenPose-Gesture%20Control-8A2BE2?style=for-the-badge)
 ![VINS-Mono](https://img.shields.io/badge/VINS--Mono-VIO%20SLAM-6A5ACD?style=for-the-badge)
 
+[![CI](https://github.com/terrense/ros2-multimodal-robot-collab/actions/workflows/ci.yml/badge.svg)](https://github.com/terrense/ros2-multimodal-robot-collab/actions/workflows/ci.yml)
+[![Container](https://github.com/terrense/ros2-multimodal-robot-collab/actions/workflows/docker.yml/badge.svg)](https://github.com/terrense/ros2-multimodal-robot-collab/actions/workflows/docker.yml)
+
 面向实验室/工业工作站场景的多模态机器人协作与工具递送系统。系统把移动小车、机械臂、相机、YOLOv8、OpenPose、人脸识别、VINS-Mono、Nav2、ASR/TTS 和任务级 Agent 调度统一到 ROS2 分布式通信框架中，实现“识别工具、移动取物、机械臂抓取、递送给操作者”的闭环流程。
 
 </div>

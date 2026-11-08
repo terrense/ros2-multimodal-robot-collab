@@ -21,7 +21,6 @@ from typing import Any
 
 from ros_tool_executor import DEFAULT_SKILLS_DIR, SkillRegistry, dry_run_plan
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL = "MiniMax-M3"
 DEFAULT_BASE_URL = "https://api.minimax.chat/v1"
@@ -204,7 +203,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except Exception as exc:  # noqa: BLE001 - show concise CLI errors.
         print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

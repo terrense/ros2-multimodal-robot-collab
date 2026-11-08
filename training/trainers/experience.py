@@ -275,7 +275,7 @@ def attach_credit(
     """
     rewards = [turn.reward for turn in experience.turns]
     credits = assign_turn_credit(rewards, values, gamma=credit.gamma, lam=credit.lam)
-    for turn, item in zip(experience.turns, credits):
+    for turn, item in zip(experience.turns, credits, strict=False):
         turn.value = item.value
         turn.advantage = item.advantage
         turn.ret = item.ret

@@ -1,0 +1,14 @@
+# Dependencies for the Python side of the workspace: the pytest suite under
+# tests/ and agent_harness/tests, plus the linter CI runs.
+#
+# Deliberately pinned. CI and a local `uv venv` must resolve to the same
+# versions, or "green locally, red in CI" becomes a recurring afternoon.
+#
+# torch / deepspeed / transformers are NOT here. They are imported lazily
+# inside the training code paths that need them, so the test suite runs on
+# numpy alone (163 tests in ~7s instead of downloading 2GB of torch).
+# Install them separately when you actually train; see requirements-train.txt.
+numpy==2.4.6
+PyYAML==6.0.3
+pytest==9.2.0
+ruff==0.17.4

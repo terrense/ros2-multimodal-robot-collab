@@ -24,9 +24,15 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Protocol, Sequence
 
 from agent_env.l1_sim import L1DeliveryEnv, Scenario
-from agent_env.protocol import Action, ActionRegistry, Observation
+from agent_env.protocol import ActionRegistry, Observation
 
-from ..chat_format import ParseStatus, action_content, observation_content, parse_action, system_prompt
+from ..chat_format import (
+    ParseStatus,
+    action_content,
+    observation_content,
+    parse_action,
+    system_prompt,
+)
 
 #: A policy maps the current chat history to one assistant message.
 PolicyFn = Callable[[list[dict[str, str]]], str]

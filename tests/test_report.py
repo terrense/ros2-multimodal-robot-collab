@@ -5,7 +5,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from training.report import DEFAULT_MATRIX, arms_table, bucket_table, failure_table, load_evaluations, load_matrix, regression_table, render
+from training.report import (
+    DEFAULT_MATRIX,
+    arms_table,
+    bucket_table,
+    failure_table,
+    load_evaluations,
+    load_matrix,
+    regression_table,
+    render,
+)
 
 
 def _report(label: str, **overrides) -> dict:

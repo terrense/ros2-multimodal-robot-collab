@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.fakes import FakeTokenizer, UnstableTokenizer, decode as _decode
+from tests.fakes import FakeTokenizer, UnstableTokenizer
+from tests.fakes import decode as _decode
 from training.tokenization import tokenize_episode, tokenize_turn
 
 MESSAGES = [

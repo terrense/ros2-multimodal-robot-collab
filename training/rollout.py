@@ -113,7 +113,7 @@ def rollout(
             active.append(make_env(queue.pop(0)))
         texts = policy.act_batch([env.messages for env in active])
         still_active: list[MultiTurnDeliveryEnv] = []
-        for env, text in zip(active, texts):
+        for env, text in zip(active, texts, strict=False):
             _, done, _ = env.step(text)
             if done:
                 finish(env)

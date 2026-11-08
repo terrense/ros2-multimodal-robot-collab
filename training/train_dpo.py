@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import DPOConfig, add_config_args, load_config, save_config
-from .datasets import DPOCollator, DPODataset, IGNORE_INDEX, read_jsonl
+from .datasets import IGNORE_INDEX, DPOCollator, DPODataset, read_jsonl
 
 
 def masked_logprob_sum(logits: Any, labels: Any) -> Any:

@@ -1,0 +1,25 @@
+# Keep the build context small. Everything listed here would otherwise be
+# uploaded to the daemon (and to the registry as cache) on every build.
+
+.git
+.github
+third_party
+build
+install
+log
+models
+
+# Python / test artefacts
+.venv
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
+*.egg-info
+
+# Local captures and binary artifacts that never belong in an image
+*.png
+*.bag
+bags
+maps
+captures

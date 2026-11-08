@@ -73,7 +73,7 @@ def test_returns_equal_advantages_plus_values_after_attaching_a_critic() -> None
     experience = _build(_record())
     values = [0.1 * index for index in range(len(experience.turns))]
     attach_credit(experience, values, CreditSettings())
-    for turn, value in zip(experience.turns, values):
+    for turn, value in zip(experience.turns, values, strict=False):
         assert turn.value == value
         assert turn.ret == turn.advantage + value
 

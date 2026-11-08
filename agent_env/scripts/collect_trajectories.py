@@ -17,9 +17,9 @@ import uuid
 from collections import defaultdict
 from pathlib import Path
 
+from agent_env.expert_policy import ScriptedExpert
 from agent_env.faults import FaultInjector, FaultSpec, FaultType, default_params
 from agent_env.l1_sim import L1DeliveryEnv, Scenario
-from agent_env.expert_policy import ScriptedExpert
 from agent_env.protocol import ActionRegistry, Outcome
 from agent_env.trajectory_logger import TrajectoryLogger
 

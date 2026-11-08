@@ -1,0 +1,44 @@
+# Python lint gate for the whole repository.
+#
+# The rule set is deliberately narrow. Every rule selected here catches a real
+# defect (undefined names, unused imports, unsorted/unused imports, exception
+# chaining, zip() arity mistakes) and is auto-fixable, so the gate is green on
+# day one instead of blocking the first pull request.
+#
+# Widen it from here, one rule family at a time. Do not start wide and then
+# sprinkle `# noqa` -- that trains people to ignore the gate.
+
+line-length = 100
+target-version = "py310"
+
+extend-exclude = [
+    "third_party", # vendored upstream snapshots (Ultralytics, VINS-Mono, OpenPose)
+    "build",
+    "install",
+    "log",
+    "models",
+]
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I", "W", "B"]
+# Line length is a formatting concern, not a defect. `ruff format` owns it.
+ignore = ["E501"]
+
+[lint.isort]
+# The workspace packages live under src/ and are never pip-installed, so ruff
+# cannot infer them as first-party from the directory layout alone.
+known-first-party = [
+    "agent_env",
+    "agent_harness",
+    "training",
+    "robot_collab_agent",
+    "robot_collab_bringup",
+    "robot_collab_core",
+    "robot_collab_hri",
+    "robot_collab_interfaces",
+    "robot_collab_manipulation",
+    "robot_collab_navigation",
+    "robot_collab_perception",
+    "robot_collab_sim",
+    "robot_collab_slam",
+]

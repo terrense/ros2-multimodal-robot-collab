@@ -48,7 +48,7 @@ class _RepairMixin:
             if not broken:
                 break
             retry_batch = [[*batch[index], {"role": "user", "content": REPAIR_HINT}] for index in broken]
-            for index, text in zip(broken, self._generate(retry_batch)):
+            for index, text in zip(broken, self._generate(retry_batch), strict=False):
                 outputs[index] = text
         return outputs
 
@@ -70,7 +70,9 @@ class VLLMPolicy(_RepairMixin, BasePolicy):
         engine: Any = None,
         tokenizer: Any = None,
     ) -> None:
-        from transformers import AutoTokenizer  # local: keeps the module importable without transformers
+        from transformers import (
+            AutoTokenizer,  # local: keeps the module importable without transformers
+        )
 
         self.model_path = model_path
         self.generation = generation or GenerationConfig()

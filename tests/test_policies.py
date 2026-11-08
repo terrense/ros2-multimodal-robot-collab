@@ -13,6 +13,7 @@ import pytest
 
 from agent_env.faults import FaultSpec, FaultType, default_params
 from agent_env.l1_sim import Scenario
+from training.envs import run_episode
 from training.policies import (
     ExpertPolicy,
     GateConfig,
@@ -28,7 +29,6 @@ from training.policies import (
 )
 from training.policies.base import BasePolicy, GenerationConfig
 from training.policies.llm_policy import REPAIR_HINT, _RepairMixin, render_prompt
-from training.envs import run_episode
 
 
 def _scenario(fault: FaultType | None = None, seed: int = 3) -> Scenario:

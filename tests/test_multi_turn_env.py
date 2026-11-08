@@ -7,7 +7,12 @@ import json
 from agent_env.faults import FaultSpec, FaultType, default_params
 from agent_env.l1_sim import Scenario
 from training.chat_format import action_content
-from training.envs import MultiTurnDeliveryEnv, episode_from_records, run_episode, scripted_policy
+from training.envs import (
+    MultiTurnDeliveryEnv,
+    episode_from_records,
+    run_episode,
+    scripted_policy,
+)
 from training.rewards import PRESETS, compute_step_rewards
 
 

@@ -49,11 +49,28 @@ from .policies.teacher import (
     features_from_turn,
 )
 from .rollout import quick_summary, rollout
-from .trainers.common import MetricLogger, is_main_process, save_checkpoint
-from .trainers.experience import EpisodeExperience, attach_credit, build_experience, summarize, whiten_batch
-from .trainers.opd import MixedLossConfig, build_turn_weight_tensor, mixed_loss, opd_loss, teacher_turn_rewards
-from .trainers.ppo import combined_loss, entropy_from_logits, gather_logprobs, shift_mask
 from .train_ppo import PPORunner, reward_config_from
+from .trainers.common import MetricLogger, is_main_process, save_checkpoint
+from .trainers.experience import (
+    EpisodeExperience,
+    attach_credit,
+    build_experience,
+    summarize,
+    whiten_batch,
+)
+from .trainers.opd import (
+    MixedLossConfig,
+    build_turn_weight_tensor,
+    mixed_loss,
+    opd_loss,
+    teacher_turn_rewards,
+)
+from .trainers.ppo import (
+    combined_loss,
+    entropy_from_logits,
+    gather_logprobs,
+    shift_mask,
+)
 
 
 def gate_config_from(config: OPDTrainConfig) -> GateConfig:
@@ -268,7 +285,7 @@ class OPDRunner(PPORunner):
                 for turn in experience.turns:
                     turn.reward = 0.0
             if self.opd_config.opd_loss == "reward":
-                for turn, bonus in zip(experience.turns, teacher_rewards):
+                for turn, bonus in zip(experience.turns, teacher_rewards, strict=False):
                     turn.reward += bonus
 
             values = self.turn_values(experience)

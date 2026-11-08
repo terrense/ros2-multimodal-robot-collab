@@ -15,7 +15,13 @@ from .credit import (
     terminal_broadcast,
     whiten,
 )
-from .step_reward import PRESETS, RewardConfig, StepReward, compute_step_rewards, episode_reward
+from .step_reward import (
+    PRESETS,
+    RewardConfig,
+    StepReward,
+    compute_step_rewards,
+    episode_reward,
+)
 
 __all__ = [
     "PRESETS",

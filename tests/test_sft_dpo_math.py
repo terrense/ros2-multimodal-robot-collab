@@ -7,7 +7,13 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from tests.fakes import FakeTokenizer, decode  # noqa: E402
-from training.datasets import DPOCollator, DPODataset, IGNORE_INDEX, PaddedCollator, SFTDataset  # noqa: E402
+from training.datasets import (  # noqa: E402
+    IGNORE_INDEX,
+    DPOCollator,
+    DPODataset,
+    PaddedCollator,
+    SFTDataset,
+)
 from training.train_dpo import dpo_loss, masked_logprob_sum  # noqa: E402
 
 SFT_ROWS = [

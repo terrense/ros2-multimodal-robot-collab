@@ -22,7 +22,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SKILLS_DIR = REPO_ROOT / "skills"
 REQUIRED_TOP_LEVEL = {"intent", "operator_id", "steps"}

@@ -9,11 +9,11 @@ import pytest
 import yaml
 
 from training.config import (
+    STAGES,
     DPOConfig,
     OPDTrainConfig,
     PPOConfig,
     SFTConfig,
-    STAGES,
     apply_overrides,
     from_dict,
     load_config,

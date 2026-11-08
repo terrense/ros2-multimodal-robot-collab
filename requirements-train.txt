@@ -1,0 +1,12 @@
+# Dependencies for the post-training stack (SFT / DPO / PPO / OPD).
+#
+# Not installed by CI and not needed to run the test suite: every training
+# module imports these lazily, inside the function that needs them. This file
+# is the record of what training actually requires, so the versions can be
+# reproduced on a GPU box instead of guessed from memory.
+#
+# CUDA build: install the torch wheel that matches your driver first
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+torch
+deepspeed
+transformers
