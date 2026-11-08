@@ -65,9 +65,9 @@ jobs:
 
       - name: Smoke test the image we just pushed
         # A green build only proves it compiled. This proves the overlay is
-        # sourceable and the packages are actually registered.
+        # sourced by the entrypoint and the packages are registered -- with no
+        # `bash -lc` and no explicit `source`, i.e. exactly how a user runs it.
         run: |
           IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
           echo "smoke testing $IMAGE"
-          docker run --rm "$IMAGE" bash -lc \
-            'source /ws/install/setup.bash && ros2 pkg list | grep -c robot_collab'
+          docker run --rm "$IMAGE" ros2 pkg list | grep -c robot_collab

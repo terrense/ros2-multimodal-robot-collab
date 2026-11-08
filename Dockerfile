@@ -56,12 +56,16 @@ FROM deps AS runtime
 
 COPY --from=builder /ws/install /ws/install
 
-# ros_entrypoint.sh comes from the base image and sources /opt/ros/humble.
-# Source the overlay for interactive shells; scripts should source it
-# explicitly, the same way they would on a robot.
-RUN echo "source /ws/install/setup.bash" >> /root/.bashrc
+# The base image's entrypoint only sources /opt/ros/<distro>. Layer the
+# workspace overlay on top so `docker run IMAGE ros2 pkg list` works without the
+# caller sourcing anything -- and so interactive shells get it too.
+COPY docker/entrypoint.sh /ros_ws_entrypoint.sh
+RUN chmod +x /ros_ws_entrypoint.sh \
+    && echo "source /ws/install/setup.bash" >> /root/.bashrc \
+    && printf 'source /ws/install/setup.bash\n' > /etc/profile.d/ros_ws.sh
+
 ENV ROS_OVERLAY=/ws/install
 
 WORKDIR /ws
-ENTRYPOINT ["/ros_entrypoint.sh"]
+ENTRYPOINT ["/ros_ws_entrypoint.sh"]
 CMD ["bash"]
