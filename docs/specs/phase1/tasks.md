@@ -52,4 +52,26 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 - [x] No tracked change outside `agent_harness/contracts/`, `tests/`,
       `requirements-dev.txt`, `docs/`
-- [ ] Phase 2 proposal sketched (not implemented)
+- [x] Phase 2 proposal sketched (not implemented)
+
+## Phase 2 sketch (not started)
+
+Scope from the master plan, restated against what Phase 1 actually built:
+
+1. Introduce a model-neutral `ToolClient` around the existing `SkillRegistry`
+   and `RosToolExecutor`; keep both CLIs and dry-run behaviour intact.
+2. Route every submission through `ActionRequest` → `ExecutionReceipt`, so the
+   plan macro and any future step policy share one path.
+3. Per-resource FIFO (`arm`, `base`) with queued-only cancellation; document
+   that the ROS 2 action server owns sequencing so we do not add a second
+   scheduler for it.
+4. Bounded waits and per-command timeout propagation from
+   `CapabilityDescriptor.timeout_s` (today a single global `--timeout-sec`).
+5. A deterministic fake backend so every failure path is testable without ROS:
+   unknown capability, invalid schema, resource collision, FIFO order, cancel
+   queued, timeout, handler exception, shutdown with in-flight work.
+6. Explicit ownership note: receipts are evidence; `MissionStateMachine` keeps
+   owning mission state until Phase 3 introduces the ledger.
+
+Out of scope for Phase 2: the ledger, reconciliation and the live ROS 2 adapter
+(Phase 3); observation snapshots (Phase 4).
