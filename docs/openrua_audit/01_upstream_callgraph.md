@@ -209,14 +209,100 @@ the encoding our L1 `Outcome` enum does not have.
 
 ## 6. Peripheral layers
 
-**UNVERIFIED in this pass** — being collected by the subsystem audit and will
-be folded in before this document is committed:
+Collected by a subsystem audit and spot-checked against source; citations are
+upstream paths relative to the pinned clone.
 
-- `provider/` request path, retry and token policy
-- `context/` prompt assembly and truncation
-- `agents/` adapters, turn loop, cancellation
-- `services/environment/` command → receipt path
-- representative `integrations/` (IntegrationSpec/IntegrationSession instances)
+### 6.1 `provider/` — model gateway
+
+- The planner SDK is pointed at a local `ProviderGateway`; requests are fully
+  buffered before forwarding (`provider/gateway.py:57-114, 132-161`).
+- Retry applies to the whole exchange and only **before** delivery; bounded
+  `max_retries` with exponential backoff, and `x-client-request-id` is stripped
+  on retries (`provider/client.py:156-238, 256-266, 300-307`).
+- Wire formats are converted per vendor protocol
+  (`provider/responses.py`, `messages.py`, `gemini.py`).
+- Verdict relevance to us: the retry-before-delivery rule is portable; the
+  vendor adapters are not, and they pin `openai-codex` / `claude-agent-sdk`
+  (`pyproject.toml:21-33`).
+
+### 6.2 `context/` — prompt and history
+
+- `Prompt` + `PromptContext` + `assemble_prompt` compose the system prompt from
+  runtime guidance and mode-specific resource files, then persist
+  `effective_prompt.md` (`context/prompt.py:14-61, 77-126`).
+- History trimming is the model's, not the agent's: the proxy trims whatever
+  request arrives. `SlidingWindowPolicy` evicts old tool images first, replacing
+  them with stable placeholders, then drops whole atomic blocks and never splits
+  a call from its result (`context/sliding_window.py:36-64, 124-153, 177-347`).
+- Verdict relevance: the "atomic block + stable placeholder" rule is a good idea
+  for long missions; our multi-turn env currently truncates by turn count.
+
+### 6.3 `agents/` — adapters and turn loop
+
+- `Agent` protocol: `run(..., max_turns)`, `cancel(reason)`, `close()`,
+  `finalize_without_provider` (`agents/contracts.py:67-105`).
+- A tool call is *claimed* exactly once before execution
+  (`agents/tool_binding.py:65-166`) — a delivery ledger, not a retry counter.
+- Cancellation is part of the contract and implemented per backend
+  (`agents/codex/agent.py:92-97`; `agents/managed.py:38-51`).
+- **Defect confirmed**: `max_turns` has inconsistent units and defaults —
+  model exchanges vs agent messages vs SDK turns, CLI default 0, session
+  default 50 (`agents/contracts.py:68`, `config.py:222`, `session.py:670`).
+  Do not copy this semantics; define ours once.
+
+### 6.4 `services/environment/` — command → receipt
+
+This is the most reusable subsystem. Verified directly:
+
+- `RequestIdentity{episode_id, request_id, sequence, execution_id}` with a
+  strictly increasing `sequence` (`services/environment/contracts.py:211-216`).
+- `ActionReply` carries `state_before`, `state_after`, `feedback`, `snapshot`,
+  `artifact_error`, and `execution_status` in
+  `completed | partial | rejected | unknown` (`contracts.py:223-231`).
+- `ProtocolError` carries `execution_status` in
+  `not_started | partial | unknown` (`contracts.py:234-239`).
+- `EnvironmentClient._post` refuses any further write while `uncertain`
+  (`client.py:222-223`); `reconcile()` reads the existing receipt and never
+  resubmits (`client.py:173-208`); a receipt whose `execution_status` is
+  `unknown` keeps the client uncertain (`client.py:200-204`).
+- The server rejects duplicate request ids and non-contiguous sequences
+  (reported at `service.py:282-295`; **UNVERIFIED** in this pass).
+
+### 6.5 Representative integrations
+
+Both `robodojo` and `robouse` build their spec through a shared
+`build_gripper_spec` and use `PreparedEpisodeSession`; tool policies come from
+the tool families, not from the integration
+(`integrations/prepared_episode.py:119-202`, `integrations/gripper.py:53-62`).
+
+Verified in `prepared_episode.py`:
+
+- `task_success` returns `None` until the native outcome exists
+  (`:47-49`) — unknown is a real value.
+- `require_active` refuses new physical actions when the episode is finished,
+  the environment is uncertain, or the episode ended (`:51-53`).
+- A tool error is classified: `no_execution` only when
+  `execution_status == "not_started"`, `execution_uncertain` when it is
+  `"unknown"` (`:55-69`).
+- `finalize` records `finish_request` only when the environment is not
+  uncertain, then takes the outcome from the service's finish reply
+  (`:90-109`).
+
+Correction to the first-pass summary: `env.finish()` is called whether or not
+the environment is uncertain; only the *local* `finish_request` record is
+skipped when uncertain. The outcome still comes from the service.
+
+### 6.6 Artifacts and events
+
+- Content-addressed artifact store with a bounded async writer
+  (`artifacts/store.py:20-75`, `writer.py:29-112`).
+- `result.json` on every exit path; the record carries config, task success,
+  accepted/retryable/failure category, stop reason, episode identity, turns,
+  budgets, context policy, elapsed, train paths and artifact status
+  (`artifacts/run.py:29-84`).
+- Event types include `ToolCallBatch`, `ToolQueueSnapshot`, `ToolResult`,
+  `SessionClosed` etc. (`events/core.py:20-203`), mirrored to JSONL
+  (`events/subscribers.py:145-214`).
 
 ## 7. Test coverage
 

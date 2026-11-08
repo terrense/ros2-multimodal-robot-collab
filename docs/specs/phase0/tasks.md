@@ -10,7 +10,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Import master plan into `docs/plans/` (sha256 `F503178C…078F21`)
 - [x] Create branch `phase0/two-repo-audit`
 - [x] Write `docs/specs/phase0/spec.md`
-- [ ] Define project subagents under `.claude/agents/`
+- [x] Define project subagents under `.claude/agents/`
 
 ## T1 — Baseline (`00_baseline.md`)
 
@@ -24,34 +24,34 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T2 — Upstream callgraph (`01_upstream_callgraph.md`)
 
-- [ ] CLI and config entry
-- [ ] Session assembly and component wiring
-- [ ] Agent adapter and provider abstraction
-- [ ] Toolkit, tool schema and capability declaration
-- [ ] Executor and scheduler (concurrency, cancellation, ordering)
-- [ ] Integrations (scene / motion / provider)
-- [ ] Environment client, service, receipt
-- [ ] Backend, artifacts, finalization, telemetry
-- [ ] Per-module table: responsibility, interface, state ownership, errors,
+- [x] CLI and config entry
+- [x] Session assembly and component wiring
+- [x] Agent adapter and provider abstraction
+- [x] Toolkit, tool schema and capability declaration
+- [x] Executor and scheduler (concurrency, cancellation, ordering)
+- [x] Integrations (scene / motion / provider)
+- [x] Environment client, service, receipt
+- [x] Backend, artifacts, finalization, telemetry
+- [x] Per-module table: responsibility, interface, state ownership, errors,
       strengths, defects, test coverage
 
 ## T3 — Target callgraph (`02_target_callgraph.md`)
 
-- [ ] Path A: `minimax_mission_planner` → `SkillRegistry.validate_plan` →
+- [x] Path A: `minimax_mission_planner` → `SkillRegistry.validate_plan` →
       `ros_tool_executor` → ROS2 ActionClient → `mission_state_machine` →
       nav/manipulation actions → feedback/cancel
-- [ ] Path B: policy → `MultiTurnDeliveryEnv.step` → `L1DeliveryEnv.step` →
+- [x] Path B: policy → `MultiTurnDeliveryEnv.step` → `L1DeliveryEnv.step` →
       reward → trajectory record
-- [ ] Path C: `agent_env/protocol.py` action/observation contract and its
+- [x] Path C: `agent_env/protocol.py` action/observation contract and its
       relationship to `training/chat_format.py`
-- [ ] State ownership map: who owns mission state, robot state, episode state
-- [ ] Test coverage map per module
+- [x] State ownership map: who owns mission state, robot state, episode state
+- [x] Test coverage map per module
 
 ## T4 — Gap matrix (`03_gap_matrix.md`)
 
-- [ ] One row per capability: upstream mechanism vs our implementation
-- [ ] Classify: present / missing / duplicated / incompatible
-- [ ] Flag the one-shot mission plan vs multi-turn step conflict with evidence
+- [x] One row per capability: upstream mechanism vs our implementation
+- [x] Classify: present / missing / duplicated / incompatible
+- [x] Flag the one-shot mission plan vs multi-turn step conflict with evidence
 
 ## T5 — Licences (`04_licenses.md`)
 
@@ -61,11 +61,11 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T6 — Adoption decisions (`05_adoption_decisions.md`)
 
-- [ ] Decision table: ADOPT CONCEPT / ADAPT IMPLEMENTATION / REFERENCE ONLY /
+- [x] Decision table: ADOPT CONCEPT / ADAPT IMPLEMENTATION / REFERENCE ONLY /
       REJECT, one row per mechanism
-- [ ] Unification design for mission-plan vs multi-turn
-- [ ] Risks, open questions, explicit hypotheses marked as such
-- [ ] Phase 1 minimal PR proposal with test plan and rollback
+- [x] Unification design for mission-plan vs multi-turn
+- [x] Risks, open questions, explicit hypotheses marked as such
+- [x] Phase 1 minimal PR proposal with test plan and rollback
 
 ## Gate
 
