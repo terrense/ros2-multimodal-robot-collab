@@ -72,6 +72,35 @@ Fix, in `slam_toolbox_params.yaml`:
 This is a deliberate simplification for the simulation. It does not fix scan
 matching; it removes it from the loop so the rest of the stack can be validated.
 
+## Scan-matching experiments (matching is off; here is what was measured)
+
+The block below records what was tried, so nobody repeats it blindly.
+
+Ground-truth procedure: `gazebo_ros_state` publishes `/model_states`; a script
+drives at a fixed speed and reports Gazebo pose, `/odom`, and `map -> base`.
+
+| Configuration | Truth | Odom | SLAM | Tracked |
+|---|---|---|---|---|
+| Baseline (throttle 2, 0.25 s interval, barycenter on, 0.5 m search) | 0.862 m | 0.862 m | ~0.28 m | ~33% |
+| Tuned (throttle 1, 0.1 s interval, barycenter off, 1.0 m search, response 0.05) | 0.953 m | 0.953 m | 0.799 m | 84% |
+| Tuned + 0.005 correlation resolution + no loop closing | 1.001 m | 1.001 m | no `map -> odom` | stalled |
+| Matching disabled (odometry-only mapping) | 0.862 m | 0.862 m | 0.862 m | 100% |
+
+With the 84% configuration, navigation was still attempted and **failed**:
+the robot ended at (2.47, 2.64) instead of (3.20, 0.40), the goal was canceled,
+and the receipt/ledger correctly recorded `unknown / execution_uncertain`.
+The remaining ~16% drift is enough to poison costmap poses over a 3 m path.
+
+The 0.005-resolution variant stopped publishing `map -> odom` at all, most
+likely because the correlation search became too expensive to keep up. It was
+reverted immediately; the configuration currently in the repository is the
+known-good one (matching disabled, throttle 2, 0.25 s, barycenter on).
+
+Conclusion: scan matching can be made much better by removing the scan
+barycenter and widening the correlation search, but not good enough for Nav2 in
+this simulation. Do not re-enable it without repeating the ground-truth table
+and a navigation run.
+
 ## Supporting changes
 
 - `collab_lab.world`: adds the `gazebo_ros_state` plugin, so `/model_states`
@@ -88,9 +117,10 @@ matching; it removes it from the loop so the rest of the stack can be validated.
 ## What is still not done
 
 - **Scan matching is off.** The map is odometry-based; loop closure and drift
-  correction are not exercised. Any change to the matcher should be validated
-  with the same ground-truth procedure (`/model_states` vs `/odom` vs
-  `map -> base`).
+  correction are not exercised. The tuning experiments above reached 84%
+  tracking and still broke navigation, so the feature is disabled until it can
+  be validated the same way. Any change to the matcher must repeat both the
+  ground-truth table and a navigation run.
 - **No hardware.** Every backend here is Gazebo/simulated.
 - **Alternatives considered, not adopted.** ORB-SLAM3 and VINS-Fusion expect
   stereo/RGB-D or visual-inertial input and output 3D poses that would need
