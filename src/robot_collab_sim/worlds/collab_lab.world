@@ -7,6 +7,15 @@
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
 
+    <!-- Ground truth for debugging: /gazebo/model_states publishes真实位姿，
+         用于区分"里程计漂了"和"SLAM 错了"。 -->
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros>
+        <namespace>/</namespace>
+      </ros>
+      <update_rate>30.0</update_rate>
+    </plugin>
+
     <include>
       <uri>model://ground_plane</uri>
     </include>
