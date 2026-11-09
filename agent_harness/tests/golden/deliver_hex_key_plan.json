@@ -1,0 +1,48 @@
+[
+  {
+    "step_index": 1,
+    "skill": "perception",
+    "action": "verify_operator",
+    "trace_id": "trace-NORMALIZED",
+    "mode": "dry-run",
+    "status": "validated",
+    "transport": "action",
+    "endpoint": "/skills/verify_operator",
+    "ros_type": "robot_collab_interfaces/action/VerifyOperator",
+    "message": "Validated; no ROS2 call dispatched.",
+    "command": "ros2 action send_goal /skills/verify_operator robot_collab_interfaces/action/VerifyOperator '{\"operator_id\": \"operator_001\", \"require_face_match\": true}' --feedback",
+    "payload": {
+      "operator_id": "operator_001",
+      "require_face_match": true
+    },
+    "feedback": [],
+    "result": {
+      "risk": "identity_check",
+      "requires_confirmation": false
+    }
+  },
+  {
+    "step_index": 2,
+    "skill": "mission-control",
+    "action": "deliver_tool",
+    "trace_id": "trace-NORMALIZED",
+    "mode": "dry-run",
+    "status": "validated",
+    "transport": "action",
+    "endpoint": "/mission/deliver_tool",
+    "ros_type": "robot_collab_interfaces/action/DeliverTool",
+    "message": "Validated; no ROS2 call dispatched.",
+    "command": "ros2 action send_goal /mission/deliver_tool robot_collab_interfaces/action/DeliverTool '{\"tool_id\": \"hex_key_3mm\", \"target_station\": \"station_a\", \"operator_id\": \"operator_001\", \"require_confirmation\": true}' --feedback",
+    "payload": {
+      "tool_id": "hex_key_3mm",
+      "target_station": "station_a",
+      "operator_id": "operator_001",
+      "require_confirmation": true
+    },
+    "feedback": [],
+    "result": {
+      "risk": "mission_motion",
+      "requires_confirmation": true
+    }
+  }
+]

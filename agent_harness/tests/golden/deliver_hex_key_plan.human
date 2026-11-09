@@ -1,0 +1,11 @@
+# trace_id: trace-NORMALIZED
+
+# step 1: perception.verify_operator
+# status: validated
+# transport: action /skills/verify_operator
+ros2 action send_goal /skills/verify_operator robot_collab_interfaces/action/VerifyOperator '{"operator_id": "operator_001", "require_face_match": true}' --feedback
+
+# step 2: mission-control.deliver_tool
+# status: validated
+# transport: action /mission/deliver_tool
+ros2 action send_goal /mission/deliver_tool robot_collab_interfaces/action/DeliverTool '{"tool_id": "hex_key_3mm", "target_station": "station_a", "operator_id": "operator_001", "require_confirmation": true}' --feedback
