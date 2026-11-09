@@ -209,12 +209,19 @@ class ExecutionReceipt:
 
 @dataclass
 class ObservationSnapshot:
-    """The world as observed at one instant, with the identity to prove it."""
+    """The world as observed at one instant, with the identity to prove it.
+
+    A snapshot is only usable if it says *when* it was taken, *which sensor*
+    produced it and *which calibration* it was built with; otherwise an action
+    could be planned against a stale or misaligned view.
+    """
 
     snapshot_id: str
     taken_at: float
     frame_id: str
     state_version: int
+    sensor_id: str = "unknown"
+    calibration_version: str = "uncalibrated"
     units: dict[str, str] = field(default_factory=dict)
     payload: dict[str, Any] = field(default_factory=dict)
 
@@ -228,6 +235,10 @@ class ObservationSnapshot:
         version = _check_state_version(self.state_version)
         if version is None:
             raise ValueError("state_version is required")
+        if not isinstance(self.sensor_id, str) or not self.sensor_id.strip():
+            raise ValueError("sensor_id must be a non-empty string")
+        if not isinstance(self.calibration_version, str) or not self.calibration_version.strip():
+            raise ValueError("calibration_version must be a non-empty string")
         self.state_version = version
         self.payload = _check_json_object(self.payload, "payload")
         self.units = validate_units(self.units, arguments=self.payload)
@@ -239,6 +250,30 @@ class ObservationSnapshot:
     def from_dict(cls, data: dict[str, Any]) -> ObservationSnapshot:
         known = {field.name for field in cls.__dataclass_fields__.values()}
         return cls(**{key: value for key, value in data.items() if key in known})
+
+    def age(self, now_s: float) -> float:
+        """Seconds between capture and ``now``. Negative means clock skew."""
+        return float(now_s) - self.taken_at
+
+    def is_fresh(self, now_s: float, max_age_s: float) -> bool:
+        """True when the snapshot is usable at ``now``.
+
+        A snapshot from the future is not fresh either: that means the two
+        clocks disagree and any correlation with it is unsafe.
+        """
+        age = self.age(now_s)
+        return 0.0 <= age <= max_age_s
+
+    def require_fresh(self, now_s: float, max_age_s: float) -> None:
+        if not self.is_fresh(now_s, max_age_s):
+            raise StaleSnapshot(
+                f"snapshot {self.snapshot_id!r} age {self.age(now_s):.3f}s "
+                f"exceeds {max_age_s:.3f}s (or comes from the future)"
+            )
+
+
+class StaleSnapshot(ValueError):
+    """Raised when a snapshot is too old (or mis-timed) to act on."""
 
 
 @dataclass

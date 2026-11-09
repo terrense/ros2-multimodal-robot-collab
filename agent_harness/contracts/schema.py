@@ -162,6 +162,8 @@ def observation_snapshot_schema() -> dict[str, Any]:
                 "taken_at": {"type": "number", "minimum": 0},
                 "frame_id": _frame(),
                 "state_version": {"type": "integer", "minimum": 0},
+                "sensor_id": {"type": "string", "minLength": 1},
+                "calibration_version": {"type": "string", "minLength": 1},
                 "units": _units(),
                 "payload": {"type": "object"},
             },

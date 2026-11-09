@@ -20,6 +20,7 @@ setup(
         "console_scripts": [
             "vins_mono_bridge_node = robot_collab_slam.vins_mono_bridge_node:main",
             "slam_adapter_node = robot_collab_slam.slam_adapter_node:main",
+            "snapshot_publisher_node = robot_collab_slam.snapshot_publisher_node:main",
         ],
     },
 )
