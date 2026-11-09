@@ -33,13 +33,16 @@ while IFS= read -r -d '' f; do
 done
 
 render() {
-  src="$1"; out="$2"
+  src="$1"; out="$2"; brand="${3:-}"
   xacro "$src" > "$out" || { echo "xacro failed: $src"; return 1; }
   for p in $(grep -o 'package://[a-zA-Z0-9_]*' "$out" | sed 's|package://||' | sort -u); do
     path=$(find "$TREE" -maxdepth 3 -type d -name "$p" | head -1)
     [ -n "$path" ] && sed -i "s|package://$p/|file://$path/|g" "$out"
   done
-  python3 "$REPO/scripts/ensure_urdf_inertials.py" "$out"
+  if [ -n "$brand" ]; then
+    python3 "$REPO/scripts/prepare_arms.py" "$brand" "$out" "$out" >/dev/null
+  fi
+  python3 "$REPO/scripts/ensure_urdf_inertials.py" "$out" >/dev/null
   echo "rendered $out"
 }
 
@@ -60,18 +63,17 @@ FANUC_SHARE=/opt/ros/humble/share/moveit_resources_fanuc_description
 if [ -f "$FANUC" ]; then
   cp "$FANUC" /tmp/fanuc_m10ia.urdf
   sed -i "s|package://moveit_resources_fanuc_description/|file://$FANUC_SHARE/|g" /tmp/fanuc_m10ia.urdf
-  python3 "$REPO/scripts/ensure_urdf_inertials.py" /tmp/fanuc_m10ia.urdf
+  python3 "$REPO/scripts/prepare_arms.py" fanuc /tmp/fanuc_m10ia.urdf /tmp/fanuc_m10ia.urdf >/dev/null
+  python3 "$REPO/scripts/ensure_urdf_inertials.py" /tmp/fanuc_m10ia.urdf >/dev/null
   spawn fanuc_m10ia_real /tmp/fanuc_m10ia.urdf -2.6 1.8 0.42
 fi
 
 if [ -d "$TREE/kuka_experimental" ]; then
-  render "$TREE/kuka_experimental/kuka_kr10_support/urdf/kr10r1100sixx.xacro" /tmp/kuka_kr10.urdf \
+  render "$TREE/kuka_experimental/kuka_kr10_support/urdf/kr10r1100sixx.xacro" /tmp/kuka_kr10.urdf kuka \
     && spawn kuka_kr10_real /tmp/kuka_kr10.urdf -2.6 -1.8 0.42
 fi
 
-if [ -d "$TREE/dobot_6axis" ]; then
-  render "$TREE/dobot_6axis/cra_description/urdf/cr10_robot.xacro" /tmp/dobot_cr10.urdf \
-    && spawn dobot_cr10_real /tmp/dobot_cr10.urdf 1.2 -1.8 0.02
-fi
+# The Dobot is mounted on the mobile base by scripts/mount_dobot.py and shipped
+# inside the robot's own URDF, so it is not spawned separately here.
 
 echo "arms spawned; see /model_states"
