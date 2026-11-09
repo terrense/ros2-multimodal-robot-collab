@@ -115,11 +115,14 @@ global_costmap:
       robot_base_frame: base_footprint
       robot_radius: 0.30
       resolution: 0.05
-      track_unknown_space: true
-      plugins: [static_layer, obstacle_layer, inflation_layer]
-      static_layer:
-        plugin: nav2_costmap_2d::StaticLayer
-        map_subscribe_transient_local: true
+      # No static map in this simulation: the global costmap is a rolling
+      # window built from live scans, and map is anchored to odom by the launch
+      # file. Unknown space is treated as free so NavFn can plan through it.
+      rolling_window: true
+      width: 20
+      height: 20
+      track_unknown_space: false
+      plugins: [obstacle_layer, inflation_layer]
       obstacle_layer:
         plugin: nav2_costmap_2d::ObstacleLayer
         enabled: true

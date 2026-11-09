@@ -82,6 +82,16 @@ def generate_launch_description():
             gazebo,
             slam,
             nav2,
+            # Without SLAM, anchor map to odom so goals expressed in the map
+            # frame (stations.yaml) are meaningful for Nav2.
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="map_to_odom_anchor",
+                arguments=["0", "0", "0", "0", "0", "0", "1", "map", "odom"],
+                condition=UnlessCondition(start_slam),
+                parameters=[{"use_sim_time": use_sim_time}],
+            ),
             Node(
                 package="robot_collab_core",
                 executable="mission_state_machine",

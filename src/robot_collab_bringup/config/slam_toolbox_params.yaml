@@ -22,7 +22,11 @@ slam_toolbox:
     stack_size_to_use: 40000000
     enable_interactive_mode: false
 
-    use_scan_matching: true
+    # Scan matching is disabled for the simulation: with a correct wheel odometry
+    # it was under-estimating motion by 3x, which made the map unusable for Nav2.
+    # Odometry-only mapping keeps map -> odom at identity and builds a map that
+    # matches the world. Re-enable when matching is fixed (see gazebo-l2.md).
+    use_scan_matching: false
     use_scan_barycenter: true
     minimum_travel_distance: 0.10
     minimum_travel_heading: 0.10

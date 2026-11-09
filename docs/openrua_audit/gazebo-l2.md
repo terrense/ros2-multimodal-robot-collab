@@ -1,101 +1,113 @@
-# Gazebo L2 Attempt — 2026-11-09
+# Gazebo L2 — Working End to End
 
-Bringing the Gazebo simulation up under WSL2, what worked, and the one thing
-that does not. Commands and numbers are from this machine.
+Status: **navigation works**. A `navigation.navigate_to_station` goal sent from
+the harness runtime drives the simulated robot from the spawn point to
+`station_a` through SLAM + Nav2, and the ledger records the completed receipt.
 
-## Environment
+Measured on 2026-11-09, WSL2 Ubuntu 22.04, ROS 2 Humble, Gazebo 11.
 
-- Ubuntu 22.04 on WSL 2 (kernel 6.18.5.4-1), WSLg available (`DISPLAY=:0`)
-- ROS 2 Humble at `/opt/ros/humble`; Gazebo 11.10.2; `gazebo_ros` 3.9.0; Nav2 packages
-- Workspace built: `colcon build --base-paths src` → 10 packages, 2 m 26 s
-
-## A WSL-specific trap that had to be fixed first
-
-`.wslconfig` sets `networkingMode=mirrored`. Under Fast DDS this produced the
-worst failure mode: **discovery works, data does not**.
-
-| Path | Fast DDS (mirrored) | CycloneDDS |
-|---|---|---|
-| service / action | works | works |
-| intra-process topics | works | works |
-| cross-process topics | **0 messages** | works |
-| `/clock`, `/scan`, `/tf` | empty | populated |
-
-Evidence: a ROS talker published at 1 Hz while a pure rclpy subscriber received
-0 messages; `ROS_LOCALHOST_ONLY=1` and `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` did not
-help. After `apt install ros-humble-rmw-cyclonedds-cpp` and
-`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, the same subscriber received 6 messages
-in 6 s and `ros2 topic echo` worked.
-
-**Every ROS shell and script in this repository must export CycloneDDS on this
-machine.** Both `scripts/run_gazebo_demo.sh` and
-`scripts/smoke_ros2_runtime.sh` do.
-
-## What works
-
-- Gazebo GUI is visible through WSLg; the lab world loads and the robot spawns
-  (`SpawnEntity: Successfully spawned entity [collab_mobile_base]`).
-- The robot drives on `/cmd_vel`; odometry confirms motion
-  (`before (0.0, 0.0) → after (0.75, 0.0)`, `distance_m=0.754`).
-- Sensors publish: `/scan` at 9 Hz (360 beams, ~170 valid, range 0.19–7.71 m),
-  `/odom`, `/imu/data`, `/camera/color/image_raw`, `/clock`.
-- TF tree is complete: `map → odom → base_footprint → wheels`,
-  `base_footprint → lidar_link (0.18, 0.00, 0.23)`.
-- Nav2 + SLAM start: controller, planner, bt_navigator, lifecycle manager, both
-  costmaps, slam_toolbox all present.
-- The harness navigation path reaches Nav2: a
-  `navigation.navigate_to_station` goal is accepted by the skill server, the
-  mission stack forwards it, `bt_navigator` logs
-  `Begin navigating from (0.00,-0.00) to (3.20,0.40)`, and the failure is
-  recorded as a receipt and a ledger row (`failed / action_aborted`).
-
-## What does not work: SLAM localization
-
-The robot moves, the scans change, but SLAM pins the robot near the map origin:
+## Final result
 
 ```
-odom -> base_footprint:  (3.45, 0.39)     # wheels say 3.45 m travelled
-map  -> odom:            (-3.16, -0.61)   # SLAM cancels that motion
-map  -> base_footprint:  (0.15, 0.31)     # so the robot "never moved"
+tf at start:  map->base (0.00, 0.00)  map->odom (0.00, 0.00)
+navigate_to_station: succeeded
+odom: (0.0, 0.0) -> (2.99, 0.29)        # station_a is at (3.20, 0.40)
+Nav2: "Reached the goal!" / "Goal succeeded"
+ledger: navigation.navigate_to_station completed
+tf after:     map->base (3.00, 0.30)  map->odom (0.03, 0.01)
 ```
 
-Consequences: the global costmap has the goal cell marked `unknown`, the
-NavFn planner refuses (`GridBased failed to generate a valid path to
-(3.20, 0.40)`), and the navigation action aborts.
+## Three separate faults had to be fixed
 
-Diagnostics run, to rule causes out:
+### 1. WSL mirrored networking breaks Fast DDS
 
-| Hypothesis | Test | Result |
-|---|---|---|
-| Lidar not publishing | `/scan` rate | 9.06 Hz, 360 beams |
-| Lidar static | hash two scans across a 1.5 m drive | 73 distinct scans, hash changed |
-| Missing TF | `base_footprint → lidar_link` | present (0.18, 0.00, 0.23) |
-| QoS mismatch | publisher/subscriber reliability | publisher RELIABLE, subscribers BEST_EFFORT (compatible) |
-| Message filter drops | slam log | present with `transform_timeout: 0.2`, gone after raising it to 1.0 |
+`.wslconfig` sets `networkingMode=mirrored`. Discovery and services worked;
+cross-process topic data never arrived (a 1 Hz talker reached a pure-rclpy
+subscriber 0 times). `ROS_LOCALHOST_ONLY=1` and
+`FASTDDS_BUILTIN_TRANSPORTS=UDPv4` did not help.
 
-One real defect was found and fixed: with `transform_timeout: 0.2` slam_toolbox
-logged `Message Filter dropping message: frame 'lidar_link' … queue is full`.
-`transform_timeout` is now 1.0 and `throttle_scans` is 2 in
-`slam_toolbox_params.yaml`. The drop warnings disappeared, but the pose
-divergence remained.
+Fix: `sudo apt install ros-humble-rmw-cyclonedds-cpp` and
+`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`. Every script in this repository exports
+it. First symptom seen by a user is `/clock`, `/scan`, `/tf` publishing but
+`ros2 topic echo` staying empty.
 
-## Honest status
+### 2. Leaked processes fight over TF
 
-- **Phase 2/3 runtime on ROS 2: validated** against the simulated action stack
-  (see `ros2-validation.md`), including goal-uuid correlation and the ledger.
-- **Gazebo sensor layer: validated** (topics, TF, motion).
-- **Nav2/SLAM navigation: NOT working.** The failure is in the simulation's
-  SLAM configuration, not in the runtime: our code faithfully recorded the
-  abort and the ledger shows a clean `failed` receipt with its goal uuid.
+Repeated launch/stop cycles left **seven** `vins_mono_bridge_node` processes and
+a stale `static_transform_publisher` publishing an identity `map -> odom` while
+slam_toolbox was also publishing it. Two publishers of the same transform made
+SLAM's corrections look like they were being "cancelled", which produced a
+completely misleading diagnosis (we spent time suspecting the lidar).
 
-## Next steps (not done)
+Fix: `scripts/stop_gazebo_demo.sh` now kills every node name this stack can
+start (`vins_mono_bridge_node`, `static_transform_publisher`, all Nav2 servers,
+perception, mission). It prints the remaining count, which must be 0.
 
-1. Compare `map → odom` over time while driving: if it is constant, SLAM is not
-   processing new scans; if it moves, the matcher is locking onto the wrong
-   place. This distinguishes "starvation" from "bad match".
-2. Consider replacing online SLAM with a saved map + AMCL for the demo, which is
-   the standard Nav2 path and removes scan-matching from the loop.
-3. Fix the lidar noise configuration: Gazebo logs
-   `Get noise index not valid` six times at startup.
-4. Only after navigation works should L1 transition probabilities be calibrated
-   against L2 (master plan Phase 6).
+Lesson recorded here because it cost the most time: **check for leftovers before
+believing any TF or sensor measurement.**
+
+### 3. slam_toolbox scan matching under-estimated motion
+
+With a clean system and ground truth from Gazebo
+(`gazebo_ros_state` plugin, topic `/model_states`):
+
+| Measurement | Distance |
+|---|---|
+| Gazebo model pose (truth) | 0.862 m |
+| Odometry | 0.862 m |
+| SLAM `map -> base` | ~0.28 m |
+
+Odometry was exact; the matcher was the problem. `transform_timeout: 0.2` also
+produced `Message Filter dropping … queue is full`.
+
+Fix, in `slam_toolbox_params.yaml`:
+
+- `transform_timeout: 1.0`, `throttle_scans: 2` — drops went from recurring to
+  one at startup;
+- `use_scan_matching: false` — map is built from the (correct) wheel odometry.
+  `map -> odom` stays identity, the map matches the world, and Nav2 plans on it.
+  Re-enable only after the matcher issue is understood; the comment in the file
+  says so.
+
+This is a deliberate simplification for the simulation. It does not fix scan
+matching; it removes it from the loop so the rest of the stack can be validated.
+
+## Supporting changes
+
+- `collab_lab.world`: adds the `gazebo_ros_state` plugin, so `/model_states`
+  gives ground truth. Without it every "is the robot moving?" question is
+  guesswork — this is what settled fault 3.
+- `nav2_params.yaml`: the global costmap is a 20×20 rolling window built from
+  live scans (no static map, unknown treated as free). It works both with SLAM
+  and with the map→odom anchor.
+- `gazebo_nav_vins_demo.launch.py`: publishes a static identity `map -> odom`
+  when `start_slam:=false`, so station coordinates stay meaningful.
+- `scripts/run_gazebo_demo.sh` / `scripts/stop_gazebo_demo.sh`: one-command
+  start (window visible via WSLg) and a clean stop that leaves nothing behind.
+
+## What is still not done
+
+- **Scan matching is off.** The map is odometry-based; loop closure and drift
+  correction are not exercised. Any change to the matcher should be validated
+  with the same ground-truth procedure (`/model_states` vs `/odom` vs
+  `map -> base`).
+- **No hardware.** Every backend here is Gazebo/simulated.
+- **Alternatives considered, not adopted.** ORB-SLAM3 and VINS-Fusion expect
+  stereo/RGB-D or visual-inertial input and output 3D poses that would need
+  conversion to the 2D grid Nav2 consumes; LIO-SAM expects a 3D LiDAR, while
+  this robot has a 2D ray sensor. For a 2D Nav2 stack, slam_toolbox remains the
+  right tool — the failure was configuration and process hygiene, not the
+  algorithm class.
+- **L1 calibration against L2** (master plan Phase 6) can now start, but needs
+  the fault taxonomy mapped onto what Gazebo can reproduce.
+
+## Reproduce
+
+```bash
+scripts/run_gazebo_demo.sh --nav2     # SLAM + Nav2 + visible window
+# in another shell:
+python3 agent_harness/scripts/ros_tool_executor.py \
+  /tmp/nav_plan.json --mode execute --engine runtime \
+  --ledger /tmp/nav_ledger.db
+scripts/stop_gazebo_demo.sh
+```
