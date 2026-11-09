@@ -37,7 +37,8 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 - [~] **Deviated** — see the note below
 - [x] Capture goal uuid after acceptance (`ros_tool_executor._execute_action`)
-      — implemented, **NOT RUN**
+      — implemented and **RUN** against the simulated stack; see
+      `docs/openrua_audit/ros2-validation.md`
 - [x] Correlation written before the result waits: ledger row exists from
       submission, `goal_uuid` backfilled from the receipt
 - [x] Feedback flows into `receipt.result`, never changes terminal state
@@ -91,3 +92,19 @@ What that means in practice:
       (only `_execute_action` gained optional timeout and goal-uuid capture)
 - [x] No new runtime dependency (sqlite3 is stdlib)
 - [x] No claim of `physical_effect_verified=True` without observation
+
+## Phase 3.1 — ROS validation (branch `phase3.1/ros-validation`)
+
+- [x] Build the workspace on WSL Ubuntu 22.04 + ROS 2 Humble:
+      `Summary: 10 packages finished [2min 26s]`, exit 0
+- [x] Launch the simulated stack and query state:
+      `state=IDLE`, all seven nodes active, `motion_enabled=True`
+- [x] End-to-end delivery plan through `--engine runtime`: both steps
+      `succeeded`, `harness_exit=0`
+- [x] Wire the ledger into the execute CLI (`--ledger`); orphans are marked at
+      startup and side effects blocked until acknowledged
+- [x] Verify command ↔ goal uuid correlation on real goals:
+      `e86c3cdbb3854988b1cedffa2c1075f5`, `1714300f840748358266073ecb6bd079`
+- [x] Reproducible script: `scripts/smoke_ros2_runtime.sh`
+- [ ] MultiThreadedExecutor + per-resource callback groups — still outstanding
+- [ ] Fault injection on the wire (DDS-level drops) — still outstanding
