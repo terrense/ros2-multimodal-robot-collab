@@ -13,6 +13,7 @@ def generate_launch_description():
     start_slam = LaunchConfiguration("start_slam")
     start_nav2 = LaunchConfiguration("start_nav2")
     use_yolo = LaunchConfiguration("use_yolo")
+    world = LaunchConfiguration("world")
 
     bringup_share = FindPackageShare("robot_collab_bringup")
     params = PathJoinSubstitution([bringup_share, "config", "demo_params.yaml"])
@@ -24,7 +25,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([FindPackageShare("robot_collab_sim"), "launch", "gazebo_world.launch.py"])
         ),
-        launch_arguments={"use_sim_time": use_sim_time}.items(),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+            "world": world,
+        }.items(),
     )
 
     slam = IncludeLaunchDescription(
@@ -55,6 +59,13 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("use_sim_time", default_value="true"),
+            DeclareLaunchArgument(
+                "world",
+                default_value=PathJoinSubstitution(
+                    [FindPackageShare("robot_collab_sim"), "worlds", "collab_lab.world"]
+                ),
+                description="Gazebo world file. Use workshop.world for the workshop scene.",
+            ),
             DeclareLaunchArgument(
                 "nav_backend",
                 default_value="simulated",

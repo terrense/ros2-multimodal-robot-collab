@@ -1,0 +1,478 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="collab_workshop">
+    <physics name="default_physics" default="0" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros><namespace>/</namespace></ros>
+      <update_rate>30.0</update_rate>
+    </plugin>
+
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+    <model name="wall_north">
+      <pose>0 4.1 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>10.4 0.2 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>10.4 0.2 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_south">
+      <pose>0 -4.1 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>10.4 0.2 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>10.4 0.2 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_east">
+      <pose>5.1 0 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 8.4 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 8.4 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_west">
+      <pose>-5.1 0 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 8.4 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 8.4 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <!-- kuka_kr10: representative six-axis arm on its table -->
+    <model name="kuka_kr10_table">
+      <pose>-2.6 -1.8 0.375 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.2 0.8 0.05</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>1.2 0.8 0.05</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_0">
+      <pose>-3.1 -2.1 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_1">
+      <pose>-3.1 -1.5 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_2">
+      <pose>-2.1 -2.1 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_3">
+      <pose>-2.1 -1.5 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_base">
+      <pose>-2.6 -1.8 0.525 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.16</radius><length>0.2</length></cylinder></geometry>
+          <material><ambient>1.0 0.42 0.05 1</ambient><diffuse>1.0 0.42 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="kuka_kr10_link1">
+      <pose>-2.6 -1.8 0.845 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.11</radius><length>0.44</length></cylinder></geometry>
+          <material><ambient>1.0 0.42 0.05 1</ambient><diffuse>1.0 0.42 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="kuka_kr10_link2">
+      <pose>-2.38 -1.8 1.085 0 0 0.35</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.52 0.14 0.14</size></box></geometry>
+          <material><ambient>1.0 0.42 0.05 1</ambient><diffuse>1.0 0.42 0.05 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.52 0.14 0.14</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_link3">
+      <pose>-2.12 -1.8 0.925 0 0 -0.55</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.42 0.11 0.11</size></box></geometry>
+          <material><ambient>1.0 0.42 0.05 1</ambient><diffuse>1.0 0.42 0.05 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.42 0.11 0.11</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_wrist">
+      <pose>-1.94 -1.8 0.745 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.1 0.1 0.18</size></box></geometry>
+          <material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.1 0.1 0.18</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_tool_flange">
+      <pose>-1.94 -1.8 0.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.06</size></box></geometry>
+          <material><ambient>0.6 0.6 0.62 1</ambient><diffuse>0.6 0.6 0.62 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.06</size></box></geometry></collision>
+      </link>
+    </model>
+    <!-- fanuc_m10: representative six-axis arm on its table -->
+    <model name="fanuc_m10_table">
+      <pose>-2.6 1.8 0.375 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.2 0.8 0.05</size></box></geometry>
+          <material><ambient>0.35 0.35 0.38 1</ambient><diffuse>0.35 0.35 0.38 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>1.2 0.8 0.05</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_0">
+      <pose>-3.1 1.5 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_1">
+      <pose>-3.1 2.1 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_2">
+      <pose>-2.1 1.5 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_3">
+      <pose>-2.1 2.1 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.375</size></box></geometry>
+          <material><ambient>0.25 0.25 0.27 1</ambient><diffuse>0.25 0.25 0.27 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_base">
+      <pose>-2.6 1.8 0.525 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.16</radius><length>0.2</length></cylinder></geometry>
+          <material><ambient>0.95 0.75 0.05 1</ambient><diffuse>0.95 0.75 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fanuc_m10_link1">
+      <pose>-2.6 1.8 0.845 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.11</radius><length>0.44</length></cylinder></geometry>
+          <material><ambient>0.95 0.75 0.05 1</ambient><diffuse>0.95 0.75 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fanuc_m10_link2">
+      <pose>-2.38 1.8 1.085 0 0 0.35</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.52 0.14 0.14</size></box></geometry>
+          <material><ambient>0.95 0.75 0.05 1</ambient><diffuse>0.95 0.75 0.05 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.52 0.14 0.14</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_link3">
+      <pose>-2.12 1.8 0.925 0 0 -0.55</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.42 0.11 0.11</size></box></geometry>
+          <material><ambient>0.95 0.75 0.05 1</ambient><diffuse>0.95 0.75 0.05 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.42 0.11 0.11</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_wrist">
+      <pose>-1.94 1.8 0.745 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.1 0.1 0.18</size></box></geometry>
+          <material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.1 0.1 0.18</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_tool_flange">
+      <pose>-1.94 1.8 0.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.06</size></box></geometry>
+          <material><ambient>0.6 0.6 0.62 1</ambient><diffuse>0.6 0.6 0.62 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.06</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_top">
+      <pose>2.6 2.4 0.375 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.2 0.8 0.05</size></box></geometry>
+          <material><ambient>0.35 0.28 0.2 1</ambient><diffuse>0.35 0.28 0.2 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>1.2 0.8 0.05</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_0">
+      <pose>2.1 2.1 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.36</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_1">
+      <pose>2.1 2.6999999999999997 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.36</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_2">
+      <pose>3.1 2.1 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.36</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_3">
+      <pose>3.1 2.6999999999999997 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.06 0.06 0.36</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.06 0.06 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="toolbox">
+      <pose>2.35 2.25 0.47 0 0 0.2</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.36 0.2 0.14</size></box></geometry>
+          <material><ambient>0.75 0.1 0.1 1</ambient><diffuse>0.75 0.1 0.1 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.36 0.2 0.14</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="toolbox_lid">
+      <pose>2.35 2.25 0.55 0 0 0.2</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.36 0.2 0.02</size></box></geometry>
+          <material><ambient>0.6 0.08 0.08 1</ambient><diffuse>0.6 0.08 0.08 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.36 0.2 0.02</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wrench_handle">
+      <pose>2.75 2.3 0.42 0 0 0.4</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.16 0.012</size></box></geometry>
+          <material><ambient>0.7 0.7 0.72 1</ambient><diffuse>0.7 0.7 0.72 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.02 0.16 0.012</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wrench_jaw_a">
+      <pose>2.82 2.25 0.42 0 0 0.4</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.03 0.02</size></box></geometry>
+          <material><ambient>0.7 0.7 0.72 1</ambient><diffuse>0.7 0.7 0.72 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.02 0.03 0.02</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wrench_jaw_b">
+      <pose>2.82 2.36 0.42 0 0 0.4</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.03 0.02</size></box></geometry>
+          <material><ambient>0.7 0.7 0.72 1</ambient><diffuse>0.7 0.7 0.72 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.02 0.03 0.02</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="hammer_handle">
+      <pose>2.05 2.38 0.45 0 0 0.5</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.012</radius><length>0.26</length></cylinder></geometry>
+          <material><ambient>0.55 0.35 0.15 1</ambient><diffuse>0.55 0.35 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="hammer_head">
+      <pose>2.12 2.42 0.45 0 0 0.5</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.04 0.04</size></box></geometry>
+          <material><ambient>0.3 0.3 0.32 1</ambient><diffuse>0.3 0.3 0.32 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.04 0.04</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="screwdriver_handle">
+      <pose>2.15 2.25 0.44 0 0 1.1</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.015</radius><length>0.09</length></cylinder></geometry>
+          <material><ambient>0.9 0.75 0.1 1</ambient><diffuse>0.9 0.75 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="screwdriver_shaft">
+      <pose>2.15 2.31 0.44 0 0 1.1</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.004</radius><length>0.13</length></cylinder></geometry>
+          <material><ambient>0.75 0.75 0.78 1</ambient><diffuse>0.75 0.75 0.78 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="workshop_overhead_camera">
+      <pose>0 -3.85 2.60 0 0.35 1.5708</pose>
+      <static>true</static>
+      <link name="camera_link">
+        <visual name="body">
+          <geometry><box><size>0.12 0.10 0.10</size></box></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+        <sensor name="overhead_camera" type="camera">
+          <always_on>true</always_on>
+          <visualize>false</visualize>
+          <update_rate>10</update_rate>
+          <camera>
+            <horizontal_fov>1.9</horizontal_fov>
+            <image><width>1280</width><height>720</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>30.0</far></clip>
+          </camera>
+          <plugin name="overhead_camera_controller" filename="libgazebo_ros_camera.so">
+            <ros><namespace>/</namespace></ros>
+            <camera_name>workshop/overhead</camera_name>
+            <frame_name>overhead_camera_link</frame_name>
+          </plugin>
+        </sensor>
+      </link>
+    </model>
+  </world>
+</sdf>
