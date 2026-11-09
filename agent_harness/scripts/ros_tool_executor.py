@@ -435,12 +435,16 @@ def execute_plan_runtime(
     registry: SkillRegistry,
     executor: "RosToolExecutor",
     timeout_sec: float,
+    ledger_path: Path | None = None,
 ) -> list[ToolCallResult]:
     """Execute a validated plan through the local runtime, one submission per step.
 
     The plan stays the unit of *intent*; each step becomes an ``ActionRequest``
     and returns an ``ExecutionReceipt``. Steps are still sequential here — a
     plan is a macro over submissions, not a parallel program.
+
+    With ``ledger_path``, every submission is recorded before dispatch and the
+    ROS goal uuid is backfilled into the ledger from the receipt.
     """
     from agent_harness.contracts import (
         ActionRequest,
@@ -448,8 +452,17 @@ def execute_plan_runtime(
         ExecutionStatus,
         new_command_id,
     )
-    from agent_harness.runtime import ToolClient
+    from agent_harness.runtime import ExecutionLedger, ToolClient
     from agent_harness.runtime.ros_backend import RosBackend
+
+    ledger = None
+    if ledger_path is not None:
+        ledger = ExecutionLedger(ledger_path)
+        # Anything left running by a previous process blocks side effects until
+        # an operator acknowledges it (see robot_control.py ack).
+        orphans = ledger.mark_orphans()
+        if orphans:
+            print(f"# ledger: {orphans} orphaned command(s) from a previous run")
 
     trace_id = str(plan.get("trace_id") or f"trace-{uuid.uuid4().hex[:10]}")
     client = ToolClient(
@@ -457,6 +470,7 @@ def execute_plan_runtime(
         CapabilityRegistry.load(REPO_ROOT),
         default_timeout_s=timeout_sec,
         max_workers=1,
+        ledger=ledger,
     )
     results: list[ToolCallResult] = []
     try:
@@ -510,6 +524,8 @@ def execute_plan_runtime(
                 break
     finally:
         client.shutdown(30.0)
+        if ledger is not None:
+            ledger.close()
     return results
 
 
@@ -524,6 +540,12 @@ def main() -> None:
         choices=["runtime", "legacy"],
         default="runtime",
         help="execute mode only: dispatch through the local runtime or the pre-Phase-2 loop",
+    )
+    parser.add_argument(
+        "--ledger",
+        type=Path,
+        default=None,
+        help="execute mode only: durable command ledger (SQLite). Recommended for any real run.",
     )
     parser.add_argument("--json", action="store_true", help="Print structured JSON results.")
     args = parser.parse_args()
@@ -541,7 +563,7 @@ def main() -> None:
                 results = executor.execute_plan(plan, calls, registry)
             else:
                 results = execute_plan_runtime(
-                    plan, calls, registry, executor, args.timeout_sec
+                    plan, calls, registry, executor, args.timeout_sec, args.ledger
                 )
         finally:
             executor.close()
