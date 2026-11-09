@@ -19,6 +19,11 @@ export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
 export DISPLAY="${DISPLAY:-:0}"
 
+# Official sensor descriptions are referenced through model:// URIs. Point
+# Gazebo at a two-entry model directory instead of all of ROS share.
+GAZEBO_MODELS="$("$REPO/scripts/setup_gazebo_models.sh")"
+export GAZEBO_MODEL_PATH="$GAZEBO_MODELS:${GAZEBO_MODEL_PATH:-}"
+
 NAV_ARGS=()
 if [ "${1:-}" = "--nav2" ]; then
   NAV_ARGS=(nav_backend:=nav2 start_slam:=true start_nav2:=true)

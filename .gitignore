@@ -12,6 +12,9 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Gazebo model path built by scripts/setup_gazebo_models.sh
+gazebo_models/
+
 # IDE / OS
 .vscode/
 .idea/

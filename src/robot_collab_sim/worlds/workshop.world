@@ -36,15 +36,37 @@
         <collision name="collision"><geometry><box><size>10.4 0.2 3.0</size></box></geometry></collision>
       </link>
     </model>
-    <model name="wall_east">
-      <pose>5.1 0 1.5 0 0 0</pose>
+    <model name="wall_east_a">
+      <pose>5.1 -2.85 1.5 0 0 0</pose>
       <static>true</static>
       <link name="link">
         <visual name="visual">
-          <geometry><box><size>0.2 8.4 3.0</size></box></geometry>
+          <geometry><box><size>0.2 2.7 3.0</size></box></geometry>
           <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
         </visual>
-        <collision name="collision"><geometry><box><size>0.2 8.4 3.0</size></box></geometry></collision>
+        <collision name="collision"><geometry><box><size>0.2 2.7 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_east_b">
+      <pose>5.1 2.85 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 2.7 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 2.7 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_east_lintel">
+      <pose>5.1 0 2.7 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 3.0 0.6</size></box></geometry>
+          <material><ambient>0.66 0.66 0.69 1</ambient><diffuse>0.66 0.66 0.69 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 3.0 0.6</size></box></geometry></collision>
       </link>
     </model>
     <model name="wall_west">

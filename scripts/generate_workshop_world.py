@@ -185,7 +185,10 @@ def build() -> str:
     # No ceiling: four walls only.
     parts.append(box_model("wall_north", (0, 4.1, 1.5, 0), (10.4, 0.2, 3.0), (0.72, 0.72, 0.75)))
     parts.append(box_model("wall_south", (0, -4.1, 1.5, 0), (10.4, 0.2, 3.0), (0.72, 0.72, 0.75)))
-    parts.append(box_model("wall_east", (5.1, 0, 1.5, 0), (0.2, 8.4, 3.0), (0.72, 0.72, 0.75)))
+    # East wall is open: a 3 m doorway with a lintel, so the cell is enterable.
+    parts.append(box_model("wall_east_a", (5.1, -2.85, 1.5, 0), (0.2, 2.7, 3.0), (0.72, 0.72, 0.75)))
+    parts.append(box_model("wall_east_b", (5.1, 2.85, 1.5, 0), (0.2, 2.7, 3.0), (0.72, 0.72, 0.75)))
+    parts.append(box_model("wall_east_lintel", (5.1, 0, 2.7, 0), (0.2, 3.0, 0.6), (0.66, 0.66, 0.69)))
     parts.append(box_model("wall_west", (-5.1, 0, 1.5, 0), (0.2, 8.4, 3.0), (0.72, 0.72, 0.75)))
 
     # Two robot cells: KUKA orange, FANUC yellow.

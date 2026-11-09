@@ -119,28 +119,13 @@
     <origin xyz="0.18 0 0.12" rpy="0 0 0"/>
   </joint>
 
-  <link name="camera_link">
-    <visual>
-      <origin xyz="0 0 0"/>
-      <geometry>
-        <box size="0.055 0.09 0.045"/>
-      </geometry>
-      <material name="camera_green">
-        <color rgba="0.05 0.42 0.30 1.0"/>
-      </material>
-    </visual>
-    <collision>
-      <origin xyz="0 0 0"/>
-      <geometry>
-        <box size="0.055 0.09 0.045"/>
-      </geometry>
-    </collision>
-  </link>
-  <joint name="camera_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="camera_link"/>
+  <!-- Intel RealSense D435: official description (mesh + frames) from
+       realsense2_description. It creates camera_link, camera_color_*,
+       camera_depth_* and the optical frames. -->
+  <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro"/>
+  <xacro:sensor_d435 parent="base_link" name="camera">
     <origin xyz="0.30 0 0.08" rpy="0 0 0"/>
-  </joint>
+  </xacro:sensor_d435>
 
   <link name="imu_link"/>
   <joint name="imu_joint" type="fixed">
@@ -249,73 +234,14 @@
     </sensor>
   </gazebo>
 
-  <link name="velodyne_link">
-    <inertial>
-      <mass value="0.8"/>
-      <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
-    </inertial>
-    <visual>
-      <origin xyz="0 0 0"/>
-      <geometry>
-        <cylinder radius="0.05" length="0.07"/>
-      </geometry>
-      <material name="velodyne_grey">
-        <color rgba="0.25 0.25 0.25 1.0"/>
-      </material>
-    </visual>
-    <collision>
-      <origin xyz="0 0 0"/>
-      <geometry>
-        <cylinder radius="0.05" length="0.07"/>
-      </geometry>
-    </collision>
-  </link>
-
-  <joint name="velodyne_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="velodyne_link"/>
+  <!-- Velodyne VLP-16: official description with its gazebo plugin. CPU ray
+       (gpu=false) so it runs under WSL without GPU rendering; 720 azimuth
+       samples is half the real resolution and enough for LIO-style mapping. -->
+  <xacro:include filename="$(find velodyne_description)/urdf/VLP-16.urdf.xacro"/>
+  <xacro:VLP-16 parent="base_link" name="velodyne" topic="/velodyne_points"
+                hz="10" samples="720" gpu="false" min_range="0.3" max_range="50.0">
     <origin xyz="-0.10 0 0.42" rpy="0 0 0"/>
-  </joint>
-
-  <gazebo reference="velodyne_link">
-    <!-- VLP-16 class sensor: 16 rings, 360 degrees, 50 m. CPU ray casting keeps
-         it working without GPU rendering under WSL; 720 columns is half the
-         real azimuth resolution and is enough for LIO-style mapping tests. -->
-    <sensor name="velodyne" type="ray">
-      <always_on>true</always_on>
-      <visualize>false</visualize>
-      <update_rate>10</update_rate>
-      <ray>
-        <scan>
-          <horizontal>
-            <samples>720</samples>
-            <resolution>1</resolution>
-            <min_angle>-3.14159</min_angle>
-            <max_angle>3.14159</max_angle>
-          </horizontal>
-          <vertical>
-            <samples>16</samples>
-            <resolution>1</resolution>
-            <min_angle>-0.2618</min_angle>
-            <max_angle>0.2618</max_angle>
-          </vertical>
-        </scan>
-        <range>
-          <min>0.3</min>
-          <max>50.0</max>
-          <resolution>0.01</resolution>
-        </range>
-      </ray>
-      <plugin name="velodyne_controller" filename="libgazebo_ros_ray_sensor.so">
-        <ros>
-          <namespace>/</namespace>
-          <remapping>~/out:=velodyne_points</remapping>
-        </ros>
-        <output_type>sensor_msgs/PointCloud2</output_type>
-        <frame_name>velodyne_link</frame_name>
-      </plugin>
-    </sensor>
-  </gazebo>
+  </xacro:VLP-16>
 
   <gazebo reference="imu_link">
     <sensor name="base_imu" type="imu">
