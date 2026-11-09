@@ -75,6 +75,22 @@ class CapabilityRegistry:
             key=lambda d: d.name,
         )
 
+    def describe_for(self, platform: str) -> list[str]:
+        """One model-facing line per capability, derived from the registry.
+
+        Nothing here is hard-coded: adding an action to a schema file makes it
+        appear, and a capability absent on the platform never does.
+        """
+        lines = []
+        for descriptor in self.for_platform(platform):
+            args = ", ".join(descriptor.required_args) or "-"
+            lines.append(
+                f"{descriptor.name}({args}) "
+                f"[{descriptor.granularity}, risk={descriptor.risk}, "
+                f"mutates={str(descriptor.mutates_world).lower()}]"
+            )
+        return lines
+
     def names(self) -> list[str]:
         return sorted(self._by_name)
 

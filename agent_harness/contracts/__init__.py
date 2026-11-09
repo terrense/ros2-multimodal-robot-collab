@@ -46,6 +46,7 @@ from .types import (
     CapabilityDescriptor,
     ExecutionReceipt,
     ObservationSnapshot,
+    StaleSnapshot,
     TaskOutcome,
 )
 from .vocab import UNIT_TOKENS, known_frames, register_frame
@@ -61,6 +62,7 @@ __all__ = [
     "FailureCode",
     "InvalidTransition",
     "ObservationSnapshot",
+    "StaleSnapshot",
     "TaskOutcome",
     "UnsupportedCapability",
     "action_from_request",
