@@ -14,6 +14,11 @@ Every one of these cost a restart cycle. Recorded so they are fixed once.
 | 8 | Walls/boards render white, then Gazebo crashes | Ogre/PBR textures were not applied and, once a material script was added, scene init failed | decoration is geometry (boxes), no textures |
 | 9 | Wall lettering mirrored from inside the room | text laid along +y on the east wall reads right-to-left from the interior | `reverse=True` lays letters along −y |
 | 10 | `ros2 topic list`/`service list` returns empty while the graph works | ros2cli daemon under CycloneDDS | prefer rclpy graph probes (`node.get_service_names_and_types()`) in scripts |
+| 11 | Robot xacro fails: `No such file …/urdf/dobot_mounted.urdf` | `data_files` are expanded at build time and installed as per-file symlinks; a file generated after the build never lands in `install/` | regenerate assets, then `rm -rf build/<pkg> install/<pkg>` and rebuild |
+| 12 | xacro: `junk after document element` | the included mount file had been written as a fragment, but `xacro:include` expects a document with a root (it takes the root's children) | keep the `<robot>` wrapper in generated include files |
+| 13 | Arms spawn but render white | Gazebo Classic ignores URDF `<material><color>` | add `<gazebo reference="link"><material>Gazebo/Orange</material></gazebo>` per link |
+| 14 | Mounted Dobot invisible | meshes were installed flat into `share/.../meshes/` while the URDF referenced `meshes/dobot_cr10/` | install to the exact referenced path (`glob("meshes/dobot_cr10/*")`) |
+| 15 | Commit blocked: `base_link.STL (1147 KB) exceeds 1024 KB` | pre-commit large-file guard | raise to 4 MB; vendored simulator meshes are legitimate assets |
 
 ## Spawn order that works
 
