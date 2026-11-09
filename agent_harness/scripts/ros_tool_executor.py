@@ -330,10 +330,11 @@ class RosToolExecutor:
                 return False
         return True
 
-    def _execute_action(self, result: ToolCallResult) -> None:
+    def _execute_action(self, result: ToolCallResult, timeout_sec: float | None = None) -> None:
+        timeout = self.timeout_sec if timeout_sec is None else timeout_sec
         action_type = import_ros_type(result.ros_type)
         client = self.ActionClient(self.node, action_type, result.endpoint)
-        if not client.wait_for_server(timeout_sec=self.timeout_sec):
+        if not client.wait_for_server(timeout_sec=timeout):
             raise RuntimeError(f"Action server unavailable: {result.endpoint}")
 
         goal = action_type.Goal()
@@ -344,7 +345,7 @@ class RosToolExecutor:
             result.feedback.append(ros_message_to_dict(feedback))
 
         send_future = client.send_goal_async(goal, feedback_callback=feedback_callback)
-        if not self._spin_until_done(send_future, self.timeout_sec):
+        if not self._spin_until_done(send_future, timeout):
             raise RuntimeError(f"Timed out sending action goal: {result.endpoint}")
         goal_handle = send_future.result()
         if not goal_handle.accepted:
@@ -353,7 +354,7 @@ class RosToolExecutor:
             return
 
         result_future = goal_handle.get_result_async()
-        if not self._spin_until_done(result_future, self.timeout_sec):
+        if not self._spin_until_done(result_future, timeout):
             cancel_future = goal_handle.cancel_goal_async()
             self._spin_until_done(cancel_future, 2.0)
             raise RuntimeError(f"Timed out waiting for action result: {result.endpoint}")
@@ -367,15 +368,16 @@ class RosToolExecutor:
         }
         result.message = f"Action completed: {result.endpoint}"
 
-    def _execute_service(self, result: ToolCallResult) -> None:
+    def _execute_service(self, result: ToolCallResult, timeout_sec: float | None = None) -> None:
+        timeout = self.timeout_sec if timeout_sec is None else timeout_sec
         service_type = import_ros_type(result.ros_type)
         client = self.node.create_client(service_type, result.endpoint)
-        if not client.wait_for_service(timeout_sec=self.timeout_sec):
+        if not client.wait_for_service(timeout_sec=timeout):
             raise RuntimeError(f"Service unavailable: {result.endpoint}")
         request = service_type.Request()
         assign_fields(request, result.payload)
         future = client.call_async(request)
-        if not self._spin_until_done(future, self.timeout_sec):
+        if not self._spin_until_done(future, timeout):
             raise RuntimeError(f"Timed out waiting for service result: {result.endpoint}")
         result.status = "succeeded"
         result.result = {"response": ros_message_to_dict(future.result())}
@@ -407,12 +409,113 @@ def print_human(results: list[ToolCallResult]) -> None:
             print(f"# message: {item.message}")
 
 
+def _status_text(status) -> str:
+    from agent_harness.contracts import ExecutionStatus
+
+    return {
+        ExecutionStatus.COMPLETED: "succeeded",
+        ExecutionStatus.FAILED: "failed",
+        ExecutionStatus.REJECTED: "rejected",
+        ExecutionStatus.UNKNOWN: "unknown",
+    }.get(status, "failed")
+
+
+def execute_plan_runtime(
+    plan: dict[str, Any],
+    calls: list[SkillCall],
+    registry: SkillRegistry,
+    executor: "RosToolExecutor",
+    timeout_sec: float,
+) -> list[ToolCallResult]:
+    """Execute a validated plan through the local runtime, one submission per step.
+
+    The plan stays the unit of *intent*; each step becomes an ``ActionRequest``
+    and returns an ``ExecutionReceipt``. Steps are still sequential here — a
+    plan is a macro over submissions, not a parallel program.
+    """
+    from agent_harness.contracts import (
+        ActionRequest,
+        CapabilityRegistry,
+        ExecutionStatus,
+        new_command_id,
+    )
+    from agent_harness.runtime import ToolClient
+    from agent_harness.runtime.ros_backend import RosBackend
+
+    trace_id = str(plan.get("trace_id") or f"trace-{uuid.uuid4().hex[:10]}")
+    client = ToolClient(
+        RosBackend(executor, registry),
+        CapabilityRegistry.load(REPO_ROOT),
+        default_timeout_s=timeout_sec,
+        max_workers=1,
+    )
+    results: list[ToolCallResult] = []
+    try:
+        for call in calls:
+            schema = registry.get_action(call.skill, call.action)
+            transport, endpoint, ros_type = transport_for(schema)
+            payload = payload_for_call(call)
+            action_timeout = schema.get("timeout_sec")
+            request = ActionRequest(
+                episode_id=trace_id,
+                command_id=new_command_id(),
+                capability=f"{call.skill}.{call.action}",
+                arguments=dict(call.args),
+                timeout_s=float(action_timeout) if action_timeout else None,
+            )
+            submitted = client.submit(request)
+            receipt = (
+                client.wait(request.command_id)
+                if submitted.execution_status is ExecutionStatus.QUEUED
+                else submitted
+            )
+            results.append(
+                ToolCallResult(
+                    step_index=call.index,
+                    skill=call.skill,
+                    action=call.action,
+                    trace_id=trace_id,
+                    mode="execute",
+                    status=_status_text(receipt.execution_status),
+                    transport=transport,
+                    endpoint=endpoint,
+                    ros_type=ros_type,
+                    message=receipt.detail,
+                    command=render_ros_command(transport, endpoint, ros_type, payload),
+                    payload=payload,
+                    feedback=list(receipt.result.get("feedback", [])),
+                    result={
+                        "status": receipt.execution_status.value,
+                        "failure_code": (
+                            receipt.failure_code.value if receipt.failure_code else None
+                        ),
+                        "result": receipt.result.get("result"),
+                    },
+                )
+            )
+            if receipt.execution_status in {
+                ExecutionStatus.FAILED,
+                ExecutionStatus.REJECTED,
+                ExecutionStatus.UNKNOWN,
+            }:
+                break
+    finally:
+        client.shutdown(30.0)
+    return results
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate and dispatch agent mission-plan tool calls.")
     parser.add_argument("plan", type=Path)
     parser.add_argument("--skills-dir", type=Path, default=DEFAULT_SKILLS_DIR)
     parser.add_argument("--mode", choices=["dry-run", "execute"], default="dry-run")
     parser.add_argument("--timeout-sec", type=float, default=60.0)
+    parser.add_argument(
+        "--engine",
+        choices=["runtime", "legacy"],
+        default="runtime",
+        help="execute mode only: dispatch through the local runtime or the pre-Phase-2 loop",
+    )
     parser.add_argument("--json", action="store_true", help="Print structured JSON results.")
     args = parser.parse_args()
 
@@ -425,7 +528,12 @@ def main() -> None:
     else:
         executor = RosToolExecutor(timeout_sec=args.timeout_sec)
         try:
-            results = executor.execute_plan(plan, calls, registry)
+            if args.engine == "legacy":
+                results = executor.execute_plan(plan, calls, registry)
+            else:
+                results = execute_plan_runtime(
+                    plan, calls, registry, executor, args.timeout_sec
+                )
         finally:
             executor.close()
 
@@ -434,7 +542,7 @@ def main() -> None:
     else:
         print_human(results)
 
-    if any(item.status in {"failed", "rejected"} for item in results):
+    if any(item.status in {"failed", "rejected", "unknown"} for item in results):
         raise SystemExit(1)
 
 
