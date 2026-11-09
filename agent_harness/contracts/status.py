@@ -101,6 +101,7 @@ class FailureCode(str, Enum):
     TRANSPORT_ERROR = "transport_error"
     ACTION_REJECTED = "action_rejected"
     ACTION_ABORTED = "action_aborted"
+    CANCELLED = "cancelled"
     EXECUTION_UNCERTAIN = "execution_uncertain"
     INTERNAL_ERROR = "internal_error"
 

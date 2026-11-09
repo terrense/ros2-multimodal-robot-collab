@@ -1,0 +1,28 @@
+[
+  {
+    "step_index": 1,
+    "skill": "manipulation",
+    "action": "publish_arm_control",
+    "trace_id": "trace-NORMALIZED",
+    "mode": "dry-run",
+    "status": "validated",
+    "transport": "topic",
+    "endpoint": "/arm/control_command",
+    "ros_type": "robot_collab_interfaces/msg/ArmControlCommand",
+    "message": "Validated; no ROS2 call dispatched.",
+    "command": "ros2 topic pub --once /arm/control_command robot_collab_interfaces/msg/ArmControlCommand '{\"command\": \"system_stop\", \"operator_id\": \"operator_001\", \"source\": \"agent_harness\", \"confidence\": 1.0, \"emergency\": true, \"detail\": \"Open palm gesture detected.\"}'",
+    "payload": {
+      "command": "system_stop",
+      "operator_id": "operator_001",
+      "source": "agent_harness",
+      "confidence": 1.0,
+      "emergency": true,
+      "detail": "Open palm gesture detected."
+    },
+    "feedback": [],
+    "result": {
+      "risk": "arm_control",
+      "requires_confirmation": false
+    }
+  }
+]

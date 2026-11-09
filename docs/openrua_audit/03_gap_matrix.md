@@ -89,3 +89,20 @@ They differ in five concrete ways:
 
 Any unification must therefore introduce a **step boundary** on path A without
 deleting the plan macro that already works.
+
+## G. Status after Phase 2
+
+Rows above are the Phase 0 baseline. After Phase 2:
+
+| Capability | Phase 0 | Now | Where |
+|---|---|---|---|
+| Command identity | missing on path A | **present** | `ActionRequest.command_id` through `ToolClient` |
+| Execution status taxonomy | incompatible | **present** | contract v1 `ExecutionStatus` incl. `unknown` |
+| Resource-scoped ordering | missing | **present** (fake backend proves it; ROS backend serialises one node) | `runtime/scheduler.py` |
+| Cancel queued vs running | missing | **present** | `scheduler.cancel` |
+| Drain on shutdown | missing | **present** | `scheduler.drain` returns unfinished ids |
+| Unknown-outcome handling | missing | **partial** — `unknown` is produced and never retried; no ledger yet | client + backends |
+| Three-way result split | missing | **present** in receipts | contract v1 |
+| Command-level timeout | partial (one global) | **present** per capability, with CLI fallback | `policy_for` + `RosBackend` |
+| Background job handles | missing | **not yet** (Phase 3 candidate) | — |
+| Ledger / reconciliation | missing | **not yet** (Phase 3) | — |
