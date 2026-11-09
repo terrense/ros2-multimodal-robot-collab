@@ -15,6 +15,7 @@ setup(
         (f"share/{package_name}/urdf", glob("urdf/*")),
         (f"share/{package_name}/worlds", glob("worlds/*")),
         (f"share/{package_name}/config", glob("config/*")),
+        (f"share/{package_name}/materials", glob("materials/*")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

@@ -39,19 +39,29 @@ render() {
     path=$(find "$TREE" -maxdepth 3 -type d -name "$p" | head -1)
     [ -n "$path" ] && sed -i "s|package://$p/|file://$path/|g" "$out"
   done
+  python3 "$REPO/scripts/ensure_urdf_inertials.py" "$out"
   echo "rendered $out"
 }
 
 spawn() {
   name="$1"; file="$2"; x="$3"; y="$4"; z="$5"
-  timeout 60 ros2 run gazebo_ros spawn_entity.py -entity "$name" -file "$file" \
-    -x "$x" -y "$y" -z "$z" 2>&1 | tail -1
+  # Planning URDFs fall over when spawned dynamically, so convert to a static
+  # SDF first. spawn_entity.py also depends on ros2cli discovery, which is
+  # unreliable in this WSL + CycloneDDS setup; call the service directly.
+  sdf="/tmp/${name}.sdf"
+  python3 "$REPO/scripts/make_static_sdf.py" "$file" "$sdf" >/dev/null || return 1
+  python3 "$REPO/scripts/spawn_entity_direct.py" spawn "$name" "$sdf" "$x" "$y" "$z"
 }
 
-# FANUC: plain URDF from the apt description package.
+# FANUC: plain URDF from the apt description package. Its meshes use
+# package:// URIs, which Gazebo's URDF loader cannot resolve; rewrite them.
 FANUC=/opt/ros/humble/share/moveit_resources_fanuc_description/urdf/fanuc.urdf
+FANUC_SHARE=/opt/ros/humble/share/moveit_resources_fanuc_description
 if [ -f "$FANUC" ]; then
-  spawn fanuc_m10ia_real "$FANUC" -2.6 1.8 0.42
+  cp "$FANUC" /tmp/fanuc_m10ia.urdf
+  sed -i "s|package://moveit_resources_fanuc_description/|file://$FANUC_SHARE/|g" /tmp/fanuc_m10ia.urdf
+  python3 "$REPO/scripts/ensure_urdf_inertials.py" /tmp/fanuc_m10ia.urdf
+  spawn fanuc_m10ia_real /tmp/fanuc_m10ia.urdf -2.6 1.8 0.42
 fi
 
 if [ -d "$TREE/kuka_experimental" ]; then

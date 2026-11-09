@@ -1,0 +1,39 @@
+material Workshop/WallLaboratory
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture wall_laboratory.png
+      }
+    }
+  }
+}
+material Workshop/WallFactory
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture wall_factory.png
+      }
+    }
+  }
+}
+material Workshop/Calibration
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture calibration_board.png
+      }
+    }
+  }
+}

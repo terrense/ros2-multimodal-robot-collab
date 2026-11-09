@@ -22,6 +22,8 @@ export DISPLAY="${DISPLAY:-:0}"
 
 # Official sensor descriptions are referenced through model:// URIs. Point
 # Gazebo at a small model directory instead of all of ROS share.
+# Do NOT override GAZEBO_RESOURCE_PATH: doing so hides Gazebo's own Ogre media
+# and the render engine fails to initialise.
 GAZEBO_MODELS="$("$REPO/scripts/setup_gazebo_models.sh")"
 export GAZEBO_MODEL_PATH="$GAZEBO_MODELS:${GAZEBO_MODEL_PATH:-}"
 

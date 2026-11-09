@@ -23,4 +23,9 @@ for pkg in kuka_experimental cra_description; do
     ln -sfn "$src" "$MODELS/$pkg"
   fi
 done
+
+# This workspace's own sim package, so model://robot_collab_sim/materials/... works.
+if [ -d "$REPO/install/robot_collab_sim/share/robot_collab_sim" ]; then
+  ln -sfn "$REPO/install/robot_collab_sim/share/robot_collab_sim" "$MODELS/robot_collab_sim"
+fi
 echo "$MODELS"
