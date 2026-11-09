@@ -15,6 +15,9 @@ __pycache__/
 # Gazebo model path built by scripts/setup_gazebo_models.sh
 gazebo_models/
 
+# Large official robot descriptions (scripts/fetch_robot_descriptions.sh)
+third_party/robot_descriptions/
+
 # IDE / OS
 .vscode/
 .idea/

@@ -1,8 +1,9 @@
 #!/bin/bash
 # Launch the Gazebo demo with a visible window (WSLg) plus the simulated node stack.
 #
-#   scripts/run_gazebo_demo.sh            # simulated nav backend
-#   scripts/run_gazebo_demo.sh --nav2     # SLAM + Nav2 (experimental, see docs)
+#   scripts/run_gazebo_demo.sh              # lab world, simulated nav backend
+#   scripts/run_gazebo_demo.sh --nav2       # SLAM + Nav2
+#   scripts/run_gazebo_demo.sh --workshop   # workshop world + real KUKA/FANUC/Dobot
 #
 # Requirements: Ubuntu 22.04 + ROS 2 Humble, a built workspace, WSLg for the window.
 # Leaves the stack running; stop it with scripts/stop_gazebo_demo.sh.
@@ -20,19 +21,27 @@ export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
 export DISPLAY="${DISPLAY:-:0}"
 
 # Official sensor descriptions are referenced through model:// URIs. Point
-# Gazebo at a two-entry model directory instead of all of ROS share.
+# Gazebo at a small model directory instead of all of ROS share.
 GAZEBO_MODELS="$("$REPO/scripts/setup_gazebo_models.sh")"
 export GAZEBO_MODEL_PATH="$GAZEBO_MODELS:${GAZEBO_MODEL_PATH:-}"
 
 NAV_ARGS=()
-if [ "${1:-}" = "--nav2" ]; then
-  NAV_ARGS=(nav_backend:=nav2 start_slam:=true start_nav2:=true)
-fi
+WORLD_ARGS=()
+SPAWN_ARMS=0
+for arg in "$@"; do
+  case "$arg" in
+    --nav2) NAV_ARGS=(nav_backend:=nav2 start_slam:=true start_nav2:=true) ;;
+    --workshop)
+      WORLD_ARGS=(world:="$REPO/src/robot_collab_sim/worlds/workshop.world")
+      SPAWN_ARMS=1
+      ;;
+  esac
+done
 
 LOG=/tmp/gazebo_demo.log
 : >"$LOG"
 setsid nohup ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py \
-  "${NAV_ARGS[@]}" >"$LOG" 2>&1 &
+  "${WORLD_ARGS[@]}" "${NAV_ARGS[@]}" >"$LOG" 2>&1 &
 
 echo "launch started; log: $LOG"
 for i in $(seq 1 40); do
@@ -42,4 +51,14 @@ for i in $(seq 1 40); do
   fi
   sleep 1
 done
+
+if [ "$SPAWN_ARMS" = "1" ]; then
+  for i in $(seq 1 40); do
+    timeout 3 ros2 service list 2>/dev/null | grep -q "/spawn_entity" && break
+    sleep 1
+  done
+  echo "spawning official arms"
+  bash "$REPO/scripts/spawn_workshop_arms.sh" | tail -5
+fi
+
 echo "stop with: scripts/stop_gazebo_demo.sh"

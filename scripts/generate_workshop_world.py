@@ -106,13 +106,12 @@ def arm_cell(
     rgb: tuple[float, float, float],
     table_pose: tuple[float, float, float, float],
 ) -> str:
-    """A six-link arm silhouette mounted on a table."""
+    """The cell table. The arm itself is spawned from its official URDF."""
+    del origin, rgb
     tx, ty, table_z, yaw = table_pose
-    x, y = origin
     parts = [
-        f"    <!-- {name}: representative six-axis arm on its table -->\n",
+        f"    <!-- {name}: table for an arm spawned from its official URDF -->\n",
         box_model(f"{name}_table", table_pose, (1.2, 0.8, 0.05), (0.35, 0.35, 0.38), collide=True),
-        # table legs
     ]
     # four legs under the table top
     legs = [(-0.5, -0.3), (-0.5, 0.3), (0.5, -0.3), (0.5, 0.3)]
@@ -125,28 +124,8 @@ def arm_cell(
                 (0.25, 0.25, 0.27),
             )
         )
-    base_z = table_z + 0.05 + 0.10
-    parts.append(
-        cylinder_model(f"{name}_base", (x, y, base_z, 0.0), 0.16, 0.20, rgb)
-    )
-    # link chain: leaning boxes/cylinders, representative silhouette
-    parts.append(
-        cylinder_model(f"{name}_link1", (x, y, base_z + 0.32, 0.0), 0.11, 0.44, rgb)
-    )
-    parts.append(
-        box_model(f"{name}_link2", (x + 0.22, y, base_z + 0.56, 0.35), (0.52, 0.14, 0.14), rgb)
-    )
-    parts.append(
-        box_model(f"{name}_link3", (x + 0.48, y, base_z + 0.40, -0.55), (0.42, 0.11, 0.11), rgb)
-    )
-    parts.append(
-        box_model(f"{name}_wrist", (x + 0.66, y, base_z + 0.22, 0.0), (0.10, 0.10, 0.18), (0.15, 0.15, 0.15))
-    )
-    parts.append(
-        box_model(
-            f"{name}_tool_flange", (x + 0.66, y, base_z + 0.10, 0.0), (0.08, 0.08, 0.06), (0.6, 0.6, 0.62)
-        )
-    )
+    # The arm itself is spawned from its official URDF by
+    # scripts/spawn_workshop_arms.sh; the world only provides the table.
     return "".join(parts)
 
 
