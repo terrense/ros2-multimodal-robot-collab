@@ -106,3 +106,14 @@ Rows above are the Phase 0 baseline. After Phase 2:
 | Command-level timeout | partial (one global) | **present** per capability, with CLI fallback | `policy_for` + `RosBackend` |
 | Background job handles | missing | **not yet** (Phase 3 candidate) | — |
 | Ledger / reconciliation | missing | **not yet** (Phase 3) | — |
+
+### After Phase 3
+
+| Capability | Phase 0 | Now | Where |
+|---|---|---|---|
+| Durable command record | missing | **present** (SQLite, WAL, terminal rows immutable) | `runtime/ledger.py` |
+| Restart reconciliation policy | missing | **present**: orphans block side effects until an operator acknowledges | `ledger.mark_orphans` + client gate |
+| Duplicate execution | possible | **refused** (`duplicate_command`) | ledger primary key |
+| Independent stop channel | missing | **present**: cancel / pause / stop, fail-closed, no model involved | `runtime/control.py` + `scripts/robot_control.py` |
+| Command ↔ ROS goal correlation | missing | **present in code, NOT RUN on hardware** | executor goal uuid → ledger |
+| Multi-threaded ROS concurrency | missing | **deferred to 3.1** (spin ownership in `RosToolExecutor`) | — |

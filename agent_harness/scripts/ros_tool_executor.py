@@ -366,6 +366,15 @@ class RosToolExecutor:
             "status": getattr(response, "status", None),
             "result": ros_message_to_dict(getattr(response, "result", None)),
         }
+        # Correlate the receipt with the ROS 2 goal. Verified against rclpy at
+        # runtime; the executor never interprets the uuid.
+        goal_id = getattr(goal_handle, "goal_id", None)
+        goal_uuid = getattr(goal_id, "uuid", None)
+        if goal_uuid is not None:
+            try:
+                result.result["goal_uuid"] = bytes(goal_uuid).hex()
+            except (TypeError, ValueError):
+                pass
         result.message = f"Action completed: {result.endpoint}"
 
     def _execute_service(self, result: ToolCallResult, timeout_sec: float | None = None) -> None:

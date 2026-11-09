@@ -80,6 +80,29 @@ def test_receipt_round_trip():
     assert restored == original
 
 
+def test_receipt_backend_ref_round_trip():
+    original = _receipt(backend_ref="goal-uuid-1234")
+    restored = ExecutionReceipt.from_dict(json.loads(json.dumps(original.to_dict())))
+    assert restored.backend_ref == "goal-uuid-1234"
+
+
+def test_v1_receipt_without_backend_ref_still_parses():
+    payload = _receipt().to_dict()
+    payload.pop("backend_ref", None)
+    receipt = ExecutionReceipt.from_dict(payload)
+    assert receipt.backend_ref is None
+
+
+def test_v1_1_failure_codes_exist():
+    for code in (
+        FailureCode.DUPLICATE_COMMAND,
+        FailureCode.STALE_STATE,
+        FailureCode.NOT_RECONCILED,
+        FailureCode.STOP_TIMEOUT,
+    ):
+        assert code.value in {member.value for member in FailureCode}
+
+
 def test_snapshot_round_trip():
     original = ObservationSnapshot(
         snapshot_id="snap-1",

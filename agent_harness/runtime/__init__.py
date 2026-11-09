@@ -14,14 +14,15 @@ explicitly by whoever needs it.
 from __future__ import annotations
 
 from .client import ToolBackend, ToolClient
+from .control import RobotControl
 from .fake_backend import Behaviour, Call, FakeBackend
+from .ledger import DuplicateCommand, ExecutionLedger, LedgerError, LedgerRecord
 from .policy import ExecutionPolicy, policy_for
 from .scheduler import (
     CANCELLED,
     DONE,
     QUEUED,
     RUNNING,
-    DuplicateCommand,
     Job,
     ResourceScheduler,
     SchedulerClosed,
@@ -35,10 +36,14 @@ __all__ = [
     "Behaviour",
     "Call",
     "DuplicateCommand",
+    "ExecutionLedger",
     "ExecutionPolicy",
     "FakeBackend",
     "Job",
+    "LedgerError",
+    "LedgerRecord",
     "ResourceScheduler",
+    "RobotControl",
     "SchedulerClosed",
     "ToolBackend",
     "ToolClient",

@@ -139,6 +139,19 @@ absent. `registry.require(name, platform)` raises `UnsupportedCapability` when a
 capability is unknown or unavailable on that platform — strict, per the master
 plan.
 
+## v1.1 additions (Phase 3)
+
+Additive only: a v1 payload still parses, because every new field is optional
+and every new failure code is a new value in a closed enum.
+
+| Addition | Meaning |
+|---|---|
+| `ExecutionReceipt.backend_ref` | correlation id inside the backend — the ROS 2 goal uuid |
+| `FailureCode.DUPLICATE_COMMAND` | the same command id was submitted twice |
+| `FailureCode.STALE_STATE` | the request was built on an older `state_version` |
+| `FailureCode.NOT_RECONCILED` | a side effect was refused while an unresolved command exists |
+| `FailureCode.STOP_TIMEOUT` | a stop/cancel acknowledgement did not arrive in the bound |
+
 ## Extending
 
 - New frame: `register_frame("new_frame")` before constructing snapshots.

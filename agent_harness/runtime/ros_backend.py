@@ -101,9 +101,18 @@ class RosBackend:
             "feedback": list(record.feedback),
             "message": record.message,
         }
+        backend_ref = None
+        if isinstance(record.result, dict):
+            candidate = record.result.get("goal_uuid")
+            if isinstance(candidate, str) and candidate:
+                backend_ref = candidate
         if record.status == "succeeded":
             return RosBackend._receipt(
-                request, ExecutionStatus.COMPLETED, detail=record.message, payload=payload
+                request,
+                ExecutionStatus.COMPLETED,
+                detail=record.message,
+                payload=payload,
+                backend_ref=backend_ref,
             )
         if record.status == "rejected":
             return RosBackend._receipt(
@@ -113,6 +122,7 @@ class RosBackend:
                 detail=record.message,
                 physical=False,
                 payload=payload,
+                backend_ref=backend_ref,
             )
         return RosBackend._receipt(
             request,
@@ -120,6 +130,7 @@ class RosBackend:
             failure=FailureCode.ACTION_ABORTED,
             detail=record.message,
             payload=payload,
+            backend_ref=backend_ref,
         )
 
     @staticmethod
@@ -158,6 +169,7 @@ class RosBackend:
         detail: str = "",
         physical: bool | None = None,
         payload: dict | None = None,
+        backend_ref: str | None = None,
     ) -> ExecutionReceipt:
         return ExecutionReceipt(
             episode_id=request.episode_id,
@@ -167,6 +179,7 @@ class RosBackend:
             physical_effect_verified=physical,
             failure_code=failure,
             detail=detail,
+            backend_ref=backend_ref,
             resource_key=request.resource_key,
             result=payload or {},
         )
