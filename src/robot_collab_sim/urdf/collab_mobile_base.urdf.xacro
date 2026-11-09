@@ -214,12 +214,15 @@
   </gazebo>
 
   <gazebo reference="camera_link">
-    <sensor name="front_rgb_camera" type="camera">
+    <!-- Intel RealSense D435 stand-in: RGB-D with the D435 depth field of view.
+         The plugin publishes /camera/color/image_raw, /camera/depth/image_raw,
+         /camera/depth/points and the matching camera_info topics. -->
+    <sensor name="front_rgbd_camera" type="depth">
       <always_on>true</always_on>
-      <visualize>true</visualize>
+      <visualize>false</visualize>
       <update_rate>15</update_rate>
       <camera>
-        <horizontal_fov>1.047</horizontal_fov>
+        <horizontal_fov>1.518</horizontal_fov>
         <image>
           <width>640</width>
           <height>480</height>
@@ -227,15 +230,89 @@
         </image>
         <clip>
           <near>0.05</near>
-          <far>12.0</far>
+          <far>8.0</far>
         </clip>
       </camera>
-      <plugin name="front_camera_controller" filename="libgazebo_ros_camera.so">
+      <plugin name="front_rgbd_controller" filename="libgazebo_ros_camera.so">
         <ros>
           <namespace>/</namespace>
+          <!-- D435 topic layout, matching RealSense's ROS 2 wrapper. -->
+          <remapping>camera/image_raw:=camera/color/image_raw</remapping>
+          <remapping>camera/camera_info:=camera/color/camera_info</remapping>
+          <remapping>camera/points:=camera/depth/points</remapping>
         </ros>
-        <camera_name>camera/color</camera_name>
+        <camera_name>camera</camera_name>
         <frame_name>camera_link</frame_name>
+        <min_depth>0.1</min_depth>
+        <max_depth>8.0</max_depth>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <link name="velodyne_link">
+    <inertial>
+      <mass value="0.8"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.07"/>
+      </geometry>
+      <material name="velodyne_grey">
+        <color rgba="0.25 0.25 0.25 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.07"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="velodyne_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="velodyne_link"/>
+    <origin xyz="-0.10 0 0.42" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="velodyne_link">
+    <!-- VLP-16 class sensor: 16 rings, 360 degrees, 50 m. CPU ray casting keeps
+         it working without GPU rendering under WSL; 720 columns is half the
+         real azimuth resolution and is enough for LIO-style mapping tests. -->
+    <sensor name="velodyne" type="ray">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>10</update_rate>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>720</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>16</samples>
+            <resolution>1</resolution>
+            <min_angle>-0.2618</min_angle>
+            <max_angle>0.2618</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.3</min>
+          <max>50.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </ray>
+      <plugin name="velodyne_controller" filename="libgazebo_ros_ray_sensor.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>~/out:=velodyne_points</remapping>
+        </ros>
+        <output_type>sensor_msgs/PointCloud2</output_type>
+        <frame_name>velodyne_link</frame_name>
       </plugin>
     </sensor>
   </gazebo>
