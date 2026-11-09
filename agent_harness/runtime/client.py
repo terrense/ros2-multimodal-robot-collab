@@ -29,6 +29,7 @@ from agent_harness.contracts import (
     UnsupportedCapability,
 )
 
+from .ledger import DuplicateCommand, ExecutionLedger
 from .policy import ExecutionPolicy, policy_for
 from .scheduler import CANCELLED, DONE, RUNNING, Job, ResourceScheduler
 
@@ -49,6 +50,7 @@ class ToolClient:
         *,
         default_timeout_s: float | None = 60.0,
         max_workers: int = 4,
+        ledger: ExecutionLedger | None = None,
     ) -> None:
         self._backend = backend
         self._registry = registry
@@ -58,6 +60,9 @@ class ToolClient:
         self._requests: dict[str, ActionRequest] = {}
         self._policies: dict[str, ExecutionPolicy] = {}
         self._receipts: dict[str, ExecutionReceipt] = {}
+        self._ledger = ledger
+        self._fail_closed_reason: str | None = None
+        self._state_version: int | None = None
 
     # ------------------------------------------------------------------ submit
 
@@ -71,7 +76,6 @@ class ToolClient:
                 str(error),
             )
 
-        policy = policy_for(descriptor, default_timeout_s=self._default_timeout_s)
         missing = set(descriptor.required_args) - set(request.arguments)
         if missing:
             return self._rejected(
@@ -79,6 +83,13 @@ class ToolClient:
                 FailureCode.INVALID_ARGUMENTS,
                 f"missing arguments: {sorted(missing)}",
             )
+
+        if descriptor.mutates_world:
+            blocked = self._blocked_reason(request)
+            if blocked is not None:
+                return blocked
+
+        policy = policy_for(descriptor, default_timeout_s=self._default_timeout_s)
         if request.resource_key != policy.resource_key:
             # The descriptor owns the resource, not the caller: an arm command
             # must not be able to declare itself non-exclusive.
@@ -92,18 +103,60 @@ class ToolClient:
             resource_key=policy.resource_key,
             fn=lambda: self._execute(request),
         )
-        self._scheduler.submit(job)
-        return self._receipt(
+        queued = self._receipt(
             request,
             ExecutionStatus.QUEUED,
             resource_key=policy.resource_key,
             detail=f"queued on resource {policy.resource_key}",
         )
+        if self._ledger is not None:
+            try:
+                # Durable before dispatch: a crash here leaves a trace of a
+                # command that may or may not have moved the robot.
+                self._ledger.record_submitted(request, queued)
+            except DuplicateCommand as error:
+                return self._rejected(request, FailureCode.DUPLICATE_COMMAND, str(error))
+        self._scheduler.submit(job)
+        return queued
+
+    def _blocked_reason(self, request: ActionRequest) -> ExecutionReceipt | None:
+        """Refusals that apply before a side-effecting command is even queued."""
+        if self._fail_closed_reason:
+            return self._rejected(
+                request,
+                FailureCode.UNSAFE_REQUEST,
+                f"fail-closed: {self._fail_closed_reason}",
+            )
+        if self._ledger is not None:
+            orphans = self._ledger.unresolved()
+            if orphans:
+                ids = ", ".join(record.command_id for record in orphans[:3])
+                return self._rejected(
+                    request,
+                    FailureCode.NOT_RECONCILED,
+                    f"unresolved commands block side effects: {ids}",
+                )
+        if (
+            request.state_version is not None
+            and self._state_version is not None
+            and request.state_version < self._state_version
+        ):
+            return self._rejected(
+                request,
+                FailureCode.STALE_STATE,
+                f"request state_version {request.state_version} is older than "
+                f"current {self._state_version}",
+            )
+        return None
 
     def _execute(self, request: ActionRequest) -> ExecutionReceipt:
+        if self._ledger is not None:
+            self._ledger.record_started(request.command_id)
         receipt = self._backend.execute(request)
         with self._lock:
             self._receipts[request.command_id] = receipt
+        if self._ledger is not None:
+            self._ledger.record_finished(receipt)
         return receipt
 
     # -------------------------------------------------------------------- wait
@@ -161,7 +214,53 @@ class ToolClient:
     # ------------------------------------------------------------------ cancel
 
     def cancel(self, command_id: str) -> bool:
-        return self._scheduler.cancel(command_id)
+        cancelled = self._scheduler.cancel(command_id)
+        if cancelled:
+            request = self._request(command_id)
+            with self._lock:
+                policy = self._policies[command_id]
+            receipt = self._receipt(
+                request,
+                ExecutionStatus.REJECTED,
+                failure=FailureCode.CANCELLED,
+                physical_effect_verified=False,
+                detail="cancelled before execution",
+                resource_key=policy.resource_key,
+            )
+            with self._lock:
+                self._receipts[command_id] = receipt
+            if self._ledger is not None:
+                self._ledger.record_finished(receipt)
+        return cancelled
+
+    # ------------------------------------------------------- safety / state
+
+    def observe_state(self, state_version: int) -> None:
+        """Record the adapter's current state version for stale-request gating."""
+        if state_version < 0:
+            raise ValueError("state_version must be non-negative")
+        self._state_version = state_version
+
+    def set_fail_closed(self, reason: str) -> None:
+        """Block new side-effecting submissions until an operator clears this."""
+        if not reason:
+            raise ValueError("fail-closed requires a reason")
+        self._fail_closed_reason = reason
+        if self._ledger is not None:
+            self._ledger.record_event("__system__", "fail_closed", {"reason": reason})
+
+    def clear_fail_closed(self, *, operator: str, note: str) -> None:
+        if not operator or not note:
+            raise ValueError("clearing fail-closed requires an operator and a note")
+        self._fail_closed_reason = None
+        if self._ledger is not None:
+            self._ledger.record_event(
+                "__system__", "fail_closed_cleared", {"operator": operator, "note": note}
+            )
+
+    @property
+    def fail_closed_reason(self) -> str | None:
+        return self._fail_closed_reason
 
     # ---------------------------------------------------------------- shutdown
 

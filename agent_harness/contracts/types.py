@@ -136,6 +136,7 @@ class ExecutionReceipt:
     failure_code: FailureCode | None = None
     detail: str = ""
     snapshot_id: str | None = None
+    backend_ref: str | None = None
     state_version: int | None = None
     resource_key: str = "episode"
     result: dict[str, Any] = field(default_factory=dict)
@@ -161,6 +162,8 @@ class ExecutionReceipt:
                 raise ValueError("finished_at precedes started_at")
         if self.snapshot_id is not None:
             validate_identifier(self.snapshot_id, "snapshot_id")
+        if self.backend_ref is not None:
+            validate_identifier(self.backend_ref, "backend_ref")
         self.state_version = _check_state_version(self.state_version)
         self.resource_key = _check_resource_key(self.resource_key)
         self.result = _check_json_object(self.result, "result")

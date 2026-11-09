@@ -102,6 +102,10 @@ class FailureCode(str, Enum):
     ACTION_REJECTED = "action_rejected"
     ACTION_ABORTED = "action_aborted"
     CANCELLED = "cancelled"
+    DUPLICATE_COMMAND = "duplicate_command"
+    STALE_STATE = "stale_state"
+    NOT_RECONCILED = "not_reconciled"
+    STOP_TIMEOUT = "stop_timeout"
     EXECUTION_UNCERTAIN = "execution_uncertain"
     INTERNAL_ERROR = "internal_error"
 

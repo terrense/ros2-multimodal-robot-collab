@@ -113,6 +113,10 @@ def execution_receipt_schema() -> dict[str, Any]:
                 "snapshot_id": {
                     "anyOf": [_identifier(), {"type": "null"}]
                 },
+                "backend_ref": {
+                    "anyOf": [_identifier(), {"type": "null"}],
+                    "description": "Correlation id inside the backend, e.g. the ROS 2 goal uuid.",
+                },
                 "state_version": {"type": ["integer", "null"], "minimum": 0},
                 "resource_key": {"type": "string", "minLength": 1, "pattern": r"^\S+$"},
                 "result": {"type": "object"},
