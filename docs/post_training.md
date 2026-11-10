@@ -379,7 +379,7 @@ skill executability，研究假设就得到了支持；如果两者改善的是�
 |---|---|---|---|
 | SFT | 25–33 GB（ZeRO-3 4 卡切分） | 4×48 GB 稳妥；4×24 GB 要配 `zero3_offload.json` | `use_lora: false`，全参数 |
 | DPO | SFT + 16.4 GB 参考模型 | 4×48 GB 以上 | 参考模型是整份拷贝，不参与切分 |
-| PPO（`ppo_terminal` / `ppo_progress`） | 33 GB 分片 + 16.4 GB 参考模型 + vLLM 0.42×卡显存 | 4×96 GB | 已按第 1 条改过，配置值 0.42 |
+| PPO（`ppo_terminal` / `ppo_progress`） | 33 GB 分片 + 16.4 GB 参考模型 + vLLM 0.38×卡显存 | 4×96 GB | 已按第 1 条改过，配置值 0.38 |
 | OPD（`opd_pure` / `opd_warmup_ppo`） | student 同 PPO；teacher 独立成服务 | student 4×96 GB **+** teacher 2–4 张卡 | 见下面第 3 条 |
 
 四个结论，都是读配置读出来的，不是猜的：
@@ -391,8 +391,8 @@ load_causal_lm(..., trainable=False)` 在 DeepSpeed engine 之外，每张卡一
 16.4 GB）、以及 vLLM 自己那份权重副本（16.4 GB），在 96 GB 卡上按原来的
 `gpu_memory_utilization: 0.55` 算是 33 + 16.4 + 52.8 + 5 ≈ **107 GB，装不下**。
 
-现在已经改掉：四份 rollout 配置统一降到 **0.42**（96 GB 卡上是 40.3 GB = 权重
-16.4 + KV cache 23.9）。而且不再靠人记这个数——`training/memory.py` 在训练启动时
+现在已经改掉：四份 rollout 配置统一降到 **0.38**（96 GB 卡上是 36.5 GB = 权重
+16.4 + KV cache 20.1）。而且不再靠人记这个数——`training/memory.py` 在训练启动时
 用 `torch.cuda.mem_get_info()` 量真实的剩余显存，算出这张卡最多能分给引擎多少，
 装不下就直接报错并把可用的数值写进错误信息：
 
@@ -405,9 +405,13 @@ the rollout engine does not fit next to the training state.
   rollout.concurrency so the KV cache shrinks.
 ```
 
+留出来的余量不只是给引擎的：**训练步的激活峰值**（logits 那一层）也发生在这
+张卡上，而那时引擎还占着它那份。所以 0.38 而不是 0.42——0.42 只剩 5 GB 余量，
+而 8192 上下文的 logits 峰值就有 5 GB（实测 episode 约 3.5k token 时是 1.2 GB）。
+
 同一处还会打印"这张卡的 KV cache 能同时放下多少条全长序列"，因为并发 32 在
-8192 的上下文下是超订的（23.9 GB 只放得下 19 条全长序列；实测 episode p95 约
-5k token 时是 39 条，够用）。
+8192 的上下文下是超订的（20.1 GB 只放得下 16 条全长序列；实测 episode p95 约
+5k token 时是 27 条、p50 约 3.5k token 时是 38 条，够用）。
 
 注意 `VLLMPolicy` 一定会在进程内 `vllm.LLM(...)` 起一个引擎，没有连外部 server 的
 后端——所以"rollout 单独占几张卡"的解法今天还做不了，能调的是显存分配比例。
@@ -444,6 +448,13 @@ bash training/scripts/serve_teacher.sh Qwen/Qwen3-30B-A3B 8100 4   # 另开几�
 
 **4. 这些数字在跑之前都只是算术。**
 真跑起来以后第一件事应该是把 `torch.cuda.max_memory_allocated()` 写进
-`metrics.jsonl`，用实测替换估算——包括上面这条 0.42 的调整值。启动时的预检
+`metrics.jsonl`，用实测替换估算——包括上面这条 0.38 的调整值。启动时的预检
 （`training/memory.py`）已经会打印实际剩余显存，但那只是"装得下"的判据，不是
 "跑得快"的判据。
+
+**5. 下一个杠杆是参考模型那 16.4 GB。**
+`self.reference = load_causal_lm(..., trainable=False)` 在 DeepSpeed engine 之外，
+所以它**不参与 ZeRO-3 切分**，每张卡一整份——这是当前单卡常驻里最大的一块，
+也是 PPO 能省下的最大一块。把冻结的参考模型也交给 ZeRO-3 切分（4.1 GB/卡），
+或者把它并进 engine 当成一个不更新的模块，都能省下 12 GB/卡。没做，因为这两条
+路都要改训练的数值路径，而且在没有 GPU 的机器上无法验证。

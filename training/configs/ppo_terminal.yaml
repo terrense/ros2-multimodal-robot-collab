@@ -34,10 +34,10 @@ rollout:
   temperature: 1.0
   top_p: 0.95
   max_new_tokens: 256
-  # See training/configs/ppo_progress.yaml for why this is 0.42 and not 0.55:
+  # See training/configs/ppo_progress.yaml for why this is 0.38 and not 0.55:
   # the rollout engine, the ZeRO-3 actor shard and the reference copy share
   # one card, and the fraction is of the whole card.
-  gpu_memory_utilization: 0.42
+  gpu_memory_utilization: 0.38
 
 reward:
   preset: terminal_only

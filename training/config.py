@@ -95,7 +95,7 @@ class RolloutConfig:
     #: "the rest of the card": 0.55 of a 96 GB card does not fit beside an 8B
     #: actor under ZeRO-3 and a full reference copy. `training/memory.py`
     #: measures the card at startup and refuses to run when it does not fit.
-    gpu_memory_utilization: float = 0.34
+    gpu_memory_utilization: float = 0.38
     tensor_parallel_size: int = 1
 
 

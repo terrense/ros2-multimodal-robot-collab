@@ -40,7 +40,7 @@ rollout:
   top_p: 0.95
   # Same colocated layout as the PPO arms: the teacher is served separately,
   # so this card holds the actor shard, the reference copy and this engine.
-  gpu_memory_utilization: 0.42
+  gpu_memory_utilization: 0.38
 
 reward:
   preset: progress

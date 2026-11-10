@@ -12,8 +12,9 @@
 
 - **rollout 预算**:`training/memory.py` 新增显存账——ZeRO-3 分片、**未切分的参考
   模型**、vLLM 自己那份权重副本、KV cache 需求,按训练循环的真实布局逐项算。四份
-  rollout 配置的 `gpu_memory_utilization` 从 0.55 / 0.45 统一降到 **0.42**
-  (96 GB 卡上是 40.3 GB = 权重 16.4 + KV cache 23.9)。
+  rollout 配置的 `gpu_memory_utilization` 从 0.55 / 0.45 统一降到 **0.38**
+  (96 GB 卡上是 36.5 GB = 权重 16.4 + KV cache 20.1)。留 0.38 而不是 0.42 是因为
+  余量还得盖住**训练步的激活峰值**——那一刻引擎还占着它那份。
 - **启动预检**:`PPORunner.preflight_rollout_memory` 在引擎起来之前用
   `torch.cuda.mem_get_info()` 量真实剩余显存,装不下就带着"改成多少能装下"的错误
   信息退出;同时打印这张卡的 KV cache 能同时放下多少条全长序列(并发 32 在 8192
@@ -39,10 +40,12 @@ python -m pytest
 **结论**:两条 OOM 路径在跑之前被堵住了,而且不是靠注释——配置值本身被测试钉住,
 摆法不对时是明确报错而不是崩溃。
 
-**遗留**:预检量的是"装得下",不是"跑得快"。KV cache 在 8192 上限下只放得下 19 条
-全长序列;实测 episode p95 约 5k token 时是 39 条,够 32 并发用,但 episode 变长
-就要降 `rollout.concurrency`。第一次 GPU run 之后要把
-`torch.cuda.max_memory_allocated()` 写进 metrics,用实测替换这里的算术。
+**遗留**:预检量的是"装得下",不是"跑得快"。KV cache 在 8192 上限下只放得下 16 条
+全长序列;实测 episode p95 约 5k token 时是 27 条、p50 约 3.5k token 时是 38 条,
+够 32 并发用,但 episode 变长就要降 `rollout.concurrency`。第一次 GPU run 之后要
+把 `torch.cuda.max_memory_allocated()` 写进 metrics,用实测替换这里的算术。下一个
+杠杆是那 16.4 GB 的参考模型——它不参与 ZeRO-3 切分,每卡一整份,是最容易省掉的
+一块(见 post_training.md §15 第 5 条)。
 
 ---
 
