@@ -38,6 +38,9 @@ class ModelConfig:
     lora_rank: int = 32
     lora_alpha: int = 64
     lora_dropout: float = 0.05
+    #: Parameter count, for the memory pre-flight only. The authoritative check
+    #: measures the card; this is what the plan prints before anything loads.
+    params_billion: float = 8.2
 
 
 @dataclass
@@ -87,7 +90,12 @@ class RolloutConfig:
     max_history_turns: int | None = None
     max_turns: int | None = None
     repair_attempts: int = 0
-    gpu_memory_utilization: float = 0.60
+    #: Share of *total* card memory the in-process rollout engine may use. The
+    #: training state is already resident when the engine starts, so this is not
+    #: "the rest of the card": 0.55 of a 96 GB card does not fit beside an 8B
+    #: actor under ZeRO-3 and a full reference copy. `training/memory.py`
+    #: measures the card at startup and refuses to run when it does not fit.
+    gpu_memory_utilization: float = 0.34
     tensor_parallel_size: int = 1
 
 
@@ -165,6 +173,27 @@ class TeacherSettings:
     path: str = "Qwen/Qwen3-30B-A3B"
     dtype: str = "bfloat16"
     tensor_parallel_size: int = 1
+    #: Where the teacher lives.
+    #:
+    #: `server` -- the teacher runs as its own vLLM process and the ranks ask
+    #: it over HTTP. This is the only placement that fits: the teacher is 30B
+    #: (60.8 GB in bf16) and one copy per rank would sit on the same cards as
+    #: the student. See `training/scripts/serve_teacher.sh`.
+    #: `local`  -- the teacher is loaded inside the training process. Only
+    #: sensible for a single-process debug run.
+    backend: str = "server"
+    base_url: str = ""
+    api_key: str = ""
+    #: Model name as the server knows it; defaults to `path`.
+    model: str = ""
+    timeout_s: float = 120.0
+    #: Parameter count, for the placement check and the memory plan.
+    params_billion: float = 30.4
+    #: Escape hatch: load one teacher copy per rank anyway. Off by default
+    #: because four 60.8 GB copies cannot share four cards with the student.
+    allow_multi_rank_local: bool = False
+    #: Share of each card's free memory the in-process teacher may take.
+    max_memory_fraction: float = 0.0
     #: Gate: which turns are worth a teacher forward pass.
     on_error: bool = True
     on_safety_event: bool = True

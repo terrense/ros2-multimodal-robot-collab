@@ -38,7 +38,13 @@ rollout:
   temperature: 1.0
   top_p: 0.95
   max_new_tokens: 256
-  gpu_memory_utilization: 0.55
+  # Colocated layout: this engine, the ZeRO-3 actor shard and a full copy of
+  # the reference model share one card, and `gpu_memory_utilization` is a
+  # fraction of the *whole* card. 0.55 of a 96 GB card asks for 52.8 GB on top
+  # of a ~46 GB training state, which is an OOM; 0.42 leaves the engine its
+  # own weights plus a KV cache for the concurrency. training/memory.py
+  # measures the card at startup and refuses to run if the numbers do not fit.
+  gpu_memory_utilization: 0.42
 
 reward:
   preset: progress

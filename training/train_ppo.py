@@ -113,7 +113,49 @@ class PPORunner:
             self.actor, self.config.optim, self.config.run, hidden
         )
         self.device = next(self.actor.parameters()).device
+        self.preflight_rollout_memory()
         self.rollout_policy = self._build_rollout_policy()
+
+    def preflight_rollout_memory(self) -> None:
+        """Refuse to start a rollout engine that cannot fit beside the trainer.
+
+        The engine is created in this process, after the actor and the
+        reference model are already resident on the card.
+        `gpu_memory_utilization` is a fraction of the *whole* card, so a value
+        that looks generous in the config can still be an OOM once the training
+        state has taken its share. Measuring here turns that into a clear error
+        before the first rollout instead of a crash an hour into the run.
+        """
+        import torch
+
+        from .memory import (
+            check_rollout_budget,
+            kv_bytes_per_sequence,
+            parameter_bytes,
+            plan_rollout_budget,
+        )
+
+        if not torch.cuda.is_available():
+            return
+        free, total = torch.cuda.mem_get_info(self.device)
+        model_config = getattr(self.actor, "config", None) or getattr(
+            getattr(self.actor, "module", None), "config", None
+        )
+        budget = plan_rollout_budget(
+            total_bytes=total,
+            resident_bytes=total - free,
+            model_bytes=parameter_bytes(self.actor),
+            kv_bytes_per_sequence=kv_bytes_per_sequence(
+                model_config,
+                seq_len=self.config.model.max_seq_len,
+            ),
+            concurrency=self.config.rollout.concurrency,
+            requested_utilization=self.config.rollout.gpu_memory_utilization,
+        )
+        check_rollout_budget(budget)
+        if is_main_process():
+            print(budget.summary())
+            print(f"rollout budget: {budget.concurrency_note()}")
 
     def _build_rollout_policy(self) -> Any:
         rollout_config = self.config.rollout

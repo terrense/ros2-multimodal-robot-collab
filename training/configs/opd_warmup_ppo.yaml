@@ -38,7 +38,9 @@ rollout:
   concurrency: 32
   temperature: 1.0
   top_p: 0.95
-  gpu_memory_utilization: 0.45
+  # Same colocated layout as the PPO arms: the teacher is served separately,
+  # so this card holds the actor shard, the reference copy and this engine.
+  gpu_memory_utilization: 0.42
 
 reward:
   preset: progress
@@ -52,6 +54,16 @@ credit:
 teacher:
   path: Qwen/Qwen3-30B-A3B
   dtype: bfloat16
+  # The teacher is 30B: 60.8 GB in bf16. One copy per training rank cannot
+  # share a card with the student, so it runs as its own vLLM server and the
+  # ranks ask it for log-probabilities over HTTP:
+  #
+  #   bash training/scripts/serve_teacher.sh Qwen/Qwen3-30B-A3B 8100 4
+  #
+  # `backend: local` loads it inside the training process instead, which is
+  # only sensible for a single-process debug run.
+  backend: server
+  base_url: http://127.0.0.1:8100/v1
   on_error: true
   on_safety_event: true
   no_progress_threshold: 2
