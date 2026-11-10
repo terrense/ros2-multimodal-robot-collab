@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-**2026-11-10** · 主套件 412 passed / 3 skipped，harness 套件 48 passed，CI 与 Container 全绿。
+**2026-11-10** · 主套件 416 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -520,13 +520,32 @@ third_party/                  # vendored 源码快照（不参与 colcon 构建�
 ## 测试
 
 ```bash
-python -m pytest                 # 412 passed, 3 skipped（agent_env + training）
+bash scripts/check_all.sh          # 整个本地门禁：ruff + 两套测试 + 文档 + 脚本语法
+bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
+```
+
+它跑的和 CI 完全一样，所以"本地绿"和"CI 绿"是一回事。分开跑也行：
+
+```bash
+python -m pytest                 # 416 passed, 3 skipped（agent_env + training）
 python -m pytest agent_harness/tests   # 59 passed（运行时：契约、调度、并发、线缆故障）
+python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
 ```
 
-CI 跑同样的三块，外加 `python -m training.report --verify docs/results.md`——
-**`docs/results.md` 里手写的数字改错了会直接让 CI 失败**。
+CI 跑同样的几块，外加 `python -m training.report --verify docs/results.md`——
+**`docs/results.md` 里手写的数字改错了会直接让 CI 失败**。文档里的相对链接和
+阶段编号横幅也有测试守着，链接指向不存在的文件会当场失败。
+
+## 本地质量门
+
+| 检查 | 工具 | 为什么 |
+|---|---|---|
+| 代码风格与静态错误 | `ruff` | 快，且能自动修 |
+| 单元测试 | `pytest`（两套 + ROS 那套） | 主套件覆盖算法与数据管线，harness 套件覆盖运行时契约 |
+| 发布数字与产物一致 | `training.report --verify` | 手改报告里的数字会被抓住 |
+| 文档链接与编号横幅 | `tests/test_docs_links.py` | 交叉引用多了以后，链接腐烂是隐形的 |
+| 脚本语法 | `bash -n` | CRLF 和引号错误在跑之前就暴露 |
 
 ---
 

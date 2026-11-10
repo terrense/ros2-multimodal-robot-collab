@@ -6,7 +6,7 @@
 
 Status: **complete — merged to `main`**
 Branch: `phase0/two-repo-audit`
-Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md)
+Master plan: [`../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md)
 
 ## Goal
 

@@ -149,7 +149,7 @@ transport, because a real link can lose a message after the robot moved and
 before anyone heard about it.
 
 **The criteria are written down first**, in
-[`docs/specs/wire-faults.md`](wire-faults.md): eleven of them in three kinds —
+[`docs/specs/wire-faults.md`](../wire-faults.md): eleven of them in three kinds —
 six safety, two liveness, three set-up — with the thresholds and the reasons
 for those thresholds. The tool then implements them, so the tool can be
 checked against the document rather than the other way round.

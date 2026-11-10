@@ -5,7 +5,7 @@
 > [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
 
 Status: **complete — merged to `main`**
-Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 7
+Master plan: [`../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 7
 Depends on: receipt parity (Phase 6), frozen benchmark, `training/report.py`,
 `training/data/build_dpo.py::clone_env`, `docs/results.md` pre-registered targets.
 

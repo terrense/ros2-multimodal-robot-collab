@@ -6,7 +6,7 @@
 
 Status: **complete — merged to `main`**
 Branch: `phase2/tool-runtime` (created from `main` at `e3b7140`)
-Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 2
+Master plan: [`../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 2
 Phase 1 contract: [`../../openrua_audit/contracts-v1.md`](../../openrua_audit/contracts-v1.md)
 
 ## Goal

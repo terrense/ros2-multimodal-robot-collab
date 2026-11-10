@@ -6,7 +6,7 @@
 
 Status: **complete — merged to `main`**
 Branch: `phase1/contracts-v1`
-Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md)
+Master plan: [`../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md)
 Phase 0 decisions: [`../../openrua_audit/05_adoption_decisions.md`](../../openrua_audit/05_adoption_decisions.md) §5
 
 ## Goal

@@ -6,7 +6,7 @@
 
 Status: **complete — merged to `main`**
 Branch: `phase4/observation-snapshots`
-Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 4
+Master plan: [`../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 4
 
 ## Goal
 

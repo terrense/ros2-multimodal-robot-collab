@@ -5,7 +5,7 @@
 > [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
 
 Status: **complete — merged to `main`**
-Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 6
+Master plan: [`../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 6
 Depends on: contract v1.2, `ToolClient` + ledger (Phase 2–3), `model_view`
 (Phase 4), `ClosedLoop` + budgets (Phase 5).
 

@@ -6,7 +6,7 @@
 
 Status: **complete — merged to `main`**
 Branch: to be created from `main` after approval
-Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 3
+Master plan: [`../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 3
 Prerequisites: [`contracts-v1.md`](../../openrua_audit/contracts-v1.md), [`tool-runtime.md`](../../openrua_audit/tool-runtime.md)
 
 ## Goal
