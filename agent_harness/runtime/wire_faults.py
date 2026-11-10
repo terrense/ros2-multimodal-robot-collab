@@ -1,45 +1,203 @@
-"""Fault injection at the transport layer, and the invariants it must not break (O3.1).
+"""Wire-fault acceptance criteria, netem rules, and the audit that decides them.
 
-The eight transport faults the runtime handles are injected in-process: a fake
-backend returns a timeout, a dropped result, a rejected goal. That proves the
-*state machine* is right. It does not prove the real transport is, because the
-real transport can lose a message anywhere — including after the robot moved
-and before anyone heard about it.
+The criteria are written down in [`docs/specs/wire-faults.md`](../../docs/specs/wire-faults.md)
+before the tool, so the tool can be checked against them rather than the other
+way round. This module is that file in code.
 
-So this module has two halves.
+The eight transport faults the runtime handles are injected in-process, against
+a fake backend. That proves the *state machine*. It does not prove the
+transport: a real link can lose a message after the robot moved and before
+anyone heard about it.
 
-`NetemRule` and `build_commands` turn a fault description into `tc netem`
-commands. Nothing here runs them; the CLI does that, and restores the interface
-in a `finally`.
+Two kinds of criterion, and a run passes only if both hold:
 
-`check_ledger` is the part that matters. A wire fault is survivable only if
-three things stay true afterwards, and each one has a specific failure it
-prevents:
+    safety     what must never happen, however bad the link
+    liveness   what must still happen under a moderate link, or the safety
+               criteria are being satisfied by doing nothing
 
-    no_duplicate_effect     a command that timed out must never be dispatched
-                            a second time; the robot would move twice
-    uncertain_stays_unknown a timeout must be recorded as `unknown`, never as
-                            `failed`; filing it as a failure is what invites
-                            the retry
-    blocked_until_ack       once a command is unresolved, no further
-                            side-effecting command may be dispatched until a
-                            human acknowledged it
+And a third kind that does not test the robot at all:
 
-Those checks read the ledger, so they work on a real run and on a recorded one.
-They are pure functions and are tested without ROS 2 or root.
+    setup      whether the measurement is real -- was the fault actually
+               applied, was it cleared, was there a baseline to compare with
+
+A failed setup criterion makes the run **void**: it says nothing about the
+robot either way. Reporting a void run as a system failure is its own kind of
+lie, and it is the common one -- a misconfigured injection looks exactly like a
+system that survived a fault it never saw.
 """
 
 from __future__ import annotations
 
 import shlex
+import subprocess
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
-#: CycloneDDS starts here by default and walks upward; ROS 2 domain ids offset it.
-DDS_BASE_PORT = 7400
-DDS_PORT_SPAN = 250
+SAFETY = "safety"
+LIVENESS = "liveness"
+SETUP = "setup"
+
+
+@dataclass(frozen=True)
+class Criterion:
+    id: str
+    kind: str
+    statement: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"id": self.id, "kind": self.kind, "statement": self.statement}
+
+
+CRITERIA: tuple[Criterion, ...] = (
+    Criterion(
+        "WF-S1",
+        SAFETY,
+        "no command id is dispatched more than once (no duplicate effect)",
+    ),
+    Criterion(
+        "WF-S2",
+        SAFETY,
+        "a command whose outcome was uncertain is recorded unknown, never failed",
+    ),
+    Criterion(
+        "WF-S3",
+        SAFETY,
+        "no command is dispatched while an unresolved command is unacknowledged",
+    ),
+    Criterion(
+        "WF-S4",
+        SAFETY,
+        "every submitted command has a ledger row ending terminal or unknown",
+    ),
+    Criterion(
+        "WF-S5",
+        SAFETY,
+        "no receipt claims a completed call that did not complete",
+    ),
+    Criterion(
+        "WF-S6",
+        SAFETY,
+        "the harness never submits the same command id twice",
+    ),
+    Criterion(
+        "WF-L1",
+        LIVENESS,
+        "under moderate loss, at least one command reaches a terminal state "
+        "other than unknown",
+    ),
+    Criterion(
+        "WF-L2",
+        LIVENESS,
+        "after the fault is cleared, a fresh command completes",
+    ),
+    Criterion(
+        "WF-C1",
+        SETUP,
+        "the netem rule was in place before the first faulted dispatch",
+    ),
+    Criterion(
+        "WF-C2",
+        SETUP,
+        "the netem rule is gone at the end of the run",
+    ),
+    Criterion(
+        "WF-C3",
+        SETUP,
+        "a clean baseline run completed before the faulted one",
+    ),
+)
+
+CRITERIA_BY_ID: dict[str, Criterion] = {criterion.id: criterion for criterion in CRITERIA}
+
+#: At or below this loss, the stack is expected to make progress. Above it,
+#: refusing to complete is the correct behaviour and liveness does not apply.
+MODERATE_LOSS_PERCENT = 20.0
+
+#: Statuses that mean "this command will not move again on its own".
+TERMINAL_STATUSES = frozenset({"completed", "failed", "rejected", "unknown"})
+
+
+class Verdict(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+    VOID = "void"
+
+
+@dataclass
+class CriterionResult:
+    criterion: Criterion
+    held: bool
+    detail: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.criterion.id,
+            "kind": self.criterion.kind,
+            "statement": self.criterion.statement,
+            "held": self.held,
+            "detail": self.detail,
+        }
+
+
+@dataclass
+class WireFaultReport:
+    results: list[CriterionResult] = field(default_factory=list)
+
+    def result(self, criterion_id: str) -> CriterionResult | None:
+        for result in self.results:
+            if result.criterion.id == criterion_id:
+                return result
+        return None
+
+    @property
+    def failed_setup(self) -> list[CriterionResult]:
+        return [r for r in self.results if r.criterion.kind == SETUP and not r.held]
+
+    @property
+    def failed_safety(self) -> list[CriterionResult]:
+        return [r for r in self.results if r.criterion.kind == SAFETY and not r.held]
+
+    @property
+    def failed_liveness(self) -> list[CriterionResult]:
+        return [r for r in self.results if r.criterion.kind == LIVENESS and not r.held]
+
+    @property
+    def verdict(self) -> Verdict:
+        if self.failed_setup:
+            return Verdict.VOID
+        if self.failed_safety or self.failed_liveness:
+            return Verdict.FAIL
+        return Verdict.PASS
+
+    def report(self) -> str:
+        lines = [f"wire fault verdict: {self.verdict.value.upper()}"]
+        for kind in (SETUP, SAFETY, LIVENESS):
+            lines.append(f"  {kind}:")
+            for result in self.results:
+                if result.criterion.kind != kind:
+                    continue
+                mark = "ok" if result.held else "VIOLATED"
+                line = f"    {result.criterion.id} {result.criterion.statement}: {mark}"
+                if result.detail:
+                    line += f" ({result.detail})"
+                lines.append(line)
+        if self.verdict is Verdict.VOID:
+            lines.append(
+                "  a void run says nothing about the robot: fix the harness and repeat"
+            )
+        return "\n".join(lines)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "verdict": self.verdict.value,
+            "results": [result.to_dict() for result in self.results],
+        }
+
+
+# --------------------------------------------------------------- netem rules
 
 
 @dataclass(frozen=True)
@@ -164,6 +322,11 @@ def build_commands(
     ]
     if port_range is not None:
         low, high = port_range
+        if high != low:
+            raise ValueError(
+                "tc u32 cannot express a port range portably; pass the single "
+                "port to target, or omit port_range to cover the whole interface"
+            )
         apply.append(
             [
                 binary, "filter", "add", "dev", interface, "protocol", "ip",
@@ -172,13 +335,6 @@ def build_commands(
                 "flowid", "1:3",
             ]
         )
-        # A range needs a second match term; tc u32 has no native range syntax
-        # that is worth the fragility here, so the caller passes one port.
-        if high != low:
-            raise ValueError(
-                "tc u32 cannot express a port range portably; pass the single "
-                "port to target, or omit port_range to cover the whole interface"
-            )
     else:
         apply.append(
             [
@@ -196,7 +352,32 @@ def render(commands: Sequence[Sequence[str]]) -> str:
     return "\n".join(" ".join(shlex.quote(part) for part in command) for command in commands)
 
 
-# ---------------------------------------------------------------- the checks
+def probe_netem(
+    interface: str = "lo",
+    *,
+    binary: str = "tc",
+    runner: Callable[[list[str]], str] | None = None,
+) -> bool:
+    """Is a netem rule in place on this interface right now?
+
+    This is what makes WF-C1 and WF-C2 more than an assumption: the tool reads
+    the queueing discipline back rather than trusting that its own `tc` call
+    worked.
+    """
+    run = runner or _run_capture
+    try:
+        output = run([binary, "qdisc", "show", "dev", interface, "root"])
+    except OSError:
+        return False
+    return "netem" in output
+
+
+def _run_capture(command: list[str]) -> str:
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    return result.stdout or ""
+
+
+# ---------------------------------------------------------------- the audit
 
 
 @dataclass
@@ -211,6 +392,8 @@ class LedgerView:
     events: list[tuple[str, str]] = field(default_factory=list)
     #: command_ids an operator acknowledged.
     acknowledged: set[str] = field(default_factory=set)
+    #: command_id -> the receipt the ledger stored.
+    receipts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def from_ledger(cls, ledger: Any) -> "LedgerView":
@@ -224,6 +407,7 @@ class LedgerView:
         view = cls()
         for row in ledger.all_records():
             view.statuses[row.command_id] = str(getattr(row.status, "value", row.status))
+            view.receipts[row.command_id] = dict(getattr(row, "receipt", {}) or {})
             if getattr(row, "reconciled_by", None):
                 view.acknowledged.add(row.command_id)
         for command_id, kind in ledger.all_events():
@@ -234,74 +418,159 @@ class LedgerView:
 
 
 @dataclass
-class WireFaultVerdict:
-    """The three invariants, plus what failed."""
+class RunFacts:
+    """What the harness knows about the run it just did."""
 
-    no_duplicate_effect: bool
-    uncertain_stays_unknown: bool
-    blocked_until_ack: bool
-    failures: list[str] = field(default_factory=list)
-
-    @property
-    def survived(self) -> bool:
-        return self.no_duplicate_effect and self.uncertain_stays_unknown and self.blocked_until_ack
-
-    def report(self) -> str:
-        mark = "PASS" if self.survived else "FAIL"
-        lines = [f"wire fault: {mark}"]
-        lines.append(f"  no duplicate effect:      {'ok' if self.no_duplicate_effect else 'violated'}")
-        lines.append(f"  uncertain stays unknown:  {'ok' if self.uncertain_stays_unknown else 'violated'}")
-        lines.append(f"  blocked until acknowledged: {'ok' if self.blocked_until_ack else 'violated'}")
-        for failure in self.failures:
-            lines.append(f"  - {failure}")
-        return "\n".join(lines)
+    #: Command ids the harness submitted, in order.
+    submitted: list[str] = field(default_factory=list)
+    #: Command ids whose outcome the harness saw as uncertain.
+    uncertain: set[str] = field(default_factory=set)
+    #: Status of the clean baseline dispatch.
+    baseline_status: str | None = None
+    #: Status of the dispatch after the fault was cleared.
+    recovery_status: str | None = None
+    #: Whether the netem rule was observed before the faulted dispatch.
+    fault_applied: bool = False
+    #: Whether the netem rule was observed gone at the end.
+    fault_cleared: bool = False
+    #: The loss level in force, for the liveness threshold.
+    loss_percent: float = 0.0
 
 
-def check_ledger(
-    view: LedgerView,
-    *,
-    uncertain_expected: set[str] | None = None,
-) -> WireFaultVerdict:
-    """Check the three invariants against a ledger view.
+def evaluate_wire_fault(view: LedgerView, facts: RunFacts) -> WireFaultReport:
+    """Decide every criterion, and therefore the verdict."""
+    results: list[CriterionResult] = []
 
-    `uncertain_expected` names the commands that were *known* to be uncertain
-    during the run (a timeout was observed). Those must be recorded `unknown`:
-    filing a timeout as `failed` is the specific mistake that invites a retry.
-    """
-    failures: list[str] = []
-
-    duplicated = [command_id for command_id, count in view.starts.items() if count > 1]
-    if duplicated:
-        failures.append(
-            "dispatched more than once (the robot may have moved twice): "
-            + ", ".join(sorted(duplicated))
+    duplicated = sorted(cid for cid, count in view.starts.items() if count > 1)
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-S1"],
+            held=not duplicated,
+            detail=("dispatched more than once: " + ", ".join(duplicated)) if duplicated else "",
         )
-
-    uncertain_ok = True
-    for command_id in uncertain_expected or set():
-        status = view.statuses.get(command_id)
-        if status is None:
-            uncertain_ok = False
-            failures.append(f"{command_id} was uncertain but is absent from the ledger")
-        elif status != "unknown":
-            uncertain_ok = False
-            failures.append(
-                f"{command_id} was uncertain but is recorded {status!r}; a timeout is not a failure"
-            )
-
-    blocked_ok = _blocked_until_ack(view)
-    if not blocked_ok:
-        failures.append(
-            "a side-effecting command was dispatched while an unresolved command was still "
-            "unacknowledged"
-        )
-
-    return WireFaultVerdict(
-        no_duplicate_effect=not duplicated,
-        uncertain_stays_unknown=uncertain_ok,
-        blocked_until_ack=blocked_ok,
-        failures=failures,
     )
+
+    wrong = [
+        f"{cid} is {view.statuses.get(cid)!r}"
+        for cid in sorted(facts.uncertain)
+        if view.statuses.get(cid) not in (None, "unknown")
+    ]
+    missing = [cid for cid in sorted(facts.uncertain) if cid not in view.statuses]
+    detail = "; ".join(wrong + [f"{cid} is absent from the ledger" for cid in missing])
+    results.append(CriterionResult(CRITERIA_BY_ID["WF-S2"], held=not wrong and not missing, detail=detail))
+
+    blocked = _blocked_until_ack(view)
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-S3"],
+            held=blocked,
+            detail="" if blocked else "a command was dispatched while an unresolved command was unacknowledged",
+        )
+    )
+
+    incomplete = [
+        cid for cid in facts.submitted if view.statuses.get(cid) not in TERMINAL_STATUSES
+    ]
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-S4"],
+            held=not incomplete,
+            detail=("no terminal or unknown row: " + ", ".join(sorted(incomplete))) if incomplete else "",
+        )
+    )
+
+    false_success = [
+        cid
+        for cid, receipt in view.receipts.items()
+        if str(receipt.get("execution_status", "")) == "completed"
+        and receipt.get("call_ok") is False
+    ]
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-S5"],
+            held=not false_success,
+            detail=("completed but call_ok is false: " + ", ".join(sorted(false_success)))
+            if false_success
+            else "",
+        )
+    )
+
+    resubmitted = [cid for cid, count in Counter(facts.submitted).items() if count > 1]
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-S6"],
+            held=not resubmitted,
+            detail=("submitted more than once by the harness: " + ", ".join(sorted(resubmitted)))
+            if resubmitted
+            else "",
+        )
+    )
+
+    # Liveness only applies where the link is expected to be survivable.
+    if facts.loss_percent <= MODERATE_LOSS_PERCENT:
+        progressed = [
+            cid
+            for cid in facts.submitted
+            if view.statuses.get(cid) in ("completed", "failed", "rejected")
+        ]
+        results.append(
+            CriterionResult(
+                CRITERIA_BY_ID["WF-L1"],
+                held=bool(progressed),
+                detail="" if progressed else "no command reached a terminal state other than unknown",
+            )
+        )
+    else:
+        results.append(
+            CriterionResult(
+                CRITERIA_BY_ID["WF-L1"],
+                held=True,
+                detail=(
+                    f"not applicable: {facts.loss_percent:g}% loss is beyond the "
+                    f"{MODERATE_LOSS_PERCENT:g}% where progress is expected"
+                ),
+            )
+        )
+
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-L2"],
+            held=facts.recovery_status == "completed",
+            detail=(
+                ""
+                if facts.recovery_status == "completed"
+                else f"the command after the fault was cleared ended {facts.recovery_status!r}"
+            ),
+        )
+    )
+
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-C1"],
+            held=facts.fault_applied,
+            detail="" if facts.fault_applied else "no netem rule was observed before the faulted dispatch",
+        )
+    )
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-C2"],
+            held=facts.fault_cleared,
+            detail="" if facts.fault_cleared else "the netem rule was still in place at the end",
+        )
+    )
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-C3"],
+            held=facts.baseline_status == "completed",
+            detail=(
+                ""
+                if facts.baseline_status == "completed"
+                else f"the clean baseline ended {facts.baseline_status!r}"
+            ),
+        )
+    )
+
+    return WireFaultReport(results=results)
 
 
 def _blocked_until_ack(view: LedgerView) -> bool:
@@ -319,21 +588,29 @@ def _blocked_until_ack(view: LedgerView) -> bool:
             continue
         if kind == "started" and unresolved - {command_id}:
             return False
-        if view.statuses.get(command_id) == "unknown":
-            if command_id not in view.acknowledged:
-                unresolved.add(command_id)
+        if view.statuses.get(command_id) == "unknown" and command_id not in view.acknowledged:
+            unresolved.add(command_id)
     return True
 
 
 __all__ = [
-    "DDS_BASE_PORT",
-    "DDS_PORT_SPAN",
+    "CRITERIA",
+    "CRITERIA_BY_ID",
+    "LIVENESS",
+    "MODERATE_LOSS_PERCENT",
+    "SAFETY",
     "SCENARIOS",
+    "SETUP",
+    "Criterion",
+    "CriterionResult",
     "FaultScenario",
     "LedgerView",
     "NetemRule",
-    "WireFaultVerdict",
+    "RunFacts",
+    "Verdict",
+    "WireFaultReport",
     "build_commands",
-    "check_ledger",
+    "evaluate_wire_fault",
+    "probe_netem",
     "render",
 ]

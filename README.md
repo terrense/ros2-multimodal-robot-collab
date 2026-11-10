@@ -220,7 +220,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **导航** | Nav2 `NavigateToPose` 打通；SLAM 用 odometry 建图 | 仿真实测（scan matching 已关闭，见下） |
 | **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测，ROS 路径未跑** |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **逻辑已测，rclpy 路径未跑** |
-| **线缆故障注入** | `tc netem` 丢包/延迟/重复 + 五套场景 + 三条不变量审计（不重复执行、超时记 `unknown`、未决时禁止副作用） | **已构建，未运行** |
+| **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，11 条：安全/活性/设置）+ `tc netem` 五套场景 + 按判据判定 | **已构建，未运行** |
 | **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、清单写入 | **未上 L2**（九族全部 `not_measured`） |
 | **实验基线** | 规则基线 76.1% / 脚本专家 100%（400 条故障注入 benchmark） | **CPU 可复现**，产物入库 |
 | **后训练栈** | SFT / DPO / Step-Level PPO / OPD + 显存预检 + teacher 独立服务 | **未上 GPU**，六条臂 pending |
@@ -512,6 +512,7 @@ scripts/                      # 仿真、构建、校准场景、冒烟测试
 docs/
   roadmap.md                  # 三条线的总览
   specs/                      # 每条线的阶段规格与任务（OpenRUA 线为 O0–O7）
+  specs/wire-faults.md        # 线缆故障注入的验收判据（先于工具写）
   openrua_audit/              # 双仓审计、契约、运行时、SLAM、Gazebo 踩坑记录
 third_party/                  # vendored 源码快照（不参与 colcon 构建）
 ```
@@ -520,7 +521,7 @@ third_party/                  # vendored 源码快照（不参与 colcon 构建�
 
 ```bash
 python -m pytest                 # 412 passed, 3 skipped（agent_env + training）
-python -m pytest agent_harness/tests   # 48 passed（运行时：契约、调度、并发、线缆故障）
+python -m pytest agent_harness/tests   # 59 passed（运行时：契约、调度、并发、线缆故障）
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
 ```
 
@@ -660,7 +661,7 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
 - [ ] **在 Gazebo 上真跑一次校准**，让 `calibration_v1.json` 里出现 `calibrated: true`
 - [ ] **rclpy 并发实证**：验证 `ReentrantCallbackGroup` 真的让底盘和机械臂同时推进
-- [ ] **跑线缆故障注入**：丢包/延迟下仍拒绝重复执行（要 root + 活栈 + 人在场）
+- [ ] **跑线缆故障注入**：判据在 `docs/specs/wire-faults.md`，要 root + 活栈 + 人在场
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定
 - [ ] 录制 rosbag 数据集做感知/调度回归测试

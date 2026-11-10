@@ -1,24 +1,36 @@
 #!/usr/bin/env python3
-"""Inject a transport fault, run one command, and audit the ledger.
+"""Run the wire-fault experiment against the live stack and decide the criteria.
 
     sudo python3 scripts/wire_fault_check.py dropped_result --ledger /tmp/wire.db
     python3 scripts/wire_fault_check.py dropped_result --dry-run
 
-The in-process faults prove the state machine. This proves the transport: real
-packet loss under a real DDS stack, with the robot's motion at stake.
+The criteria are in [`docs/specs/wire-faults.md`](../docs/specs/wire-faults.md).
+This script executes them.
 
-Three rules, and they are the whole point:
+The run has a shape, and the shape is the point:
 
-1. **The interface is restored in a `finally`.** A crash must not leave a
-   netem rule on the machine — that would make every later experiment wrong in
-   a way nobody attributes to this tool.
-2. **Nothing is dispatched before the fault is in place.** A run that measures
-   the clean path and reports it as the faulted one is worse than no run.
-3. **The verdict comes from the ledger, not from this script.** Whether a
-   command was dispatched twice is a fact about the ledger; the harness only
+    1. a clean baseline dispatch          (WF-C3)
+    2. apply the fault, then probe it     (WF-C1)
+    3. the faulted dispatch
+    4. clear the fault, then probe it     (WF-C2)
+    5. a recovery dispatch after the fault is gone   (WF-L2)
+    6. audit the ledger                    (WF-S1..S6, WF-L1)
+
+Four rules, and they are the reason this script exists:
+
+1. **The interface is restored in a `finally`.** A crash that leaves a netem
+   rule behind makes every later experiment on the machine wrong, and nobody
+   attributes it to this tool.
+2. **Nothing is dispatched before the fault is in place.** Measuring the clean
+   path and reporting it as the faulted one is worse than no run.
+3. **The verdict is three-valued.** A failed set-up criterion makes the run
+   **void**, not failed: a misconfigured injection looks exactly like a system
+   that survived a fault it never saw.
+4. **The verdict comes from the ledger, not from this script.** Whether a
+   command was dispatched twice is a fact about the ledger; this harness only
    reads it.
 
-Requires root for `tc`, a running stack, and a person: the command moves the
+Requires root for `tc`, a running stack, and a person: the commands move the
 robot. `--dry-run` prints exactly what would be executed.
 """
 
@@ -39,13 +51,16 @@ if str(REPO_ROOT) not in sys.path:
 from agent_harness.runtime.wire_faults import (  # noqa: E402
     SCENARIOS,
     LedgerView,
+    RunFacts,
+    Verdict,
     build_commands,
-    check_ledger,
+    evaluate_wire_fault,
+    probe_netem,
     render,
 )
 
 
-def _run(commands: list[list[str]], *, dry_run: bool) -> int:
+def _run(commands: list[list[str]], *, dry_run: bool) -> None:
     for command in commands:
         print("  $ " + " ".join(command))
         if dry_run:
@@ -54,27 +69,33 @@ def _run(commands: list[list[str]], *, dry_run: bool) -> int:
         # `tc qdisc del` fails when there is nothing to delete; that is fine.
         if result.returncode != 0 and "Cannot delete" not in (result.stderr or ""):
             print(f"    (exit {result.returncode}) {result.stderr.strip()}")
-    return 0
 
 
 def _require_tc() -> str:
     binary = shutil.which("tc")
     if binary is None:
         raise SystemExit(
-            "`tc` is not installed. Install iproute2:\n"
-            "  sudo apt install iproute2"
+            "`tc` is not installed. Install iproute2:\n  sudo apt install iproute2"
         )
     return binary
 
 
-def _apply(commands: dict[str, list[list[str]]], *, dry_run: bool) -> None:
-    print("apply:")
-    _run(commands["apply"], dry_run=dry_run)
+def _dispatch(client, capability: str, arguments: dict, timeout_s: float):
+    """One command through the runtime, and the receipt it produced."""
+    from agent_harness.contracts import ActionRequest, new_command_id
 
-
-def _clear(commands: dict[str, list[list[str]]], *, dry_run: bool) -> None:
-    print("clear:")
-    _run(commands["clear"], dry_run=dry_run)
+    request = ActionRequest(
+        episode_id="wire-fault",
+        command_id=new_command_id(),
+        capability=capability,
+        arguments=dict(arguments),
+        timeout_s=timeout_s,
+    )
+    submitted = client.submit(request)
+    status = str(getattr(submitted.execution_status, "value", submitted.execution_status))
+    receipt = client.wait(request.command_id) if status == "queued" else submitted
+    observed = str(getattr(receipt.execution_status, "value", receipt.execution_status))
+    return request.command_id, observed, receipt
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,23 +125,20 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     if args.dry_run:
-        print("would run:")
+        print("the run, in order:")
+        print("  1. clean baseline dispatch        (WF-C3)")
+        print("  2. apply the fault, then probe it (WF-C1)")
         print(render(commands["apply"]))
-        print()
-        print("then dispatch:")
-        print(f"  {capability} {json.dumps(arguments)}")
-        print()
-        print("then always:")
+        print("  3. the faulted dispatch")
+        print("  4. clear the fault, then probe it (WF-C2)")
         print(render(commands["clear"]))
+        print("  5. a recovery dispatch after the fault is gone (WF-L2)")
+        print("  6. audit the ledger              (WF-S1..S6, WF-L1)")
         print()
-        print("then audit the ledger and report:")
-        print("  no_duplicate_effect / uncertain_stays_unknown / blocked_until_ack")
+        print(f"dispatching: {capability} {json.dumps(arguments)}")
         return 0
 
-    if not capability:
-        raise SystemExit("no capability to dispatch")
-
-    from agent_harness.contracts import ActionRequest, CapabilityRegistry, new_command_id
+    from agent_harness.contracts import CapabilityRegistry
     from agent_harness.runtime import ExecutionLedger, ToolClient
     from agent_harness.runtime.ros_backend import RosBackend
     from agent_harness.scripts.ros_tool_executor import RosToolExecutor, SkillRegistry
@@ -139,44 +157,57 @@ def main(argv: list[str] | None = None) -> int:
         ledger=ledger,
     )
 
-    request = ActionRequest(
-        episode_id="wire-fault",
-        command_id=new_command_id(),
-        capability=capability,
-        arguments=arguments,
-        timeout_s=args.timeout_sec,
-    )
-
-    receipt = None
+    facts = RunFacts(loss_percent=scenario.rule.loss_percent)
     try:
-        _apply(commands, dry_run=False)
-        time.sleep(args.settle_sec)
+        # 1. baseline: what does the stack do with no fault at all?
+        print("1. baseline dispatch (no fault) ...")
+        command_id, status, _receipt = _dispatch(client, capability, arguments, args.timeout_sec)
+        facts.submitted.append(command_id)
+        facts.baseline_status = status
+        print(f"   baseline: {status}")
 
-        print(f"\ndispatch {capability} under fault ...")
-        submitted = client.submit(request)
-        status = str(getattr(submitted.execution_status, "value", submitted.execution_status))
-        receipt = client.wait(request.command_id) if status == "queued" else submitted
-        observed = str(getattr(receipt.execution_status, "value", receipt.execution_status))
-        print(f"  observed: {observed}  {getattr(receipt, 'failure_code', '') or ''}")
+        # 2. apply the fault and confirm it is really there.
+        print("\n2. applying the fault ...")
+        _run(commands["apply"], dry_run=False)
+        time.sleep(args.settle_sec)
+        facts.fault_applied = probe_netem(args.interface, binary=binary)
+        print(f"   netem observed: {facts.fault_applied}")
+
+        # 3. the faulted dispatch.
+        print("\n3. faulted dispatch ...")
+        command_id, status, receipt = _dispatch(client, capability, arguments, args.timeout_sec)
+        facts.submitted.append(command_id)
+        if status == "unknown":
+            facts.uncertain.add(command_id)
+        print(f"   observed: {status}")
     finally:
         # Before anything else: a fault left on the interface would poison
         # every later experiment on this machine.
-        print()
-        _clear(commands, dry_run=False)
+        print("\n4. clearing the fault ...")
+        _run(commands["clear"], dry_run=False)
+        facts.fault_cleared = not probe_netem(args.interface, binary=binary)
+        print(f"   netem observed after clear: {facts.fault_cleared}")
+
+        try:
+            # 5. recovery: with the link healthy again, does it work?
+            print("\n5. recovery dispatch ...")
+            command_id, status, _receipt = _dispatch(client, capability, arguments, args.timeout_sec)
+            facts.submitted.append(command_id)
+            facts.recovery_status = status
+            print(f"   observed: {status}")
+        except Exception as error:  # noqa: BLE001 - a failed recovery is a failed criterion
+            facts.recovery_status = f"dispatch failed: {type(error).__name__}"
+            print(f"   recovery dispatch failed: {error}")
+
         client.shutdown(30.0)
         executor.close()
 
-    # A timeout is the case the audit exists for: the effect may have happened.
-    uncertain = {request.command_id} if receipt is None or str(
-        getattr(receipt.execution_status, "value", receipt.execution_status)
-    ) == "unknown" else set()
-
     view = LedgerView.from_ledger(ledger)
-    verdict = check_ledger(view, uncertain_expected=uncertain)
+    report = evaluate_wire_fault(view, facts)
     ledger.close()
 
     print()
-    print(verdict.report())
+    print(report.report())
     print()
     print(f"ledger: {args.ledger}  ({len(view.statuses)} command(s))")
     for command_id, status in view.statuses.items():
@@ -191,14 +222,8 @@ def main(argv: list[str] | None = None) -> int:
                     "fault": scenario.rule.describe(),
                     "expectation": scenario.expectation,
                     "capability": capability,
-                    "observed_status": str(
-                        getattr(receipt.execution_status, "value", receipt.execution_status)
-                    ),
-                    "survived": verdict.survived,
-                    "no_duplicate_effect": verdict.no_duplicate_effect,
-                    "uncertain_stays_unknown": verdict.uncertain_stays_unknown,
-                    "blocked_until_ack": verdict.blocked_until_ack,
-                    "failures": verdict.failures,
+                    "verdict": report.verdict.value,
+                    "criteria": report.to_dict()["results"],
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -209,7 +234,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"-> {args.report}")
 
-    return 0 if verdict.survived else 1
+    if report.verdict is Verdict.VOID:
+        return 2
+    return 0 if report.verdict is Verdict.PASS else 1
 
 
 if __name__ == "__main__":

@@ -138,24 +138,31 @@ a fake backend. That proves the *state machine*; it does not prove the
 transport, because a real link can lose a message after the robot moved and
 before anyone heard about it.
 
-`scripts/wire_fault_check.py` closes that gap. It applies `tc netem` to an
-interface, dispatches one command, restores the interface in a `finally`, and
-then audits the ledger. The verdict is three invariants, each preventing a
-specific failure:
+**The criteria are written down first**, in
+[`docs/specs/wire-faults.md`](wire-faults.md): eleven of them in three kinds —
+six safety, two liveness, three set-up — with the thresholds and the reasons
+for those thresholds. The tool then implements them, so the tool can be
+checked against the document rather than the other way round.
 
-| Invariant | The failure it prevents |
-|---|---|
-| `no_duplicate_effect` | a timed-out command dispatched twice — the robot moves twice |
-| `uncertain_stays_unknown` | a timeout recorded as `failed`, which is the claim that invites the retry |
-| `blocked_until_ack` | any side effect dispatched while an unresolved command is outstanding |
+Two ideas in there are worth stating here:
 
-Five scenarios ship: `dropped_result`, `slow_ack`, `duplicated_packets`,
-`bursty_loss`, `severe`. The rules, the command construction and the three
-checks are unit-tested (19 tests, `agent_harness/tests/test_wire_faults.py`).
+- **Liveness alongside safety.** A system that refuses every command satisfies
+  every safety invariant and is useless. So liveness criteria say what must
+  still happen under a *moderate* link, and they are scoped to a loss level
+  where progress is expected — at 60% loss, refusing is correct.
+- **A three-valued verdict.** A failed set-up criterion makes the run **void**,
+  not failed. Reporting a void run as a system failure is its own kind of lie,
+  and it is the common one: a misconfigured injection looks exactly like a
+  system that survived a fault it never saw.
 
-**NOT RUN.** It needs root for `tc`, a live stack, and a person — the command
-moves the robot. `--dry-run` prints exactly what would be executed, which is
-how the commands were reviewed without a machine to run them on.
+The tool (`agent_harness/runtime/wire_faults.py`,
+`scripts/wire_fault_check.py`) runs a fixed shape — baseline, apply and probe,
+faulted dispatch, clear and probe, recovery dispatch, ledger audit — and decides
+all eleven criteria from the ledger.
+
+**NOT RUN.** It needs root for `tc`, a live stack, and a person — the commands
+move the robot. `--dry-run` prints exactly what would be executed, which is how
+the commands were reviewed without a machine to run them on.
 
 Two limitations stated rather than hidden:
 
