@@ -5,7 +5,10 @@ directory turns that into something trainable: a chat surface, a reward, a credi
 assignment scheme, four training stages and an evaluation that can say *what*
 went wrong rather than only how often.
 
-The environment itself lives in [`agent_env/`](../agent_env/README.md).
+This is the **PT** line (post-training). The environment lives in
+[`agent_env/`](../agent_env/README.md); the runtime that executes the skill calls
+lives in [`agent_harness/`](../agent_harness/). Line prefixes and the full map:
+[`docs/specs/README.md`](../docs/specs/README.md).
 
 ## What problem this is for
 
@@ -25,7 +28,9 @@ So the target is not motor control. It is one question:
 anticipated single faults and none for the rest, it recovers on **76.1%** of the
 400 held-out fault-injected episodes, against **100%** for the scripted oracle
 that has a rule for every family. That 24-point band is what post-training is
-aiming at.
+aiming at, and it is not diffuse: all 86 of its premature stops are `tool_drop`
+or `no_progress` episodes — the two recoveries the deployed system does not
+have. See [`docs/results.md`](../docs/results.md).
 
 ## Layout
 
@@ -34,14 +39,25 @@ aiming at.
 | `chat_format.py` | The only prompt surface. Observation → messages, text → `Action`, with forgiving *format* parsing and strict *content* validation. |
 | `tokenization.py` | Assistant token spans from a chat template; refuses to proceed if the template is not prefix-stable. |
 | `rewards/step_reward.py` | Composite step reward: terminal, progress, grounding, safety, cost. Presets are the ablation surface. |
-| `rewards/credit.py` | GAE / return-to-go over turns, broadcast onto the action tokens that earned it. Includes the naive flat-credit baseline for comparison. |
-| `envs/multi_turn_env.py` | Chat-native wrapper over the L1 simulator; malformed output becomes a grounding violation, not a crash. |
+| `rewards/credit.py` | GAE / return-to-go over turns, broadcast onto the action tokens that earned it. Includes the naive flat-credit baseline. |
+| `envs/multi_turn_env.py` | Chat-native wrapper over the L1 simulator; malformed output becomes a grounding violation, not a crash. Emits v2 records with provenance when given one. |
+| `envs/l2_env.py` | Runs a live (L2) episode with the same chat surface and the same record shape. |
 | `data/` | SFT corpus, environment-verified DPO pairs, the frozen benchmark, leakage checks. |
-| `policies/` | Rule baseline, expert oracle, vLLM/HF backends, frozen OPD teacher and its turn gate. |
+| `datasets.py` | Torch datasets and collators; refuses samples whose provenance disagrees with the run record. |
+| `policies/` | Rule baseline, expert oracle, vLLM/HF backends, frozen OPD teacher (local or served) and its turn gate. |
 | `trainers/` | Experience assembly and the PPO / OPD loss functions. |
 | `train_{sft,dpo,ppo,opd}.py` | One CLI per stage, all driven by YAML in `configs/`. |
 | `rollout.py` | Batched lockstep rollout; one generate call per turn for the whole batch. |
-| `evaluate.py` / `report.py` | Metric set, failure taxonomy, bucket breakdowns, comparison tables. |
+| `evaluate.py` | Metric set, failure taxonomy, bucket breakdowns over trajectories. |
+| `evaluate_l2.py` | The same evaluator over the live stack, plus the receipt metrics only a live mission can produce. |
+| `report.py` | `docs/results.md` generator: generated blocks, `unverified` cells, audit table, L2 status header. |
+| `provenance.py` | Content hashes over prompt / schema / benchmark; refuses drifted samples. |
+| `run_record.py` | The evidence a reported number requires. CLI hashes the *live* prompt surface and action schema. |
+| `audit.py` | Reward-hacking signals: proxy gap, repeat exploitation, false success. |
+| `counterfactual.py` | Counterfactuals only on a verified matched-state clone, L1 only. |
+| `receipt_metrics.py` | Uncertain-outcome rate, duplicate-effect rate, latency percentiles from receipts. |
+| `ablation.py` | Condition table with equal-budget enforcement. |
+| `memory.py` | GPU memory arithmetic + the pre-flight that refuses an engine that cannot fit. |
 
 ## Quick start
 
@@ -191,16 +207,17 @@ its generator. A number measured on a leaked benchmark is worse than no number.
 ## Status
 
 The environment, data, reward, credit-assignment, rollout, evaluation and
-reporting layers run and are covered by the test suite (`python -m pytest`). The
-four model-training entry points are written against DeepSpeed ZeRO-3 + vLLM but
-have **not** been executed on a GPU in this repository yet; their loss functions
-and experience assembly are unit-tested on CPU, the distributed wiring is not.
-`docs/results.md` shows which arms have actually been run.
+reporting layers run and are covered by the test suite (`python -m pytest`).
+The four model-training entry points are written against DeepSpeed ZeRO-3 + vLLM
+but have **not** been executed on a GPU in this repository yet; their loss
+functions and experience assembly are unit-tested on CPU, the distributed wiring
+is not. `docs/results.md` shows which of the six arms have actually been run:
+one, the rule baseline.
 
-What *is* checked before a GPU run is the memory budget. `training/memory.py`
-lays out the card the way the training loop actually uses it -- the ZeRO-3
-actor shard, the unsharded reference copy, and the in-process rollout engine --
-and `PPORunner.preflight_rollout_memory` measures the free memory with
+What *is* checked before a GPU run is the memory budget. `memory.py` lays out the
+card the way the training loop actually uses it — the ZeRO-3 actor shard, the
+unsharded reference copy, and the in-process rollout engine — and
+`PPORunner.preflight_rollout_memory` measures the free memory with
 `torch.cuda.mem_get_info()` once the trainer is resident. If the engine cannot
 start, the run stops there with the number that would have worked:
 
