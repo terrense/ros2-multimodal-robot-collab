@@ -356,3 +356,54 @@ skill executability，研究假设就得到了支持；如果两者改善的是�
 尚未执行的：四个模型训练阶段。它们的 loss 函数与 experience 组装在 CPU 上有单测，
 但分布式部分（DeepSpeed ZeRO-3 + vLLM rollout + 30B teacher 打分）还没有在 GPU 上
 跑过。`docs/results.md` 里 pending 的行就是还没跑的臂。
+
+---
+
+## 15. 显存预算：每条实验臂要多少 GB 的卡
+
+下面是**从配置算出来的估算，不是实测**——这套训练栈还没有在任何 GPU 上跑过。
+以 Qwen3-8B（8.2B 参数）为准，bf16 权重 = 16.4 GB。
+
+单个 8B 模型做全参数微调的静态开销：
+
+| 项 | 大小 |
+|---|---|
+| bf16 权重 | 16.4 GB |
+| bf16 梯度 | 16.4 GB |
+| AdamW fp32 状态（m, v） | 65.6 GB |
+| fp32 master 权重（若保留） | +32.8 GB |
+
+不切分时合计 98–131 GB。按阶段展开：
+
+| 阶段 | 单卡常驻（估算） | 建议配置 | 说明 |
+|---|---|---|---|
+| SFT | 25–33 GB（ZeRO-3 4 卡切分） | 4×48 GB 稳妥；4×24 GB 要配 `zero3_offload.json` | `use_lora: false`，全参数 |
+| DPO | SFT + 16.4 GB 参考模型 | 4×48 GB 以上 | 参考模型是整份拷贝，不参与切分 |
+| PPO（`ppo_terminal` / `ppo_progress`） | 33 GB 分片 + 16.4 GB 参考模型 + vLLM 0.55×卡显存 | 4×80–96 GB，且需下调 `gpu_memory_utilization` | 见下面第 1 条 |
+| OPD（`opd_pure` / `opd_warmup_ppo`） | PPO + 60.8 GB teacher | 4×96 GB，teacher 必须跨卡摊开或独立服务 | 见下面第 3 条 |
+
+四个结论，都是读配置读出来的，不是猜的：
+
+**1. PPO 的瓶颈不是训练权重，是 rollout 的 KV cache。**
+32 并发 × 8192 上下文 × 36 层，KV cache 需要 16–39 GB 量级。再加上 ZeRO-3 分片
+（约 33 GB）、**没有切分的参考模型**（`train_ppo.py` 里 `self.reference =
+load_causal_lm(..., trainable=False)` 在 DeepSpeed engine 之外，每张卡一整份
+16.4 GB）、以及 vLLM 自己那份权重副本（16.4 GB），在 96 GB 卡上按当前
+`gpu_memory_utilization: 0.55` 算是 33 + 16.4 + 52.8 + 5 ≈ **107 GB，装不下**。
+把 `gpu_memory_utilization` 降到 0.33–0.35 就落回 96 GB 以内。
+
+**2. ZeRO-2 不是省钱选项。**
+`zero2_bf16.json` 不切分梯度和权重，4 卡下每卡反而要 16.4（权重）+ 16.4（梯度）
++ 24.6（优化器与 master）≈ 57 GB，比 ZeRO-3 更贵。它只在"卡少、显存大"时才有
+意义。
+
+**3. OPD 的 teacher 放置是当前的硬阻塞。**
+`TeacherScorer` 用 `device_map="auto"` 加载 `Qwen/Qwen3-30B-A3B`，accelerate 会
+先把 60.8 GB 塞进 0 号卡，和 ZeRO-3 分片叠加后在 96 GB 卡上必然 OOM。要么给
+`device_map` 显式 `max_memory` 把 teacher 摊到 4 张卡（15.2 GB/卡），要么把
+teacher 做成独立的 vLLM 服务（`teacher.path` 已经是配置项，缺的是 client 后端）。
+第 11 节说的"按 phase 复用 GPU"只有在 teacher 不与 student 常驻同一批卡时才成立。
+
+**4. 这些数字在跑之前都只是算术。**
+真跑起来以后第一件事应该是把 `torch.cuda.max_memory_allocated()` 写进
+`metrics.jsonl`，用实测替换估算——包括上面这条 0.55 的调整值。
