@@ -1,0 +1,24 @@
+{
+  "kind": "eval",
+  "name": "rule_baseline",
+  "provenance": {
+    "schema_version": 2,
+    "model_id": "rule_baseline",
+    "prompt_hash": "6d942d2481d99159",
+    "schema_hash": "9877ebbe3a98ce2f",
+    "benchmark": {
+      "name": "fault_injection_v1",
+      "sha256": "c703a6fc1b37a5fa4df4e2656953404d21fa334c1364da47b800a1100a5d0fdd"
+    }
+  },
+  "seeds": [],
+  "budgets": {
+    "max_turns": 30,
+    "episodes": 400
+  },
+  "artifacts": [
+    "results/eval/rule_baseline.json"
+  ],
+  "policy": "rules",
+  "created_at": 1794296363.7505326
+}

@@ -3,10 +3,22 @@
 A metrics file alone is not enough. Every reported cell must be backed by a run
 record that names the model, prompt, schema, benchmark, seeds and budgets that
 produced it. The report renders `unverified` for anything else.
+
+The record is written by the same code that produced the number:
+
+    python -m training.run_record --name rule_baseline --kind eval \
+        --model-id rule_baseline --policy rules \
+        --benchmark benchmarks/fault_injection_v1.jsonl \
+        --artifact runs/eval/rule_baseline.json --episodes 400 \
+        --out results/run_records/rule_baseline.json
+
+so the hashes in it cannot drift from the prompt surface or the action schema
+that were actually used.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import time
 from dataclasses import dataclass, field
@@ -28,6 +40,7 @@ class RunRecord:
     seeds: list[int] = field(default_factory=list)
     budgets: dict[str, Any] = field(default_factory=dict)
     artifacts: list[str] = field(default_factory=list)
+    policy: str = ""
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -38,6 +51,7 @@ class RunRecord:
             "seeds": list(self.seeds),
             "budgets": dict(self.budgets),
             "artifacts": list(self.artifacts),
+            "policy": self.policy,
             "created_at": self.created_at,
         }
 
@@ -50,6 +64,7 @@ class RunRecord:
             seeds=list(data.get("seeds", [])),
             budgets=dict(data.get("budgets", {})),
             artifacts=list(data.get("artifacts", [])),
+            policy=str(data.get("policy", "")),
             created_at=float(data.get("created_at", 0.0)),
         )
 
@@ -119,3 +134,89 @@ def cell(
     if formatter == "float":
         return f"{float(value):.1f}"
     return str(value)
+
+
+# ------------------------------------------------------------------- authoring
+
+
+def build_provenance(model_id: str, benchmark_path: Path | str) -> Provenance:
+    """Provenance taken from the live prompt surface and action schema.
+
+    Hashing the real sources rather than a copy of them is the whole point: a
+    prompt edit or a schema edit changes the hash, and the report then refuses
+    to present a number measured under the old rules as if it were current.
+    """
+    from agent_env.protocol import ActionRegistry
+
+    from .chat_format import system_prompt
+
+    registry = ActionRegistry.load()
+    schema = {name: registry.spec(name) for name in registry.action_names}
+    return Provenance.build(
+        model_id=model_id,
+        prompt_text=system_prompt(registry),
+        action_schema=schema,
+        benchmark_path=benchmark_path,
+    )
+
+
+def write_run_record(
+    *,
+    name: str,
+    kind: str,
+    model_id: str,
+    benchmark: Path | str,
+    policy: str = "",
+    episodes: int | None = None,
+    seeds: list[int] | None = None,
+    artifacts: list[str] | None = None,
+    out: Path | str,
+) -> RunRecord:
+    from agent_env.protocol import MAX_EPISODE_STEPS
+
+    budgets: dict[str, Any] = {"max_turns": MAX_EPISODE_STEPS}
+    if episodes is not None:
+        budgets["episodes"] = episodes
+    record = RunRecord(
+        kind=kind,
+        name=name,
+        provenance=build_provenance(model_id, benchmark).to_dict(),
+        seeds=list(seeds or []),
+        budgets=budgets,
+        artifacts=list(artifacts or []),
+        policy=policy,
+    )
+    record.write(out)
+    return record
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--name", required=True, help="arm name, e.g. rule_baseline")
+    parser.add_argument("--kind", default="eval", help="eval | train | ablate")
+    parser.add_argument("--model-id", required=True, help="model or policy that produced the number")
+    parser.add_argument("--policy", default="", help="the --policy string passed to training.evaluate")
+    parser.add_argument("--benchmark", type=Path, default=Path("benchmarks/fault_injection_v1.jsonl"))
+    parser.add_argument("--episodes", type=int, default=None)
+    parser.add_argument("--seed", type=int, action="append", default=None)
+    parser.add_argument("--artifact", action="append", default=None, help="file the number came from")
+    parser.add_argument("--out", type=Path, required=True)
+    args = parser.parse_args()
+
+    record = write_run_record(
+        name=args.name,
+        kind=args.kind,
+        model_id=args.model_id,
+        benchmark=args.benchmark,
+        policy=args.policy,
+        episodes=args.episodes,
+        seeds=args.seed,
+        artifacts=args.artifact,
+        out=args.out,
+    )
+    print(f"-> {args.out}")
+    print(json.dumps(record.provenance, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

@@ -55,6 +55,16 @@ python -m training.data.build_benchmark --check
 python -m training.evaluate --policy rules  --label rule_baseline --out runs/eval/rule_baseline.json --markdown
 python -m training.evaluate --policy expert --label expert_oracle --out runs/eval/expert_oracle.json
 
+# a number is only evidence with a run record behind it
+python -m training.run_record --name rule_baseline --kind eval \
+    --model-id rule_baseline --policy rules --episodes 400 \
+    --artifact results/eval/rule_baseline.json \
+    --out results/run_records/rule_baseline.json
+
+# refresh the tables inside docs/results.md, prose untouched
+python -m training.report --update docs/results.md
+python -m training.report --verify docs/results.md
+
 # build the corpora
 python -m training.data.build_sft --episodes 8000 --out data/sft
 python -m training.data.build_dpo --episodes 3000 --granularity trajectory --out data/dpo
@@ -138,9 +148,18 @@ of two would have charged the policy for the fault.
 
 ```bash
 python -m training.evaluate --rollout runs/rollouts/<run>.jsonl --markdown
-python -m training.report --eval-dir runs/eval --out docs/results.md
+python -m training.report --update docs/results.md      # refresh the tables in place
+python -m training.report --verify docs/results.md      # CI check: are the tables current?
 python -m training.report --regression sft_dpo ppo_progress   # checkpoint regression
 ```
+
+`docs/results.md` mixes hand-written prose with generated tables. The generated
+tables live between `<!-- BEGIN GENERATED: name -->` markers and are owned by
+`training/report.py`; everything outside the markers survives a regeneration. Two
+rules keep the mechanism honest: a cell is only filled when a run record backs
+the evaluation file (otherwise it reads `unverified`), and a regeneration that
+would drop a measurement that is already published is refused rather than
+applied.
 
 Reported per run: task success, recovery success (fault-injected episodes only),
 invalid skill rate, safety violation rate, mean high-level actions, repeated call
@@ -169,3 +188,17 @@ four model-training entry points are written against DeepSpeed ZeRO-3 + vLLM but
 have **not** been executed on a GPU in this repository yet; their loss functions
 and experience assembly are unit-tested on CPU, the distributed wiring is not.
 `docs/results.md` shows which arms have actually been run.
+
+The two reference arms have been measured, and their artifacts are committed
+under `results/` so the published table can be rebuilt from a clean checkout
+with no GPU:
+
+```bash
+python -m training.evaluate --policy rules --label rule_baseline \
+    --out runs/eval/rule_baseline.json
+python -m training.report --update docs/results.md
+```
+
+The measured memory budget for each stage — and the two places where the current
+configuration does not fit — is in
+[`docs/post_training.md`](../docs/post_training.md) §15.

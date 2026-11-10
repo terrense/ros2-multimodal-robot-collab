@@ -213,6 +213,6 @@ def test_report_renders_numbers_with_a_run_record():
 
 
 def test_audit_table_lists_flags():
-    table = audit_table({"rule_baseline": _report()})
+    table = audit_table(_matrix(), {"rule_baseline": _report()})
     assert "proxy_gap" in table
     assert "rule_baseline" in table
