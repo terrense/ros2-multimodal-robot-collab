@@ -24,6 +24,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .audit import audit
+from .run_record import load_run_records
+
 DEFAULT_MATRIX = Path("training/configs/experiment_matrix.yaml")
 FAILURE_ROWS = ("premature_stop", "false_success", "wrong_cancel", "step_limit")
 FLAG_ROWS = ("invalid_recovery", "malformed_output", "observation_misuse", "safety_violation", "stalled")
@@ -53,7 +56,11 @@ def _percent(value: Any) -> str:
     return f"{float(value):.1%}" if isinstance(value, (int, float)) else "--"
 
 
-def arms_table(matrix: dict[str, Any], reports: dict[str, dict[str, Any]]) -> str:
+def arms_table(
+    matrix: dict[str, Any],
+    reports: dict[str, dict[str, Any]],
+    run_names: set[str] | None = None,
+) -> str:
     metric = matrix.get("metric", "recovery_success")
     header = f"| arm | target ({metric}) | measured | task success | invalid | safety | actions | status |"
     lines = [header, "|" + "|".join(["---"] * 8) + "|"]
@@ -63,6 +70,13 @@ def arms_table(matrix: dict[str, Any], reports: dict[str, dict[str, Any]]) -> st
         target = float(arm["target"])
         if report is None:
             lines.append(f"| {arm['name']} | {target:.1%} | pending | -- | -- | -- | -- | not run |")
+            continue
+        if run_names is not None and arm["name"] not in run_names:
+            # A metrics file without a matching run record is not evidence.
+            lines.append(
+                f"| {arm['name']} | {target:.1%} | unverified | unverified | unverified | "
+                f"unverified | unverified | no run record |"
+            )
             continue
         overall = report["overall"]
         measured = float(overall.get(metric, 0.0))
@@ -139,7 +153,24 @@ def regression_table(reports: dict[str, dict[str, Any]], current: str, previous:
     return "\n".join(lines)
 
 
-def render(matrix: dict[str, Any], reports: dict[str, dict[str, Any]]) -> str:
+def audit_table(reports: dict[str, dict[str, Any]]) -> str:
+    names = sorted(reports)
+    if not names:
+        return "_No evaluations available yet._"
+    lines = ["| arm | proxy_gap | flags |", "|---|---|---|"]
+    for name in names:
+        report = audit(reports[name]["overall"])
+        gap = "--" if report["proxy_gap"] is None else f"{report['proxy_gap']:+.2f}"
+        flags = ", ".join(report["flags"]) or "-"
+        lines.append(f"| {name} | {gap} | {flags} |")
+    return "\n".join(lines)
+
+
+def render(
+    matrix: dict[str, Any],
+    reports: dict[str, dict[str, Any]],
+    run_names: set[str] | None = None,
+) -> str:
     completed = [arm["name"] for arm in matrix["arms"] if arm["name"] in reports]
     pending = [arm["name"] for arm in matrix["arms"] if arm["name"] not in reports]
     sections = [
@@ -157,7 +188,7 @@ def render(matrix: dict[str, Any], reports: dict[str, dict[str, Any]]) -> str:
         "",
         "## Arms",
         "",
-        arms_table(matrix, reports),
+        arms_table(matrix, reports, run_names),
         "",
         "## Failure decomposition",
         "",
@@ -170,6 +201,10 @@ def render(matrix: dict[str, Any], reports: dict[str, dict[str, Any]]) -> str:
         "## Per-fault-family task success",
         "",
         bucket_table(matrix, reports),
+        "",
+        "## Reward-hacking audit",
+        "",
+        audit_table(reports),
         "",
         "## Ablations",
         "",
@@ -186,6 +221,12 @@ def main() -> None:
     parser.add_argument("--eval-dir", type=Path, default=Path("runs/eval"))
     parser.add_argument("--matrix", type=Path, default=DEFAULT_MATRIX)
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--run-dir", type=Path, default=Path("runs"))
+    parser.add_argument(
+        "--require-run-records",
+        action="store_true",
+        help="render unverified for arms without a matching run record",
+    )
     parser.add_argument("--regression", nargs=2, metavar=("PREVIOUS", "CURRENT"), default=None)
     args = parser.parse_args()
 
@@ -197,7 +238,8 @@ def main() -> None:
         print(regression_table(reports, current, previous))
         return
 
-    document = render(matrix, reports)
+    run_names = set(load_run_records(args.run_dir)) if args.require_run_records else None
+    document = render(matrix, reports, run_names)
     print(document)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

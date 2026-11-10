@@ -33,7 +33,7 @@
 | **仿真车间** | KUKA KR10（橙黑）、FANUC M-10iA（绿）、车载 Dobot CR10（白+深蓝），四面墙+门洞、全局相机、标定板 | Gazebo 实测 |
 | **传感器** | RealSense D435（RGB-D）、Velodyne VLP-16、16 线激光、2D 雷达、IMU | 话题实测 |
 | **评测对齐** | L1 回执后端、L1↔L2 校准（Wilson 区间）、回执指标、消融表 | Phase 6 |
-| **训练集成** | 样本溯源（prompt/schema/benchmark 哈希）、运行记录、生成式 results、奖励作弊审计、反事实门禁 | Phase 7 · 304 tests |
+| **训练集成** | 样本溯源（prompt/schema/benchmark 哈希）、运行记录、生成式 results、奖励作弊审计、反事实门禁 | Phase 7 · 307 tests |
 
 **路线图**：OpenRUA 迁移计划 Phase 0–7 已完成。
 

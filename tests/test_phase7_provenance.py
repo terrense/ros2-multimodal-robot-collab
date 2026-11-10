@@ -25,6 +25,7 @@ from training.provenance import (
     mismatches,
     require_trainable,
 )
+from training.report import arms_table, audit_table
 from training.run_record import RunRecord, cell, load_run_records, matches
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -175,3 +176,43 @@ def test_counterfactual_requires_level_and_matched_clone():
     broken.holding = "different_tool"
     with pytest.raises(UnmatchedClone):
         verify_clone(env, broken)
+
+
+# ---------------------------------------------------------------- report wiring
+
+
+def _matrix() -> dict:
+    return {"metric": "recovery_success", "arms": [{"name": "rule_baseline", "target": 0.718}]}
+
+
+def _report() -> dict:
+    return {
+        "overall": {
+            "recovery_success": 0.761,
+            "task_success": 0.63,
+            "invalid_skill_rate": 0.0,
+            "safety_violation_rate": 0.0,
+            "mean_actions": 10.5,
+            "mean_progress_reward": 0.8,
+            "repeated_call_rate": 0.0,
+            "false_success_rate": 0.0,
+        }
+    }
+
+
+def test_report_marks_unverified_without_a_run_record():
+    table = arms_table(_matrix(), {"rule_baseline": _report()}, set())
+    assert "unverified" in table
+    assert "76.1%" not in table
+
+
+def test_report_renders_numbers_with_a_run_record():
+    table = arms_table(_matrix(), {"rule_baseline": _report()}, {"rule_baseline"})
+    assert "76.1%" in table
+    assert "unverified" not in table
+
+
+def test_audit_table_lists_flags():
+    table = audit_table({"rule_baseline": _report()})
+    assert "proxy_gap" in table
+    assert "rule_baseline" in table
