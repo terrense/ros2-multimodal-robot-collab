@@ -11,5 +11,5 @@
 - [x] `agent_harness/agent/policies.py`: `ScriptedPolicy`, `StubModelPolicy`, `HumanPolicy`, `PlanMacroPolicy`
 - [x] Tests: P5-R1..R8 (one action, unknown, false success, premature finish, three budgets, cancel, macro parity, no rclpy)
 - [x] `docs/openrua_audit/agent-loop.md` with the loop diagram and rules
-- [x] Full suite green (269+)
+- [x] Full suite green (269 at the time; 412 now)
 - [x] Report before Phase 6

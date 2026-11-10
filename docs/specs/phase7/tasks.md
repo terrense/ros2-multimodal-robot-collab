@@ -14,5 +14,5 @@
 - [x] `training/data/build_dpo.py`: verified clone hash guard for counterfactuals
 - [x] Tests P7-R1..R9
 - [x] README status block updated on merge
-- [x] Full suite green (294+)
+- [x] Full suite green (294 at the time; 412 now)
 - [x] Report before Phase 8

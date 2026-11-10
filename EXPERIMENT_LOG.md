@@ -86,7 +86,9 @@ python -m pytest tests/test_calibration_scene.py
 **结论**:四个场景族的"要摆什么"现在是一个能执行的脚本,不再是一句描述。
 
 **遗留**:**未在 Gazebo 里试过(NOT RUN)**——没有 spawn 过任何道具,也没有跑过任何
-探针。另外 `package.xml` 未加 `gazebo_msgs` 依赖,真跑时若报缺包需要补。
+探针。脚本依赖 `gazebo_msgs`(随 `ros-humble-gazebo-ros-pkgs` 一起装),在没装
+Gazebo 的环境里会在 import 处失败,这是预期行为而不是需要补的依赖声明:`scripts/`
+不在任何 colcon 包里。
 
 ---
 

@@ -195,6 +195,10 @@ def main() -> None:
             policy=MISSION_CAPABILITY,
             episodes=args.missions,
             artifacts=[str(out)],
+            # No model, therefore no prompt: the provenance hashes the ROS
+            # capability catalogue instead, and carries an empty-prompt marker
+            # so an L2 record can never be mistaken for an L1 one.
+            catalogue="ros2",
             out=args.run_record,
         )
         print(f"-> {args.run_record}")

@@ -139,14 +139,24 @@ def cell(
 # ------------------------------------------------------------------- authoring
 
 
-def build_provenance(model_id: str, benchmark_path: Path | str) -> Provenance:
+def build_provenance(
+    model_id: str,
+    benchmark_path: Path | str,
+    *,
+    catalogue: str = "l1",
+) -> Provenance:
     """Provenance taken from the live prompt surface and action schema.
 
     Hashing the real sources rather than a copy of them is the whole point: a
     prompt edit or a schema edit changes the hash, and the report then refuses
     to present a number measured under the old rules as if it were current.
+
+    `catalogue="ros2"` is for a run with no model behind it — an L2 mission
+    dispatched straight to the stack. Its provenance hashes the ROS capability
+    registry and carries an empty prompt, because claiming a prompt that was
+    never used would be a false record.
     """
-    return environment_provenance(model_id, benchmark_path)
+    return environment_provenance(model_id, benchmark_path, catalogue=catalogue)
 
 
 def write_run_record(
@@ -159,6 +169,7 @@ def write_run_record(
     episodes: int | None = None,
     seeds: list[int] | None = None,
     artifacts: list[str] | None = None,
+    catalogue: str = "l1",
     out: Path | str,
 ) -> RunRecord:
     from agent_env.protocol import MAX_EPISODE_STEPS
@@ -169,7 +180,7 @@ def write_run_record(
     record = RunRecord(
         kind=kind,
         name=name,
-        provenance=build_provenance(model_id, benchmark).to_dict(),
+        provenance=environment_provenance(model_id, benchmark, catalogue=catalogue).to_dict(),
         seeds=list(seeds or []),
         budgets=budgets,
         artifacts=list(artifacts or []),

@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-**2026-11-10** · 主套件 405 passed / 3 skipped，harness 套件 29 passed，CI 与 Container 全绿。
+**2026-11-10** · 主套件 412 passed / 3 skipped，harness 套件 48 passed，CI 与 Container 全绿。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -519,7 +519,7 @@ third_party/                  # vendored 源码快照（不参与 colcon 构建�
 ## 测试
 
 ```bash
-python -m pytest                 # 405 passed, 3 skipped（agent_env + training）
+python -m pytest                 # 412 passed, 3 skipped（agent_env + training）
 python -m pytest agent_harness/tests   # 48 passed（运行时：契约、调度、并发、线缆故障）
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
 ```

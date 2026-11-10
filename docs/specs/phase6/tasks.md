@@ -19,7 +19,7 @@ running under it.
 - [x] Ground-truth leak test across all nine fault families
 - [x] Run record: manifest hash + seed + budgets
 - [x] Frozen benchmark hash test
-- [x] Full suite green (384)
+- [x] Full suite green (384 at the time; 412 now)
 - [x] Report before Phase 7
 
 ## What is still open

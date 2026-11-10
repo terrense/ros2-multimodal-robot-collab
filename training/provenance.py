@@ -120,20 +120,48 @@ def environment_provenance(
     *,
     prompt_text: str | None = None,
     registry: Any = None,
+    catalogue: str = "l1",
 ) -> Provenance:
     """Provenance for a run that used the live prompt surface and action catalogue.
 
     The hashes come from the objects the run actually used, not from a copy of
     them: a prompt edit or a schema edit changes the hash, and the report then
     refuses to present a number measured under the old rules as current.
-    """
-    from agent_env.protocol import ActionRegistry
 
+    `catalogue` names which action vocabulary was executed:
+
+    - `l1`   the 13 step-level actions in `agent_env/schemas/agent_skills.json`,
+             used by a model policy through the chat surface;
+    - `ros2` the capability registry in `skills/*/schema.json`, used when a
+             mission is dispatched straight to the stack with no model and
+             therefore no prompt at all.
+
+    An L2 mission has no prompt, and hashing a prompt it never used would make
+    the run record claim something false. Its provenance carries an empty-prompt
+    marker instead, which is why an L1 record and an L2 record can never be
+    mistaken for each other.
+    """
     from .chat_format import system_prompt
 
-    catalogue = registry or ActionRegistry.load()
-    prompt = prompt_text if prompt_text is not None else system_prompt(catalogue)
-    schema = {name: catalogue.spec(name) for name in catalogue.action_names}
+    if catalogue == "ros2":
+        from agent_harness.scripts.ros_tool_executor import SkillRegistry
+
+        root = Path(__file__).resolve().parents[1]
+        ros_registry = SkillRegistry.load(root / "skills")
+        return Provenance.build(
+            model_id=model_id,
+            prompt_text="",
+            action_schema=ros_registry.catalogue(),
+            benchmark_path=benchmark_path,
+        )
+    if catalogue != "l1":
+        raise ValueError(f"unknown catalogue {catalogue!r}; expected 'l1' or 'ros2'")
+
+    from agent_env.protocol import ActionRegistry
+
+    actions = registry or ActionRegistry.load()
+    prompt = prompt_text if prompt_text is not None else system_prompt(actions)
+    schema = {name: actions.spec(name) for name in actions.action_names}
     return Provenance.build(
         model_id=model_id,
         prompt_text=prompt,

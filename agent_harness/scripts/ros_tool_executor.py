@@ -74,6 +74,27 @@ class SkillRegistry:
             raise PlanValidationError(f"No skill schemas found under {skills_dir}")
         return cls(skills)
 
+    def names(self) -> list[str]:
+        """Every `skill.action` the registry defines, including non-callable ones."""
+        out: list[str] = []
+        for skill, schema in sorted(self._skills.items()):
+            for action in sorted((schema.get("actions") or {})):
+                out.append(f"{skill}.{action}")
+        return out
+
+    def catalogue(self) -> dict[str, dict[str, Any]]:
+        """The whole registry as `skill.action` -> schema, non-callable included.
+
+        Provenance hashes this rather than only the callable subset: a change to
+        a perception-internal action still changes what the runtime is built
+        against, and `get_action` refuses those by design.
+        """
+        return {
+            f"{skill}.{action}": dict(spec)
+            for skill, schema in sorted(self._skills.items())
+            for action, spec in sorted((schema.get("actions") or {}).items())
+        }
+
     def get_action(self, skill: str, action: str) -> dict[str, Any]:
         skill_schema = self._skills.get(skill)
         if skill_schema is None:
