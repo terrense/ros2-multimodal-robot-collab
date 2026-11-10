@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!--
+  Calibration scene: a view blocker between the base and the tool shelf.
+
+  Arranges the precondition for the `visual_occlusion` probe: the D435 sees the
+  shelf, but not the tool. The panel is deliberately thin and close to the
+  shelf so that a short sideways move (`navigation.reposition`) clears it,
+  which is exactly what the probe measures.
+
+  Spawned and removed by `scripts/calibration_scene.py`, never hand-edited into
+  a world file: a fault arrangement that is only removable by editing the world
+  is an arrangement nobody re-runs.
+-->
+<sdf version="1.6">
+  <model name="calib_occluder">
+    <static>true</static>
+    <pose>0 0 0.9 0 0 0.35</pose>
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <box><size>1.15 0.06 1.55</size></box>
+        </geometry>
+        <material>
+          <ambient>0.18 0.18 0.20 1</ambient>
+          <diffuse>0.22 0.22 0.24 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <box><size>1.15 0.06 1.55</size></box>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

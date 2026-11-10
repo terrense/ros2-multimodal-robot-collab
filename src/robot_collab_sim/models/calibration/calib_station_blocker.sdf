@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<!--
+  Calibration scene: a placeholder for the operator who is not at the station.
+
+  Arranges the precondition for the `no_progress` probe: the handover station is
+  occupied, so a handover called there is blocked until the operator is called
+  over (`hri.publish_tts`). A crate, not a person: a person model would need an
+  actor and would make the collision geometry depend on an animation.
+
+  Spawned and removed by `scripts/calibration_scene.py`.
+-->
+<sdf version="1.6">
+  <model name="calib_station_blocker">
+    <static>true</static>
+    <pose>0 0 0.45 0 0 0.0</pose>
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <box><size>0.62 0.62 0.90</size></box>
+        </geometry>
+        <material>
+          <ambient>0.55 0.42 0.22 1</ambient>
+          <diffuse>0.62 0.48 0.26 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <box><size>0.62 0.62 0.90</size></box>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

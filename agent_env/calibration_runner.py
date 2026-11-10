@@ -73,6 +73,13 @@ class CalibrationRunner:
     stack: Stack
     #: How many samples a family needs before it can be called calibrated.
     min_samples: int = 30
+    #: Optional scene driver: `arm(family)` and `clear(family)`. When supplied,
+    #: a scene-dependent family is arranged, measured and cleared in one go.
+    #:
+    #: This is a separate object on purpose. `scripts/calibration_scene.py`
+    #: only spawns static props, so it cannot move the robot; the probes can.
+    #: A caller who supplies a scene driver is asking for real dispatches.
+    scenes: Any = None
 
     def measure(self, family: FaultType, samples: int | None = None) -> L2Measurement | None:
         """Measure one family, or return None when its scene is not arranged."""
@@ -81,22 +88,32 @@ class CalibrationRunner:
         if probe is None:
             return None
 
+        arranged = False
+        if getattr(probe, "scene_required", None) and self.scenes is not None:
+            # The caller can arrange the world, so do it and then measure.
+            self.scenes.arm(family)
+            arranged = True
+
         successes = 0
         attempts = 0
         last_detail: dict[str, Any] = {}
-        for _ in range(wanted):
-            try:
-                result = probe(self.stack)
-            except SceneRequired:
-                # The world is not arranged. Returning a measurement here
-                # would be inventing one.
-                return None
-            except StackUnavailable:
-                return None
-            attempts += 1
-            last_detail = result.detail
-            if result.success:
-                successes += 1
+        try:
+            for _ in range(wanted):
+                try:
+                    result = probe(self.stack)
+                except SceneRequired:
+                    # The world is not arranged. Returning a measurement here
+                    # would be inventing one.
+                    return None
+                except StackUnavailable:
+                    return None
+                attempts += 1
+                last_detail = result.detail
+                if result.success:
+                    successes += 1
+        finally:
+            if arranged:
+                self.scenes.clear(family)
         if attempts == 0:
             return None
         return L2Measurement(

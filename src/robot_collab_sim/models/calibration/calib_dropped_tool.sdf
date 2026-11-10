@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<!--
+  Calibration scene: the tool on the floor where it fell.
+
+  Arranges the precondition for the `tool_drop` probe: the tool is not in the
+  gripper and not on the shelf, but on the floor along the delivery route, where
+  a second pick can reach it.
+
+  The geometry matters more than it looks. A dropped tool that is flat on the
+  ground and under the reach of the arm is a different problem from one that
+  rolled under a bench; this one is the recoverable case, which is what the
+  probe is asking about.
+
+  Spawned and removed by `scripts/calibration_scene.py`.
+-->
+<sdf version="1.6">
+  <model name="calib_dropped_tool">
+    <static>true</static>
+    <pose>0 0 0.03 0 0 0.4</pose>
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <box><size>0.24 0.06 0.05</size></box>
+        </geometry>
+        <material>
+          <ambient>0.72 0.72 0.74 1</ambient>
+          <diffuse>0.82 0.82 0.85 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <box><size>0.24 0.06 0.05</size></box>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
