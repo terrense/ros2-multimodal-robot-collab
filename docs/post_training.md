@@ -392,6 +392,9 @@ load_causal_lm(..., trainable=False)` 在 DeepSpeed engine 之外，每张卡一
 `gpu_memory_utilization: 0.55` 算是 33 + 16.4 + 52.8 + 5 ≈ **107 GB，装不下**。
 把 `gpu_memory_utilization` 降到 0.33–0.35 就落回 96 GB 以内。
 
+注意 `VLLMPolicy` 一定会在进程内 `vllm.LLM(...)` 起一个引擎，没有连外部 server 的
+后端——所以"rollout 单独占几张卡"的解法今天还做不了，能调的是显存分配比例。
+
 **2. ZeRO-2 不是省钱选项。**
 `zero2_bf16.json` 不切分梯度和权重，4 卡下每卡反而要 16.4（权重）+ 16.4（梯度）
 + 24.6（优化器与 master）≈ 57 GB，比 ZeRO-3 更贵。它只在"卡少、显存大"时才有

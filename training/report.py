@@ -138,9 +138,10 @@ def arms_table(
     baseline_name = "rule_baseline"
     for arm in matrix["arms"]:
         name = arm["name"]
-        if name == baseline_name and arm["name"] in reports:
-            if run_names is None or arm["name"] in run_names:
-                baseline = float(reports[arm["name"]]["overall"].get(metric, 0.0))
+        if name != baseline_name or name not in reports:
+            continue
+        if run_names is None or name in run_names:
+            baseline = float(reports[name]["overall"].get(metric, 0.0))
     for arm in matrix["arms"]:
         name = arm["name"]
         report = reports.get(name)
