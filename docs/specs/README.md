@@ -38,9 +38,16 @@ Audit: [`docs/openrua_audit/`](../openrua_audit/).
 |---|---|---|
 | MultiThreadedExecutor + per-resource callback groups | O3.1 | The ROS 2 side serialises every dispatch through one node, so the scheduler's cross-resource concurrency is proved by the fake backend only. |
 | Fault injection on the wire (DDS-level drops) | O3.1 | The eight transport faults are injected in-process; proving the real DDS stack survives them needs a live stack under packet loss. |
-| `agent_env/l2_gazebo.py` — the L2 adapter | O6 | The live stack is driven command by command; there is no `reset()`/`step()` environment over it, so the same evaluation code cannot score L2. |
-| The receipt metrics wired into the evaluation | O6 | `training/receipt_metrics.py` computes them, but the evaluator scores L1 episodes, which carry no receipts. |
-| The L2 calibration runner and its scenes | O6 | The contract exists (`agent_env/l2_calibration.py`); what is missing is the runner that executes the per-family programmes on Gazebo and the scenes that make occlusion, a dropped tool and a blocked handover reproducible. |
+| The L2 calibration runner and its scenes | O6 | The contract, the L1 reference rates, the L2 adapter and the evaluator all exist; what is missing is the runner that executes the per-family programmes on Gazebo and the scenes that make occlusion, a dropped tool and a blocked handover reproducible. |
+
+Done since the line was first planned, and worth knowing about:
+
+| Item | Phase | Where |
+|---|---|---|
+| The L2 adapter: the live stack behind `reset()`/`step()`, with the action mapping written out and the unsupported actions refused | O6 | `agent_env/l2_gazebo.py` |
+| The live stack scored by the L1 evaluator, with the receipt metrics | O6 | `training/evaluate_l2.py` |
+| The L1 side of the calibration: per-family reference rates derived from the configuration, and the measurement programmes | O6 | `agent_env/l2_calibration.py`, `agent_env/scripts/calibrate_l2.py` |
+| The Phase 7 acceptance criteria the merge left open: provenance on v2 records, drifted corpora refused, the verified clone guard, physical claims refused | O7 | `tests/test_phase7_closure.py` |
 
 The six experiment arms of **PT** are blocked on GPU, not on code. They stay
 `pending` in `docs/results.md` until they run.

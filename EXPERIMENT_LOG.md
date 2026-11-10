@@ -9,6 +9,70 @@
 
 ---
 
+## 2026-11-10 | **O6 / O7** L2 适配器 + Phase 7 验收补齐 + 编号理清
+
+**内容**:三件事。(1) 把两套 Phase 编号理清——仓库里有三条线各自用过 "Phase N";
+(2) 把 OpenRUA 线真正剩下的活做完:L2 适配器、实时栈评测、Phase 7 那四条一直
+没实现的验收;(3) 剩下的 GPU 相关实验保持 pending,不假装。
+
+**编号理清**:
+- 三条线现在各有前缀:**R**(机器人本体,`docs/roadmap.md`)、**PT**(后训练,
+  `EXPERIMENT_LOG.md`)、**O**(OpenRUA 吸收,`docs/specs/phase0-7/`)。
+- `docs/specs/README.md` 是地图:每阶段产出了什么、还剩什么。
+- `docs/roadmap.md` 重写为三条线的总览。
+- 每个 spec/task 文件带横幅标明所属线;状态行改成真实的 "complete"。
+- 任务清单按事实勾选:Phase 5、Phase 7 当时全部未勾但代码已合入;Phase 3 的两项
+  遗留、Phase 4 的快照接线、Phase 6 的校准如实标注。
+
+**L2 适配器**(`agent_env/l2_gazebo.py`):把实时 ROS 2/Gazebo 栈装进 L1 同样的
+`reset()/step()` 形状。写它的时候有三件事和之前的假设不一样,都写进了
+`docs/openrua_audit/gazebo-l2.md`:
+1. **动作词表不同构**。L1 十三个细粒度动作,live stack 六个可调用能力(两个是复合
+   的),检测是"发布"而不是"请求"。映射表 `ACTION_MAP` 全部列出;没有对应的动作
+   **带原因拒绝**,不是静默跳过——live stack 上"不支持"和"什么都没做"是两种不同
+   的故障,后者正是机器人动两次的路径。
+2. **live stack 报不出 L1 报得出的东西**。`holding_tool` / `operator_verified` 在
+   mission state machine 内部,没有发布,观测里就写"未知"而不是猜:未确认的物理
+   效果不是成功,未知也不是策略能据以行动的 `False`。
+3. **episode 的单位不同**。live stack 只有一个复合能力 `mission-control.deliver_tool`,
+   所以 L2 的一个 episode 是一次*任务*,L1 的一个 episode 是一个*回合*。同一套
+   评测代码、同一个报告生成器,但 L2 报告里带 `unit: mission`,不会被读成回合。
+
+**实时栈评测**(`training/evaluate_l2.py`):用 L1 的 `evaluate_records`、同一个报告
+生成器、同一套运行记录给 live stack 打分,并计算回执级指标(不确定结果率、延迟
+分位)——只有真实任务会产生回执,轨迹不会。
+
+**Phase 7 验收补齐**(`tests/test_phase7_closure.py`):O7 写了四条一直没实现的:
+- **P7-R1** `MultiTurnDeliveryEnv` 可以带 provenance,写出的记录是 v2(带
+  `schema_version`、provenance 块和从环境结果推出的回执);不带 provenance 的记录
+  一模一样还是 v1——没有多余键,老语料的字节不变。
+- **P7-R2** 数据集构建器只在记录带 provenance 时才把它写进 sample meta,所以 v1
+  语料产出完全相同。
+- **P7-R3** loader 拒绝 prompt/schema 与运行记录不一致的样本;`train_sft` /
+  `train_dpo` 加了 `--run-record` 强制它;v1 样本照旧接受。
+- **P7-R8** DPO 构建器给克隆做状态哈希校验,对不上的克隆拒绝而不是照样打分。
+- **P7-R9** 报告生成器拒绝声明物理结论字段的实验矩阵。
+
+**验收命令**:
+```bash
+python -m pytest tests/test_l2_adapter.py tests/test_phase7_closure.py
+python -m training.evaluate_l2 --dry-run
+python -m pytest
+```
+
+**结果**:
+- 25 个新测试(映射表、拒绝、结果映射、观测不猜、四条 Phase 7 验收)。
+- 384 passed / 3 skipped。
+
+**结论**:OpenRUA 线现在只剩三件:ROS 侧的并发(Per-resource callback group)、
+线缆层的故障注入(DDS 丢包)、以及校准的**执行器**和它需要的 Gazebo 场景。前两件
+不需要 GPU;第三件需要把仿真栈跑起来,但现在有适配器和评测器可以承接。
+
+**遗留**:L2 适配器与实时评测的 ROS 路径**没有在真栈上跑过**(NOT RUN)——本机
+此刻没有起 Gazebo。纯逻辑部分(映射、拒绝、结果映射、观测)有测试覆盖。
+
+---
+
 ## 2026-11-10 | **O6** L1↔L2 校准契约 + 报告头声明"仅 L1"
 
 **内容**:L1 的故障参数是**配置出来的**,不是测出来的。`default_params` 说导航会超时

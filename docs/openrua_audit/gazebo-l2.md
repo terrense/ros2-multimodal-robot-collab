@@ -131,6 +131,53 @@ and a navigation run.
 - **L1 calibration against L2** (master plan Phase 6) can now start, but needs
   the fault taxonomy mapped onto what Gazebo can reproduce.
 
+## The L2 adapter (Phase O6)
+
+`agent_env/l2_gazebo.py` presents the live stack behind the same `reset()` /
+`step()` shape the evaluator already uses, and `training/evaluate_l2.py` scores
+it with the same `evaluate_records`, the same report generator and the same
+run records as L1. The receipt metrics are computed there, because a live
+mission produces receipts and a trajectory cannot.
+
+Writing it down changed three things that were previously assumed:
+
+**The action vocabularies are not isomorphic.** L1 has thirteen fine-grained
+actions. The live stack exposes six callable capabilities, two of them
+composite, and the detections are *published* rather than requested. The
+mapping is written out in `ACTION_MAP`:
+
+| L1 action | live stack | |
+|---|---|---|
+| `perception.verify_operator` | `perception.verify_operator` | one to one |
+| `navigation.navigate_to_station` | `navigation.navigate_to_station` | one to one |
+| `manipulation.publish_arm_control` | `manipulation.publish_arm_control` | one to one |
+| `hri.publish_tts` | `hri.publish_tts` | one to one |
+| `system-state.query_state` | `system-state.query_state` | one to one |
+| `manipulation.select_grasp_pose` / `pick_tool` / `verify_grasp` / `handover_tool` | `manipulation.pick_and_place` | composite: pick and place are one goal, so "grasp selected" and "grasp verified" do not exist on the live stack |
+| `perception.request_tool_detection` | — | the YOLO node publishes; there is no request to make |
+| `navigation.reposition` | — | no viewpoint-change skill exists |
+| `hri.request_confirmation` | — | no confirmation skill exists |
+| `mission.terminate` | — | the episode ends when the caller stops dispatching |
+
+An action with no counterpart is **refused with a reason**, not silently
+skipped: on the live stack, "not supported" and "did nothing" are different
+failures, and the second one is how a robot moves twice.
+
+**The live stack cannot report everything L1 reports.** `holding_tool` and
+`operator_verified` live inside the mission state machine and are not
+published. The observation says *unknown* for them rather than guessing: an
+unconfirmed physical effect is not a success, and an unknown is not a `False`
+a policy can act on.
+
+**The unit of an episode is different.** The live stack offers one composite
+capability, `mission-control.deliver_tool`, so an L2 episode is one *mission*
+while an L1 episode is one *turn*. The L2 report carries `unit: mission` and
+`level: l2`, so a number measured in missions is never read as a number
+measured in turns.
+
+The ROS import is lazy: the mapping, the refusals and the receipt-to-result
+mapping are covered by tests that need no ROS 2 installation.
+
 ## Reproduce
 
 ```bash
@@ -139,5 +186,8 @@ scripts/run_gazebo_demo.sh --nav2     # SLAM + Nav2 + visible window
 python3 agent_harness/scripts/ros_tool_executor.py \
   /tmp/nav_plan.json --mode execute --engine runtime \
   --ledger /tmp/nav_ledger.db
+# score the live stack with the L1 evaluator:
+python3 -m training.evaluate_l2 --label l2_baseline --missions 10 \
+  --out runs/eval/l2_baseline.json --run-record results/run_records/l2_baseline.json
 scripts/stop_gazebo_demo.sh
 ```

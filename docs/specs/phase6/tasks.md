@@ -4,18 +4,34 @@
 > line (`PT6` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R6` in
 > [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
 
-Status as of 2026-11-10: everything here is implemented except the two marked
-*not done* — and both of those need the live stack, not more code.
+Status as of 2026-11-10: the code is done; what is missing is the live stack
+running under it.
 
 - [x] User approves the spec and the four recommendations
 - [x] `agent_harness/runtime/l1_backend.py`: L1 env → receipts, same shape as ROS
-- [ ] `agent_env/l2_gazebo.py`: L2 adapter (reset/step over ToolClient, lazy ROS) — **not done**. The live stack is driven today through `agent_harness/scripts/ros_tool_executor.py`; there is no adapter that presents it as a `reset()/step()` environment.
-- [x] `agent_env/scripts/calibrate_l2.py`: per-family measurement + Wilson interval — the measurement contract, the L1 reference rates and the manifest writer are done (`agent_env/l2_calibration.py`); the live runner that executes the programmes on Gazebo is not.
-- [x] `benchmarks/calibration_v1.json` writer, `calibrated: false` under 30 samples — the committed manifest says `not_measured` for all nine families, which is the truth: nothing has been measured on L2 yet, and the report header now says so.
-- [x] `training/evaluate.py`: receipt metrics (uncertain, duplicate, latency, cost) — `training/receipt_metrics.py` computes them, but the evaluation does not call them: it scores L1 episodes, which carry no receipts. They become reachable once an L2 adapter feeds the evaluator a receipt stream.
+- [x] `agent_env/l2_gazebo.py`: L2 adapter (reset/step over ToolClient, lazy ROS) — the live stack behind `reset()`/`step()`, with the action mapping written out (`ACTION_MAP`) and the actions the live stack cannot do refused with a reason. The ROS import is lazy, so the mapping and the result logic are tested without ROS 2.
+- [x] `training/evaluate_l2.py`: the live stack scored by the L1 evaluator — same `evaluate_records`, same report generator, same run records, plus the receipt metrics, which only a live mission can produce.
+- [x] `agent_env/scripts/calibrate_l2.py`: per-family measurement + Wilson interval — the measurement contract, the L1 reference rates and the manifest writer are done (`agent_env/l2_calibration.py`).
+- [x] `benchmarks/calibration_v1.json` writer, `calibrated: false` under 30 samples — the committed manifest says `not_measured` for all nine families, which is the truth: no family has been measured on the live stack yet, and the report header says so.
+- [x] `training/evaluate.py`: receipt metrics (uncertain, duplicate, latency, cost) — computed on the live stack by `training/evaluate_l2.py`. The L1 evaluator scores trajectories, which carry no receipts; that is why the metrics belong to the L2 path.
 - [x] `training/ablation.py`: condition table, equal-budget enforcement
 - [x] Ground-truth leak test across all nine fault families
 - [x] Run record: manifest hash + seed + budgets
 - [x] Frozen benchmark hash test
-- [x] Full suite green (361)
+- [x] Full suite green (384)
 - [x] Report before Phase 7
+
+## What is still open
+
+The calibration **runner** and the Gazebo **scenes** that make occlusion, a
+dropped tool and a blocked handover reproducible. The contract exists
+(`agent_env/l2_calibration.py`): every family has a programme, a success
+definition and an L1 reference rate derived from the configuration. What is
+missing is the code that executes those programmes on the live stack -- which
+now has an adapter to execute them through, and an evaluator to score the
+result.
+
+Also open, and stated here rather than hidden: the live stack exposes one
+composite capability, so an L2 episode is one *mission*, while an L1 episode is
+one *turn*. The two levels are scored by the same code but they are not the
+same unit, and the L2 report says so in its `unit` field.

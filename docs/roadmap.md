@@ -22,8 +22,7 @@ every phase reference below carries the prefix of its line. The full map is in
 │  tool runtime, and evidence for every side effecting command               │
 │  O0 audit · O1 contract · O2 tool runtime · O3 ledger · O4 snapshots ·      │
 │  O5 agent loop · O6 evaluation alignment · O7 training integration         │
-│  ▸ open: O3.1 ROS concurrency, O3.1 wire faults, O6 L2 adapter,           │
-│    O6 receipt metrics in the evaluator, O6 calibration runner              │
+│  ▸ open: O3.1 ROS concurrency, O3.1 wire faults, O6 calibration runner    │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -132,9 +131,9 @@ See [`specs/README.md`](specs/README.md) for the phase-by-phase table.
 |---|---|---|
 | MultiThreadedExecutor + per-resource callback groups | O3.1 | The arm and the base are different resources and should be able to move at once; today the ROS side serialises everything, so cross-resource concurrency is only proved against the fake backend. |
 | Fault injection on the wire (DDS-level drops) | O3.1 | The eight transport faults are injected in-process. The real question is whether a live stack under packet loss still refuses to double-apply a command. |
-| `agent_env/l2_gazebo.py` — the L2 adapter | O6 | One `reset()`/`step()` interface over the live stack, so the same evaluator that scores L1 can score L2, and the receipt metrics become reachable. |
-| Receipt metrics wired into the evaluator | O6 | `training/receipt_metrics.py` computes uncertain-outcome rate, duplicate-effect rate and latency; the evaluator never calls them because L1 episodes carry no receipts. |
-| The L2 calibration runner and its scenes | O6 | Per-family programmes on Gazebo, plus scenes that make occlusion, a dropped tool and a blocked handover reproducible. This is what turns L1's fault parameters from assumptions into measurements. |
+| `agent_env/l2_gazebo.py` — the L2 adapter | O6 | **Done.** One `reset()`/`step()` interface over the live stack, with the action mapping written out and the unsupported actions refused with a reason. |
+| Receipt metrics wired into the evaluator | O6 | **Done.** `training/evaluate_l2.py` scores the live stack with the L1 evaluator and computes the receipt metrics, which only a live mission can produce. |
+| The L2 calibration runner and its scenes | O6 | The contract, the L1 reference rates, the adapter and the evaluator exist; what is missing is the runner that executes the per-family programmes on Gazebo and the scenes that make occlusion, a dropped tool and a blocked handover reproducible. This is what turns L1's fault parameters from assumptions into measurements. |
 
 ### The rule that governs all of it
 
