@@ -336,6 +336,9 @@ PROGRAMMES: dict[FaultType, FamilyProgramme] = {
             "raise a user cancel (gesture or topic)",
             "count the sample successful when the motion stopped and the mission was cancelled",
         ),
+        scene_setup=(
+            "the stack must be mid-motion when the cancel is raised, or there is nothing to stop",
+        ),
     ),
 }
 
