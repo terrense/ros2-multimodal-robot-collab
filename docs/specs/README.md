@@ -36,23 +36,25 @@ Audit: [`docs/openrua_audit/`](../openrua_audit/).
 
 | Item | Phase it belongs to | Why it is still open |
 |---|---|---|
-| The Gazebo scenes for the four scene-dependent calibration families | O6 | The contract, the L1 reference rates, the L2 adapter, the evaluator and the runner all exist. Five families have probes that work by calling the stack; four (occlusion, tool drop, blocked handover, mid-motion cancel) need the world arranged first, and the runner reports them as unmeasured with the reason. |
-| Fault injection on the wire (DDS-level drops) | O3.1 | The eight transport faults are injected in-process; proving the real DDS stack survives them needs a live stack under packet loss. |
+| The Gazebo scenes for the four scene-dependent calibration families | O6 | The props and the driver exist (`scripts/calibration_scene.py`), but no prop has been spawned in Gazebo and no probe has run. |
+| Running the wire faults | O3.1 | The injection tool, five scenarios and the three invariants are built and tested; running them needs root, a live stack and a person. |
 
 Done since the line was first planned, and worth knowing about:
 
 | Item | Phase | Where |
 |---|---|---|
 | MultiThreadedExecutor + per-resource callback groups | O3.1 | `agent_harness/runtime/concurrency.py`, `RosBackend`, `RosToolExecutor(concurrent=True)`, `--concurrent` |
+| Wire-fault injection and the three invariants | O3.1 | `agent_harness/runtime/wire_faults.py`, `scripts/wire_fault_check.py` |
 | The L2 adapter: the live stack behind `reset()`/`step()`, with the action mapping written out and the unsupported actions refused | O6 | `agent_env/l2_gazebo.py` |
 | The live stack scored by the L1 evaluator, with the receipt metrics | O6 | `training/evaluate_l2.py` |
 | The L1 side of the calibration: per-family reference rates derived from the configuration, and the measurement programmes | O6 | `agent_env/l2_calibration.py`, `agent_env/scripts/calibrate_l2.py` |
+| The calibration runner, and the scene props it needs | O6 | `agent_env/calibration_runner.py`, `scripts/run_calibration.py`, `src/robot_collab_sim/models/calibration/` |
 | The Phase 7 acceptance criteria the merge left open: provenance on v2 records, drifted corpora refused, the verified clone guard, physical claims refused | O7 | `tests/test_phase7_closure.py` |
 
-Two of those are **code complete but NOT RUN against a live stack**: the
-concurrent executor needs a node and an action server to prove rclpy actually
-overlaps the two resources, and the L2 adapter needs Gazebo to prove the ROS
-path works. Both have their pure logic covered by tests that need no ROS 2.
+Three of those are **code complete but NOT RUN against a live stack**: the
+concurrent executor needs a node and an action server, the wire faults need
+root and a moving robot, and the L2 adapter needs Gazebo. All three have their
+pure logic covered by tests that need no ROS 2.
 
 The six experiment arms of **PT** are blocked on GPU, not on code. They stay
 `pending` in `docs/results.md` until they run.

@@ -111,7 +111,7 @@ What that means in practice:
       `e86c3cdbb3854988b1cedffa2c1075f5`, `1714300f840748358266073ecb6bd079`
 - [x] Reproducible script: `scripts/smoke_ros2_runtime.sh`
 - [x] MultiThreadedExecutor + per-resource callback groups — `agent_harness/runtime/concurrency.py` (`ResourceLocks`, `wait_for_future`), `RosBackend` keyed by resource, `RosToolExecutor(concurrent=True)` with one `ReentrantCallbackGroup` per resource and `--concurrent` on the CLI. The logic is tested without ROS; the live MultiThreadedExecutor path is **NOT RUN**.
-- [ ] Fault injection on the wire (DDS-level drops) — still outstanding
+- [x] Fault injection on the wire (DDS-level drops) — `agent_harness/runtime/wire_faults.py` (netem rules + the three invariants) and `scripts/wire_fault_check.py` (apply, dispatch, restore in a `finally`, audit the ledger). **NOT RUN**: needs root, a live stack and a person.
 
 ## What is done on concurrency, and what is not
 
@@ -121,8 +121,8 @@ other. `RosToolExecutor(concurrent=True)` starts a `MultiThreadedExecutor` in a
 background thread, creates one `ReentrantCallbackGroup` per resource, and
 `_spin_until_done` stops pumping `spin_once` — with a background executor,
 spinning from the waiting thread would be two spinners on one node.
-`tests/test_concurrency.py` (harness suite) proves the overlap and the
-exclusion against a recording executor, with no ROS 2 installed.
+`agent_harness/tests/test_concurrency.py` proves the overlap and the exclusion
+against a recording executor, with no ROS 2 installed.
 
 **NOT RUN.** The live path. It needs a node and an action server to prove that
 `ReentrantCallbackGroup` actually lets the base and the arm make progress
@@ -130,8 +130,39 @@ simultaneously through rclpy, and that `wait_for_future` never misses a
 completion that the executor thread resolves. Nothing on this machine can
 answer that; the code is in place and the default is still the serial path.
 
-**Still open.** Fault injection on the wire. The eight transport faults are
-injected in-process, which proves the *state machine* is right but not that the
-real transport is. What is missing is packet loss and delay injected below the
-application, with the stack running, to see whether a live system still refuses
-to double-apply a command whose effect is uncertain.
+## Wire faults: what is built, and what it will prove
+
+The eight transport faults the runtime handles are injected in-process against
+a fake backend. That proves the *state machine*; it does not prove the
+transport, because a real link can lose a message after the robot moved and
+before anyone heard about it.
+
+`scripts/wire_fault_check.py` closes that gap. It applies `tc netem` to an
+interface, dispatches one command, restores the interface in a `finally`, and
+then audits the ledger. The verdict is three invariants, each preventing a
+specific failure:
+
+| Invariant | The failure it prevents |
+|---|---|
+| `no_duplicate_effect` | a timed-out command dispatched twice — the robot moves twice |
+| `uncertain_stays_unknown` | a timeout recorded as `failed`, which is the claim that invites the retry |
+| `blocked_until_ack` | any side effect dispatched while an unresolved command is outstanding |
+
+Five scenarios ship: `dropped_result`, `slow_ack`, `duplicated_packets`,
+`bursty_loss`, `severe`. The rules, the command construction and the three
+checks are unit-tested (19 tests, `agent_harness/tests/test_wire_faults.py`).
+
+**NOT RUN.** It needs root for `tc`, a live stack, and a person — the command
+moves the robot. `--dry-run` prints exactly what would be executed, which is
+how the commands were reviewed without a machine to run them on.
+
+Two limitations stated rather than hidden:
+
+- **No port filter by default.** CycloneDDS picks ports dynamically, so a
+  filter can silently miss traffic — and a filter that misses traffic produces
+  a green result that proves nothing. The default covers the whole loopback
+  interface, which on a dedicated test machine is acceptable and on a shared one
+  is not.
+- **The audit is post-hoc.** It reads final statuses and then the event order.
+  That answers "did the system double-apply a command", which is the question
+  the ledger exists for; it does not watch the run live.

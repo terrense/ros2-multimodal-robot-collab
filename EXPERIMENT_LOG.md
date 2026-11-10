@@ -9,6 +9,87 @@
 
 ---
 
+## 2026-11-10 | **O3.1** 线缆故障注入：netem + 三条不变量 + ledger 审计
+
+**内容**:进程内注入的八种传输故障证明的是**状态机**,不是传输层。真实链路可以在
+机器人已经动了、但还没人知道的时候丢消息。补上这一半。
+
+**工具**(`scripts/wire_fault_check.py`):对网卡施加 `tc netem`,派发一条命令,
+**在 `finally` 里恢复网卡**,然后审计账本。三条规则:
+1. **网卡一定在 `finally` 里恢复**。崩了却留下 netem 规则,之后所有实验都是错的,
+   而且没人会归因到这个工具。
+2. **故障就位之前不派发任何命令**。把干净路径的结果当成故障路径报告,比不跑更糟。
+3. **判定来自账本,不来自脚本**。"同一条命令是否被派发两次"是关于账本的事实。
+
+**三条不变量**(`agent_harness/runtime/wire_faults.py`),每条拦一种具体故障:
+
+| 不变量 | 拦的是什么 |
+|---|---|
+| `no_duplicate_effect` | 超时的命令被派发两次——机器人动两次 |
+| `uncertain_stays_unknown` | 超时被记成 `failed`,而这正是招来重试的那个断言 |
+| `blocked_until_ack` | 有未决命令时仍派发副作用 |
+
+五套场景:`dropped_result`、`slow_ack`、`duplicated_packets`、`bursty_loss`、`severe`。
+
+**验收命令**:
+```bash
+python3 scripts/wire_fault_check.py dropped_result --dry-run
+python -m pytest agent_harness/tests/test_wire_faults.py
+```
+
+**结果**:
+- 19 个新测试(规则构造、先清后加、端口范围被拒绝而不是近似、三条不变量各自的
+  正例反例、ack 之后解禁、命令不会挡住自己)。
+- 405 passed / 3 skipped(主)+ 48 passed(harness)。
+
+**结论**:线缆层的判据现在是**可执行的断言**,不是文档里的期望。
+
+**遗留**:**未运行(NOT RUN)**——需要 root、活栈和人在场(命令会动机器人)。另有两处
+如实写下的局限:(1) 默认**不按端口过滤**,因为 CycloneDDS 端口是动态的,过滤器可能
+静默漏掉流量——而漏掉流量的过滤器会产出一个"证明不了任何事"的绿色结果;默认覆盖
+整个 loopback,在专用测试机上可以接受,共享机器上不行。(2) 审计是**事后**的,读最终
+状态再走事件序,不实时监控。
+
+---
+
+## 2026-11-10 | **O6** 校准场景道具 + 不动机器人的布景驱动
+
+**内容**:上一条把校准执行器做出来了,但四个场景族只会打印"需要摆场景"——"摆场景"
+一直是一句话。补上道具和布景驱动。
+
+**道具**(`src/robot_collab_sim/models/calibration/*.sdf`):遮挡板、站位阻挡块、
+落地工具,三个静态模型。
+
+**驱动**(`scripts/calibration_scene.py`):通过 Gazebo 服务 spawn / delete,
+`arm` / `clear` / `show` / `list` 四个动作。
+
+**三个设计决定**:
+1. **按站点偏移放置,不写死世界坐标**。站点表改了,场景跟着走,不会悄悄失效。
+2. **布景不派发任何机器人技能**。这个脚本只 spawn/delete 静态道具,所以布置场景
+   **不会动机器人**;跑探针会。把这两件事分开,是因为前者可以安全地脚本化,后者
+   必须有人点头。
+3. **`user_cancel` 没有道具**。取消是事件不是布置,脚本打印人工步骤,不假装能摆出来。
+
+**验收命令**:
+```bash
+python3 scripts/calibration_scene.py list
+python3 scripts/calibration_scene.py show visual_occlusion
+python -m pytest tests/test_calibration_scene.py
+```
+
+**结果**:
+- 9 个新测试:SDF 合法且 `static`(不 static 的会倒,倒了的道具就不是那个场景了)、
+  文件名与模型名一致、道具引用的站点必须在站点表里、**遮挡板真的在起点和货架之间**
+  (否则探针测的是空气)、无道具的场景必须写明人工步骤、`list`/`show` 在无仿真时可用。
+- 405 passed / 3 skipped。
+
+**结论**:四个场景族的"要摆什么"现在是一个能执行的脚本,不再是一句描述。
+
+**遗留**:**未在 Gazebo 里试过(NOT RUN)**——没有 spawn 过任何道具,也没有跑过任何
+探针。另外 `package.xml` 未加 `gazebo_msgs` 依赖,真跑时若报缺包需要补。
+
+---
+
 ## 2026-11-10 | **O6** 校准执行器：五个族能测，四个族诚实拒测
 
 **内容**:`l2_calibration.py` 写明了每族"要观察到什么才算 L1 说得对",但一直没有
@@ -39,7 +120,7 @@ python -m pytest tests/test_calibration_runner.py
 - 396 passed / 3 skipped。
 
 **结论**:校准这条链现在从"要观察什么"一路通到"manifest 怎么写",中间没有一段是
-空的。缺的只有那四个 Gazebo 场景文件和一个按按钮的人。
+空的。缺的只有那四个 Gazebo 场景和一个按按钮的人。
 
 **遗留**:**ROS 路径未跑(NOT RUN)**——本机没起栈。真跑起来会动机器人,所以必须由
 人在场。`user_cancel` 的 scene_setup 补上了(之前是空的,导致拒测理由为空)。

@@ -220,6 +220,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **导航** | Nav2 `NavigateToPose` 打通；SLAM 用 odometry 建图 | 仿真实测（scan matching 已关闭，见下） |
 | **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测，ROS 路径未跑** |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **逻辑已测，rclpy 路径未跑** |
+| **线缆故障注入** | `tc netem` 丢包/延迟/重复 + 五套场景 + 三条不变量审计（不重复执行、超时记 `unknown`、未决时禁止副作用） | **已构建，未运行** |
 | **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、清单写入 | **未上 L2**（九族全部 `not_measured`） |
 | **实验基线** | 规则基线 76.1% / 脚本专家 100%（400 条故障注入 benchmark） | **CPU 可复现**，产物入库 |
 | **后训练栈** | SFT / DPO / Step-Level PPO / OPD + 显存预检 + teacher 独立服务 | **未上 GPU**，六条臂 pending |
@@ -484,7 +485,9 @@ src/
 
 agent_harness/                # 运行时：契约 / 每资源调度 / 账本 / Agent 闭环
   contracts/                  #   ActionRequest, ExecutionReceipt, 能力注册表, 单位与坐标系
-  runtime/                    #   调度器, ToolClient, SQLite 账本, ROS 后端, 快照, 并发
+  runtime/                    #   调度器, ToolClient, SQLite 账本, ROS 后端, 快照
+  runtime/concurrency.py      #   每资源锁 + 不 spin 的等待（O3.1）
+  runtime/wire_faults.py      #   netem 规则 + 线缆故障下的三条不变量
   agent/                      #   ClosedLoop, 预算, Scripted/Stub/Human 策略
   scripts/                    #   ros_tool_executor.py, robot_control.py, 规划器
 
@@ -517,7 +520,7 @@ third_party/                  # vendored 源码快照（不参与 colcon 构建�
 
 ```bash
 python -m pytest                 # 405 passed, 3 skipped（agent_env + training）
-python -m pytest agent_harness/tests   # 29 passed（运行时，无需 ROS 2）
+python -m pytest agent_harness/tests   # 48 passed（运行时：契约、调度、并发、线缆故障）
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
 ```
 
@@ -650,13 +653,14 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] 训练集成：溯源、运行记录、生成式 results、奖励作弊审计（O7）
 - [x] Gazebo 车间：官方 KUKA/FANUC/Dobot、D435 + VLP-16、SLAM + Nav2 导航打通
 - [x] L2 适配器 + 实时栈评测 + 校准执行器 + 场景道具
+- [x] 线缆故障注入工具与三条不变量（netem + ledger 审计）
 
 待做：
 
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
 - [ ] **在 Gazebo 上真跑一次校准**，让 `calibration_v1.json` 里出现 `calibrated: true`
 - [ ] **rclpy 并发实证**：验证 `ReentrantCallbackGroup` 真的让底盘和机械臂同时推进
-- [ ] **DDS 线缆故障注入**：丢包/延迟下仍拒绝重复执行
+- [ ] **跑线缆故障注入**：丢包/延迟下仍拒绝重复执行（要 root + 活栈 + 人在场）
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定
 - [ ] 录制 rosbag 数据集做感知/调度回归测试
