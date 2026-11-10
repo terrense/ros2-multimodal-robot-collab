@@ -129,7 +129,7 @@ See [`specs/README.md`](specs/README.md) for the phase-by-phase table.
 
 | Item | Phase | Why it matters |
 |---|---|---|
-| MultiThreadedExecutor + per-resource callback groups | O3.1 | **Code complete, NOT RUN.** Per-resource locks in `RosBackend`, `MultiThreadedExecutor(concurrent=True)` and `--concurrent` on the CLI; the overlap and the exclusion are proved against a recording executor with no ROS 2, but rclpy's own behaviour under it needs a live node and action server. |
+| MultiThreadedExecutor + per-resource callback groups | O3.1 | **Verified with ROS 2.** `test_concurrency_ros.py` runs a real `MultiThreadedExecutor`, real callback groups and a real action server: different resources overlap in time, the same resource stays exclusive. It runs in the ROS container job of CI. What is still NOT RUN is the same behaviour against the *whole* stack — real nav and arm servers, the mission state machine, Nav2 — moving at once. |
 | Fault injection on the wire (DDS-level drops) | O3.1 | **Built, NOT RUN.** `scripts/wire_fault_check.py` applies `tc netem`, dispatches one command, restores the interface in a `finally`, and audits the ledger against three invariants (no duplicate effect, timeout stays `unknown`, blocked until acknowledged). Running it needs root, a live stack and a person — the command moves the robot. |
 | `agent_env/l2_gazebo.py` — the L2 adapter | O6 | **Done.** One `reset()`/`step()` interface over the live stack, with the action mapping written out and the unsupported actions refused with a reason. |
 | Receipt metrics wired into the evaluator | O6 | **Done.** `training/evaluate_l2.py` scores the live stack with the L1 evaluator and computes the receipt metrics, which only a live mission can produce. |

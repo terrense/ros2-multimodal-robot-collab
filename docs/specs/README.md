@@ -57,6 +57,11 @@ concurrent executor needs a node and an action server, the wire faults need
 root and a moving robot, and the L2 adapter needs Gazebo. All three have their
 pure logic covered by tests that need no ROS 2.
 
+The concurrency one has since gone further: `test_concurrency_ros.py` runs a
+real `MultiThreadedExecutor`, real callback groups and a real action server,
+and checks that different resources overlap while the same resource stays
+exclusive. It runs in the ROS container job of CI.
+
 The six experiment arms of **PT** are blocked on GPU, not on code. They stay
 `pending` in `docs/results.md` until they run.
 

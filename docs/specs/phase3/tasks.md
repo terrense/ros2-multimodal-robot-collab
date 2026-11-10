@@ -122,14 +122,24 @@ other. `RosToolExecutor(concurrent=True)` starts a `MultiThreadedExecutor` in a
 background thread, creates one `ReentrantCallbackGroup` per resource, and
 `_spin_until_done` stops pumping `spin_once` — with a background executor,
 spinning from the waiting thread would be two spinners on one node.
-`agent_harness/tests/test_concurrency.py` proves the overlap and the exclusion
-against a recording executor, with no ROS 2 installed.
 
-**NOT RUN.** The live path. It needs a node and an action server to prove that
-`ReentrantCallbackGroup` actually lets the base and the arm make progress
-simultaneously through rclpy, and that `wait_for_future` never misses a
-completion that the executor thread resolves. Nothing on this machine can
-answer that; the code is in place and the default is still the serial path.
+**Verified, with ROS 2.** `agent_harness/tests/test_concurrency_ros.py` runs a
+real `MultiThreadedExecutor`, real callback groups and a real action server,
+and checks the two properties that matter:
+
+- two dispatches on *different* resources overlap in time;
+- two commands on the *same* resource do not.
+
+It skips where `rclpy` is absent, so it runs in the ROS container job of CI and
+nowhere else. The pure-Python half — the locks themselves and the
+wait-without-spinning — is covered by `test_concurrency.py`, which runs
+everywhere.
+
+**NOT RUN.** The full robot stack. What the test proves is that the executor
+and the backend behave correctly against a real action server; it does not
+prove that the real navigation and arm servers, the mission state machine and
+Nav2 all behave correctly when the base and the arm move at the same time.
+That needs the Gazebo stack up and a person watching it.
 
 ## Wire faults: what is built, and what it will prove
 

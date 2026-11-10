@@ -9,6 +9,45 @@
 
 ---
 
+## 2026-11-10 | **O3.1** 并发的 rclpy 半边跑起来了（真执行器 + 真 action server）
+
+**内容**:上一条把每资源锁和"不等 spin"写了,但那只是纯 Python 的半边。另一半只有
+rclpy 能回答:`ReentrantCallbackGroup` 到底会不会让两个资源真的同时推进。
+
+**新测试**(`agent_harness/tests/test_concurrency_ros.py`):真
+`MultiThreadedExecutor`、真 callback group、真 action server(故意睡 0.4 秒,
+并记录每个 goal 的起止时间),查两件事:
+
+- **不同资源在时间上重叠**(executor 层直接派发)
+- **同一资源互斥**(走 `RosBackend`,因为锁在那里)
+- **走 `RosBackend` 时不同资源仍然重叠**(证明锁是按资源的,不是一把全局锁)
+
+**踩到的坑**:`RosToolExecutor` 调 `rclpy.init(args=None)`,在 pytest 下会把
+pytest 自己的命令行交给 rclpy 的参数解析器。修法是在 fixture 里临时把
+`sys.argv` 缩成一个元素——不改生产代码。另外 `rclpy.init` 只能调一次,所以执行器
+的初始化必须在测试服务器建好之前发生。
+
+**接入 CI**:无 rclpy 的环境里整个模块跳过(`pytest.importorskip`),所以这个测试
+只在 CI 的 ROS 容器 job 里跑——那正是它该待的地方。
+
+**验收命令**:
+```bash
+source /opt/ros/humble/setup.bash && source install/setup.bash
+python -m pytest agent_harness/tests/test_concurrency_ros.py -q
+```
+
+**结果**:
+- 带 ROS:62 passed;不带 ROS(CI 的 harness job):59 passed, 1 skipped。
+- 三个测试都真跑了(不是跳过)。
+
+**结论**:O3.1 的"rclpy 层"从"没验证过"变成"CI 里每次都验"。
+
+**遗留**:**全栈仍未跑(NOT RUN)**。测试证明的是执行器和后端面对真 action server 时
+行为正确;它没有证明真的导航服务器、真的机械臂服务器、任务状态机和 Nav2 在底盘
+和机械臂一起动时也正确。那需要把 Gazebo 栈起起来,旁边站个人。
+
+---
+
 ## 2026-11-10 | **O3.1** 线缆故障注入：判据先写，工具照着实现
 
 **内容**:上一条把 netem 注入和三条不变量做出来了,但"什么算通过"其实还是我说了算。

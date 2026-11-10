@@ -142,6 +142,16 @@ jobs:
           source /opt/ros/humble/setup.bash
           colcon build --base-paths src --event-handlers console_direct+ \
             --cmake-args -DCMAKE_BUILD_TYPE=Release
+      - name: Runtime tests that need ROS 2
+        # The concurrency work is only half testable without a ROS 2 install:
+        # the other half needs a real MultiThreadedExecutor, real callback
+        # groups and a real action server. It skips where rclpy is absent, so
+        # it runs here and nowhere else.
+        run: |
+          apt-get install -y --no-install-recommends python3-pytest
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          python3 -m pytest agent_harness/tests/test_concurrency_ros.py -q
       - name: Test workspace
         run: |
           source /opt/ros/humble/setup.bash
