@@ -286,6 +286,27 @@ class ExecutionLedger:
             for row in rows
         ]
 
+    def all_records(self) -> list[LedgerRecord]:
+        """Every command in submission order. Used by the post-run audit."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM commands ORDER BY created_at, command_id"
+            ).fetchall()
+        return [self._to_record(row) for row in rows]
+
+    def all_events(self) -> list[tuple[str, str]]:
+        """Every (command_id, kind) in insertion order, across commands.
+
+        The wire-fault checks need the *interleaving*, not one command's
+        history: "was anything dispatched while an unknown was outstanding" is
+        a question about the order of two commands' events.
+        """
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT command_id, kind FROM events ORDER BY id"
+            ).fetchall()
+        return [(row["command_id"], row["kind"]) for row in rows]
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
