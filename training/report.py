@@ -43,6 +43,7 @@ from .generated_block import begin_marker, end_marker, extract_block, replace_bl
 from .run_record import load_run_records
 
 DEFAULT_MATRIX = Path("training/configs/experiment_matrix.yaml")
+DEFAULT_CALIBRATION = Path("benchmarks/calibration_v1.json")
 FAILURE_ROWS = ("premature_stop", "false_success", "wrong_cancel", "step_limit")
 FLAG_ROWS = ("invalid_recovery", "malformed_output", "observation_misuse", "safety_violation", "stalled")
 
@@ -267,6 +268,52 @@ def summary_line(matrix: dict[str, Any], reports: dict[str, dict[str, Any]], run
     return line
 
 
+def calibration_status(path: Path | None = None) -> dict[str, Any]:
+    """What the live stack has confirmed about L1's fault model.
+
+    L1's fault parameters are configured, not measured. The calibration
+    manifest is where the live stack's answer is recorded, and its absence is
+    itself an answer: nothing has been confirmed yet.
+    """
+    target = path or DEFAULT_CALIBRATION
+    if not target.exists():
+        return {"present": False, "calibrated": [], "uncalibrated": [], "total": 0, "all_calibrated": False}
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"present": False, "calibrated": [], "uncalibrated": [], "total": 0, "all_calibrated": False}
+    families = data.get("families") or []
+    return {
+        "present": True,
+        "calibrated": [str(family["name"]) for family in families if family.get("calibrated")],
+        "uncalibrated": [
+            {"name": str(family["name"]), "reason": str(family.get("reason", ""))}
+            for family in families
+            if not family.get("calibrated")
+        ],
+        "total": len(families),
+        "all_calibrated": bool(data.get("all_calibrated")),
+    }
+
+
+def calibration_line(status: dict[str, Any]) -> str:
+    """The header line that says how far these results are from physical."""
+    if not status["present"]:
+        return (
+            "L2 status: no calibration manifest -- the live stack has confirmed none of L1's "
+            "fault behaviour. Every result below is L1 only."
+        )
+    if status["all_calibrated"] and status["total"]:
+        return (
+            f"L2 status: all {status['total']} fault families calibrated against the live stack."
+        )
+    pending = ", ".join(f"{item['name']} ({item['reason']})" for item in status["uncalibrated"])
+    return (
+        f"L2 status: {len(status['calibrated'])}/{status['total']} fault families calibrated "
+        f"against the live stack; not calibrated: {pending}. Every result below is L1 only."
+    )
+
+
 def ablation_block(matrix: dict[str, Any]) -> str:
     lines = []
     for ablation in matrix.get("ablations", []):
@@ -279,10 +326,12 @@ def render_blocks(
     matrix: dict[str, Any],
     reports: dict[str, dict[str, Any]],
     run_names: set[str] | None = None,
+    calibration: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     """The generated content of the document, one entry per block."""
+    status = calibration if calibration is not None else calibration_status()
     return {
-        "summary": summary_line(matrix, reports, run_names),
+        "summary": summary_line(matrix, reports, run_names) + "\n" + calibration_line(status),
         "arms": arms_table(matrix, reports, run_names),
         "failures": failure_table(matrix, reports, run_names),
         "buckets": bucket_table(matrix, reports, run_names),
@@ -299,8 +348,9 @@ def render(
     matrix: dict[str, Any],
     reports: dict[str, dict[str, Any]],
     run_names: set[str] | None = None,
+    calibration: dict[str, Any] | None = None,
 ) -> str:
-    blocks = render_blocks(matrix, reports, run_names)
+    blocks = render_blocks(matrix, reports, run_names, calibration)
     sections = [
         "# Results",
         "",
@@ -446,6 +496,12 @@ def main() -> None:
         help="directories holding evaluation JSONs; later directories win",
     )
     parser.add_argument("--matrix", type=Path, default=DEFAULT_MATRIX)
+    parser.add_argument(
+        "--calibration",
+        type=Path,
+        default=DEFAULT_CALIBRATION,
+        help="the L2 calibration manifest the header reports from",
+    )
     parser.add_argument("--out", type=Path, default=None, help="write a whole document")
     parser.add_argument("--update", type=Path, default=None, help="refresh the blocks inside an existing document")
     parser.add_argument("--verify", type=Path, default=None, help="exit non-zero if the blocks are stale")
@@ -482,7 +538,7 @@ def main() -> None:
         return
 
     run_names = load_all_run_records(args.run_dir) if args.require_run_records else None
-    blocks = render_blocks(matrix, reports, run_names)
+    blocks = render_blocks(matrix, reports, run_names, calibration_status(args.calibration))
 
     if args.verify:
         document = args.verify.read_text(encoding="utf-8")

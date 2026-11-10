@@ -21,6 +21,8 @@ from training.report import (
     EvidenceLost,
     MissingBlocks,
     arms_table,
+    calibration_line,
+    calibration_status,
     load_all_evaluations,
     load_matrix,
     render,
@@ -188,6 +190,34 @@ def test_run_records_are_written_from_the_live_prompt_surface(tmp_path: Path):
 
 
 # ------------------------------------------------- the committed document
+
+
+def test_the_header_says_how_far_the_results_are_from_physical(tmp_path: Path) -> None:
+    """No calibration manifest means nothing has been confirmed on the live stack."""
+    line = calibration_line(calibration_status(tmp_path / "missing.json"))
+    assert "no calibration manifest" in line
+    assert "L1 only" in line
+
+
+def test_the_header_calls_out_the_families_that_are_not_calibrated(tmp_path: Path) -> None:
+    path = tmp_path / "calibration_v1.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": "calibration_v1",
+                "all_calibrated": False,
+                "families": [
+                    {"name": "nav_timeout", "calibrated": False, "reason": "not_measured"},
+                    {"name": "tool_missing", "calibrated": True, "reason": "ok"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    line = calibration_line(calibration_status(path))
+    assert "1/2" in line
+    assert "nav_timeout (not_measured)" in line
+    assert "L1 only" in line
 
 
 def test_the_committed_results_document_is_up_to_date():

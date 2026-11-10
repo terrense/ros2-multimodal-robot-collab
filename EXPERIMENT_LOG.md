@@ -5,6 +5,49 @@
 
 ---
 
+## 2026-11-10 | L1↔L2 校准契约 + 报告头声明"仅 L1"
+
+**内容**:L1 的故障参数是**配置出来的**,不是测出来的。`default_params` 说导航会超时
+`timeouts_before_success` 次、低置信重拍有 0.5 的概率修好、人脸不匹配 35% 是抖动。
+live stack 是否如此是经验问题,没回答之前这些数都是假设。
+
+- **L1 参考值从配置本身推导**(`agent_env/l2_calibration.py`),不是手写:四类随机
+  故障用 `default_params` 抽样估计(nav_timeout 0.665 ≈ 2/3、grasp_failure 0.659、
+  low_confidence 0.500、identity_mismatch 0.346),四类确定性故障取自模拟器语义
+  (换视角清遮挡、TTS 解阻塞、掉落可重捡、取消必停)。抽样的种子由族名派生,所以
+  估计不会在两次运行之间漂。
+- **每族的 L2 测量方案写成了数据**:要跑哪几步、"什么算成功"、需要先在 Gazebo 里
+  摆好什么场景,都在 `PROGRAMMES` 里,可读可审。
+- **清单**:`benchmarks/calibration_v1.json`,少于 30 个样本绝不写 calibrated,区间
+  不覆盖 L1 值也绝不写。目前九族**全部 `not_measured`**——因为 L2 一次都还没跑,
+  这就是事实。
+- **报告头据此声明**:Phase 7 要求"未校准的族要在报告头点出来",这条之前没实现,
+  现在 summary 块会带一行 `L2 status: 0/9 ... Every result below is L1 only.`
+
+**验收命令**:
+```bash
+python -m agent_env.scripts.calibrate_l2 --plan
+python -m agent_env.scripts.calibrate_l2 --l1
+python -m agent_env.scripts.calibrate_l2 --from-log runs/l2_measurements.json
+python -m pytest tests/test_l2_calibration.py
+```
+
+**结果**:
+- 14 个新测试(参考值推导与稳定性、<30 样本不校准、区间不覆盖不校准、清单读写、
+  报告头的 L2 声明)。
+- 361 passed / 3 skipped。
+
+**结论**:L1 的故障模型现在有了**可被推翻的写法**——每族都写明了 live stack 必须
+表现出什么行为才算数,以及这个行为在 L1 里是多少。没有跑过就是没跑过,报告会自己
+说。
+
+**遗留**:真正跑 L2 还需要两样东西——(1) `agent_env/l2_gazebo.py`:把 live stack 包
+成 `reset()/step()` 环境的适配器,现在只有 `ros_tool_executor.py` 逐条派发;(2) 在
+Gazebo 车间里为每族摆出故障的可复现场景(遮挡、掉落、阻塞交接)。两样都不需要 GPU,
+但都需要把仿真栈跑起来。Phase 6 任务表已按实际情况更新。
+
+---
+
 ## 2026-11-10 | 显存配置修复:rollout 预算预检 + teacher 独立服务
 
 **内容**:把上一条记录里定位的两个 OOM 修掉,并让"下次还会不会 OOM"变成启动时的
