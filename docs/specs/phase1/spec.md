@@ -1,6 +1,10 @@
 # Phase 1 Spec — Versioned Step Contract
 
-Status: **in progress**
+> **OpenRUA assimilation — Phase O1.** Not to be confused with the post-training
+> line (`PT1` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R1` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
+Status: **complete — merged to `main`**
 Branch: `phase1/contracts-v1`
 Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md)
 Phase 0 decisions: [`../../openrua_audit/05_adoption_decisions.md`](../../openrua_audit/05_adoption_decisions.md) §5

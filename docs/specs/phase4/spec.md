@@ -1,6 +1,10 @@
 # Phase 4 Spec — Observation Snapshots and Capability Discovery
 
-Status: **in progress**
+> **OpenRUA assimilation — Phase O4.** Not to be confused with the post-training
+> line (`PT4` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R4` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
+Status: **complete — merged to `main`**
 Branch: `phase4/observation-snapshots`
 Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 4
 

@@ -1,5 +1,9 @@
 # Phase 1 Tasks
 
+> **OpenRUA assimilation — Phase O1.** Not to be confused with the post-training
+> line (`PT1` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R1` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
 Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T1 — Spec and scaffolding
@@ -46,7 +50,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
       (skills declared 8 / callable 6, not 9; registry union is 14)
 - [x] State explicitly what Phase 1 does **not** yet guarantee
 - [x] Commit in small steps; push branch
-- [ ] Report to the user before Phase 2
+- [x] Report to the user before Phase 2
 
 ## T6 — Independent review of the three open design decisions
 

@@ -1,5 +1,9 @@
 # Phase 3 Tasks
 
+> **OpenRUA assimilation — Phase O3.** Not to be confused with the post-training
+> line (`PT3` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R3` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
 Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T0 — Approval gate
@@ -84,7 +88,7 @@ What that means in practice:
 - [x] `ruff` clean, full pytest green: **244 passed, 3 skipped**
 - [x] `--engine legacy` untouched and still reachable
 - [x] ROS 2 build status recorded; hardware **NOT RUN**
-- [ ] Report before Phase 4
+- [x] Report before Phase 4
 
 ## Gate
 
@@ -108,3 +112,18 @@ What that means in practice:
 - [x] Reproducible script: `scripts/smoke_ros2_runtime.sh`
 - [ ] MultiThreadedExecutor + per-resource callback groups — still outstanding
 - [ ] Fault injection on the wire (DDS-level drops) — still outstanding
+
+## What the two open items need
+
+**Concurrency.** The scheduler already runs different resources at the same
+time, and the fake backend proves it. What is missing is the ROS 2 side:
+`RosToolExecutor` spins one node from one thread and `RosBackend` holds a
+global lock, so every dispatch serialises. The fix is a `MultiThreadedExecutor`
+with one callback group per resource key, so the arm and the base can move at
+once while two calls on the same resource still queue.
+
+**Wire faults.** The eight transport faults are injected in-process, which
+proves the *state machine* is right but not that the real transport is. What is
+missing is packet loss and delay injected below the application, with the
+stack running, to see whether a live system still refuses to double-apply a
+command whose effect is uncertain.

@@ -2,10 +2,14 @@
 
 > 规范:所有实验只汇总在本文件;每条记录含日期、配置、命令、结果、结论。全案规划见
 > `C:\Users\Administrator\.claude\plans\projectheader-agent-sft-dpo-modular-pie.md`。
+>
+> 每条记录前缀标明它属于哪条线:**PT** = 后训练线(`agent_env/` + `training/`),
+> **O** = OpenRUA 吸收线(契约 / 运行时 / 证据),**R** = 机器人本体线。三条线的编号
+> 解释见 [`docs/specs/README.md`](docs/specs/README.md)。
 
 ---
 
-## 2026-11-10 | L1↔L2 校准契约 + 报告头声明"仅 L1"
+## 2026-11-10 | **O6** L1↔L2 校准契约 + 报告头声明"仅 L1"
 
 **内容**:L1 的故障参数是**配置出来的**,不是测出来的。`default_params` 说导航会超时
 `timeouts_before_success` 次、低置信重拍有 0.5 的概率修好、人脸不匹配 35% 是抖动。
@@ -48,7 +52,7 @@ Gazebo 车间里为每族摆出故障的可复现场景(遮挡、掉落、阻塞
 
 ---
 
-## 2026-11-10 | 显存配置修复:rollout 预算预检 + teacher 独立服务
+## 2026-11-10 | **PT** 显存配置修复:rollout 预算预检 + teacher 独立服务
 
 **内容**:把上一条记录里定位的两个 OOM 修掉,并让"下次还会不会 OOM"变成启动时的
 一次检查,而不是跑一小时之后的崩溃。
@@ -92,7 +96,7 @@ python -m pytest
 
 ---
 
-## 2026-11-10 | 实验基线复现 + results.md 生成机制收尾 + 显存预算
+## 2026-11-10 | **PT / O7** 实验基线复现 + results.md 生成机制收尾 + 显存预算
 
 **内容**:把"实测数字"和"生成机制"两件事补齐,让 `docs/results.md` 从一份手抄的
 文档变成可复现、可校验、且不会悄悄丢数字的文档。
@@ -153,7 +157,7 @@ vLLM 服务。真跑起来后要把 `torch.cuda.max_memory_allocated()` 写进 m
 
 ---
 
-## 2026-08-25 | Phase 4:后训练栈落地(training/)+ 冻结 benchmark + 两处环境奖励缺陷修复
+## 2026-08-25 | **PT4** 后训练栈落地(training/)+ 冻结 benchmark + 两处环境奖励缺陷修复
 
 **内容**:新增 `training/`,把 agent_env 的闭环环境接成可训练的四段流水线。
 - 单一 prompt 面 `chat_format.py`:数据生成/训练/评测共用一份 Observation 渲染与 Action 解析;对格式宽容(code fence、`<think>`、args 别名、扁平 args、尾逗号)、对内容严格(修复过的仍标 REPAIRED;格式正确但 skill 不存在算策略错误不算解析错误);无法解析的输出转成非法动作交给环境,记 grounding violation 而不是让 rollout 崩掉。
@@ -194,7 +198,7 @@ python -m pytest
 
 ---
 
-## 2026-07-17 | Phase 0:agent_env 环境层建成 + L1 验收 PASS
+## 2026-07-17 | **PT0** agent_env 环境层建成 + L1 验收 PASS
 
 **内容**:新增 `agent_env/`(闭环协议 protocol.py、9 类故障注入 faults.py、L1 文本级模拟器 l1_sim.py、scripted 专家 expert_policy.py、JSONL 轨迹协议 trajectory_logger.py、动作注册表 schemas/agent_skills.json,13 个 step-level 动作)。纯 stdlib,无 ROS2 依赖。
 
@@ -215,7 +219,7 @@ python -m agent_env.scripts.collect_trajectories --mix --episodes 400 --out data
 
 ---
 
-## 2026-07-17 | 仓库可用性验证 + 关键 bug 修复(WSL Ubuntu-22.04-External, ROS2 Humble)
+## 2026-07-17 | **PT2** 仓库可用性验证 + 关键 bug 修复(WSL Ubuntu-22.04-External, ROS2 Humble)
 
 **验证项**:
 - dry-run 校验层:正例 2 个示例 plan 通过;负例(未知 skill `teleport`、缺 required args)均被拒且 exit=1 ✅

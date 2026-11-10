@@ -1,6 +1,10 @@
 # Phase 2 Spec — Local Reliable Tool Runtime
 
-Status: **awaiting approval — no implementation yet**
+> **OpenRUA assimilation — Phase O2.** Not to be confused with the post-training
+> line (`PT2` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R2` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
+Status: **complete — merged to `main`**
 Branch: `phase2/tool-runtime` (created from `main` at `e3b7140`)
 Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 2
 Phase 1 contract: [`../../openrua_audit/contracts-v1.md`](../../openrua_audit/contracts-v1.md)

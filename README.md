@@ -40,6 +40,21 @@
 
 **路线图**：OpenRUA 迁移计划 Phase 0–7 已完成。
 
+### 三条线
+
+仓库里有三条并行的工作线,各自都用过 "Phase N"。**前缀是它们的区别**:
+
+| 前缀 | 线 | 目录 | 干什么 |
+|---|---|---|---|
+| **R** | 机器人本体 | `src/robot_collab_*` | ROS 2 机器人本体:传感器、机械臂、导航、仿真、真机 |
+| **PT** | 后训练 | `agent_env/` + `training/` | 学习栈:L1 仿真环境、奖励、信用分配、SFT/DPO/PPO/OPD |
+| **O** | OpenRUA 吸收 | `agent_harness/` | 吸收 `Open-RUA/uni-robot-agent` 的工程纪律:契约、可靠运行时、执行证据 |
+
+**OpenRUA 上游没有任何训练代码** —— 它是 agent 编排框架,不是 RL 框架。它的
+Phase 7 叫"训练集成",意思是**让已有的训练产出可被信任的数字**,不是"开始训练"。
+完整说明与路线图:[`docs/roadmap.md`](docs/roadmap.md) 和
+[`docs/specs/README.md`](docs/specs/README.md)。
+
 ### 最近变更
 
 - **2026-11-10** — L1↔L2 校准契约落地：L1 参考值从 `default_params` 推导而非手写，每族的 L2 测量方案与"什么算成功"写进清单；`benchmarks/calibration_v1.json` 目前如实写着九族全部 `not_measured`，报告头因此声明结果仅来自 L1

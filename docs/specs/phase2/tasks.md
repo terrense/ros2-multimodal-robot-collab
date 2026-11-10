@@ -1,5 +1,9 @@
 # Phase 2 Tasks
 
+> **OpenRUA assimilation — Phase O2.** Not to be confused with the post-training
+> line (`PT2` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R2` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
 Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## T0 — Approval gate
@@ -44,7 +48,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
       why `system_stop` does not bypass the queue
 - [x] Update the Phase 0 gap matrix rows that Phase 2 closes
 - [x] Record verification (ruff, pytest counts, ROS build status)
-- [ ] Report before Phase 3
+- [x] Report before Phase 3
 
 ## Gate
 

@@ -1,5 +1,9 @@
 # Phase 0 Tasks
 
+> **OpenRUA assimilation — Phase O0.** Not to be confused with the post-training
+> line (`PT0` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R0` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
 Living checklist. Every completed step gets a commit reference, so the history
 and this file tell the same story.
 
@@ -69,6 +73,6 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Gate
 
-- [ ] `git status` shows no tracked changes outside `docs/` and `.claude/`
-- [ ] Baseline checks re-run and recorded
-- [ ] Phase 1 PR proposal reviewed before any implementation
+- [x] `git status` shows no tracked changes outside `docs/` and `.claude/`
+- [x] Baseline checks re-run and recorded
+- [x] Phase 1 PR proposal reviewed before any implementation

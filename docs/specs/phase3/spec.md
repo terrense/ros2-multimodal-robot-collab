@@ -1,6 +1,10 @@
 # Phase 3 Spec — Physical Execution Consistency
 
-Status: **awaiting approval — no implementation yet**
+> **OpenRUA assimilation — Phase O3.** Not to be confused with the post-training
+> line (`PT3` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R3` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
+Status: **complete — merged to `main`**
 Branch: to be created from `main` after approval
 Master plan: [`../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md`](../plans/CLAUDE_OPENRUA_INTEGRATION_MASTER_PLAN.md) §Phase 3
 Prerequisites: [`contracts-v1.md`](../../openrua_audit/contracts-v1.md), [`tool-runtime.md`](../../openrua_audit/tool-runtime.md)

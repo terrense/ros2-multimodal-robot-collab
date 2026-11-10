@@ -1,5 +1,9 @@
 # Phase 6 Tasks
 
+> **OpenRUA assimilation — Phase O6.** Not to be confused with the post-training
+> line (`PT6` in `EXPERIMENT_LOG.md`) or the robot roadmap (`R6` in
+> [`docs/roadmap.md`](../../roadmap.md). See [`docs/specs/README.md`](../README.md).
+
 Status as of 2026-11-10: everything here is implemented except the two marked
 *not done* — and both of those need the live stack, not more code.
 
