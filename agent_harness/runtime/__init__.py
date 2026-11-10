@@ -27,6 +27,7 @@ from .scheduler import (
     ResourceScheduler,
     SchedulerClosed,
 )
+from .snapshots import CalibrationMismatch, SnapshotBuilder, model_view
 
 __all__ = [
     "CANCELLED",
@@ -34,6 +35,7 @@ __all__ = [
     "QUEUED",
     "RUNNING",
     "Behaviour",
+    "CalibrationMismatch",
     "Call",
     "DuplicateCommand",
     "ExecutionLedger",
@@ -45,7 +47,9 @@ __all__ = [
     "ResourceScheduler",
     "RobotControl",
     "SchedulerClosed",
+    "SnapshotBuilder",
     "ToolBackend",
     "ToolClient",
+    "model_view",
     "policy_for",
 ]
