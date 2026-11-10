@@ -5,6 +5,67 @@
 
 ---
 
+## 2026-11-10 | 实验基线复现 + results.md 生成机制收尾 + 显存预算
+
+**内容**:把"实测数字"和"生成机制"两件事补齐,让 `docs/results.md` 从一份手抄的
+文档变成可复现、可校验、且不会悄悄丢数字的文档。
+
+- **基线复现**:在 L1 模拟器上重跑两条参考策略(纯 CPU,无需 GPU)。
+  规则基线 recovery_success **76.1%** / task_success 63.0% / premature_stop 21.5% /
+  停滞率 9.5% / 平均 10.5 步;脚本专家 recovery **100%** / task_success 84.5%。
+  与 2026-08-25 的记录**逐位一致**,说明那条链路上没有采样、不依赖随机种子。
+- **逐故障拆解**:基线 86 次 premature_stop **全部**落在 `tool_drop`(48)与
+  `no_progress`(38)两类,即 `RuleCoverage` 里关掉的两条规则;nav_timeout /
+  visual_occlusion / low_confidence / grasp_failure 无论单发还是组合都是 100% 恢复。
+  23.9 个百分点的差距不是弥散的,是两个具体缺口。
+- **生成机制**:`training/report.py` 改为块级生成,`docs/results.md` 里
+  `<!-- BEGIN GENERATED: x -->` 之间由脚本拥有,块外的手写正文原样保留。
+  新增 `--update`(原地刷新)与 `--verify`(CI 校验,陈旧即非零退出)。
+- **证据门禁**:新增 `training/run_record.py` 命令行,运行记录直接对**活的** prompt
+  面与 action schema 取哈希;没有运行记录的臂在表里显示 `unverified` 而不是数字。
+  评测产物与运行记录入库到 `results/`,干净 checkout 即可无 GPU 重建整张表。
+- **失败关闭**:回写时若某个已发布的数值会退化成 pending/unverified,直接拒绝并报错,
+  不允许"因为本机没有产物"就把已测数字抹掉(可用 `--force` 显式覆盖)。
+- **显存预算**:从配置推出每条臂的显存账,并定位两处装不下的地方(见下)。
+
+**验收命令**:
+```bash
+python -m training.evaluate --policy rules  --label rule_baseline --out runs/eval/rule_baseline.json --markdown
+python -m training.evaluate --policy expert --label expert_oracle --out runs/eval/expert_oracle.json --markdown
+python -m training.run_record --name rule_baseline --kind eval --model-id rule_baseline \
+    --policy rules --episodes 400 --artifact results/eval/rule_baseline.json \
+    --out results/run_records/rule_baseline.json
+python -m training.report --update docs/results.md
+python -m training.report --verify docs/results.md
+python -m pytest
+```
+
+**结果**:
+- 规则基线 76.1% / 专家 100%,与上次记录逐位一致(400 条,360 条注入故障)。
+- `python -m training.report --verify docs/results.md` 通过 —— 库里的表就是生成器会写出的表。
+- 321 passed / 3 skipped。
+
+**显存(按 Qwen3-8B 8.2B 参数估,bf16 权重 16.4 GB;未实测)**:
+| 阶段 | 单卡常驻(估) | 建议 |
+|---|---|---|
+| SFT | 25–33 GB(ZeRO-3 4 卡切分) | 4×48 GB;4×24 GB 需 `zero3_offload.json` |
+| DPO | SFT + 16.4 GB 参考模型 | 4×48 GB 以上 |
+| PPO | 33 + 16.4 + vLLM 0.55×卡显存 | 4×80–96 GB,需把 `gpu_memory_utilization` 降到 0.33–0.35 |
+| OPD | PPO + 60.8 GB teacher | 4×96 GB,teacher 必须跨卡摊开或独立服务 |
+
+**结论**:后训练栈的"数字"这一侧现在是可信的——每个被引用的数值都有产物、有运行
+记录、有哈希、且能从干净 checkout 重建;剩下的六条臂只差 GPU。
+
+**遗留**:两处显存问题必须在第一次 GPU run 之前修掉,否则一定 OOM:
+(1) PPO 的参考模型在 DeepSpeed engine 之外,每卡一整份 16.4 GB,加上 vLLM 常驻,
+96 GB 卡按当前 0.55 算约 107 GB 装不下;(2) OPD 的 `TeacherScorer` 用
+`device_map="auto"` 加载 30B teacher,accelerate 会先把 60.8 GB 塞进 0 号卡,
+与 ZeRO-3 分片叠加必然 OOM——需要显式 `max_memory` 摊开,或把 teacher 做成独立
+vLLM 服务。真跑起来后要把 `torch.cuda.max_memory_allocated()` 写进 metrics,
+用实测替换这里的算术。
+
+---
+
 ## 2026-08-25 | Phase 4:后训练栈落地(training/)+ 冻结 benchmark + 两处环境奖励缺陷修复
 
 **内容**:新增 `training/`,把 agent_env 的闭环环境接成可训练的四段流水线。

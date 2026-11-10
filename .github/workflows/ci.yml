@@ -3,7 +3,7 @@ name: CI
 # The gate. If this is green on a branch, the branch is mergeable.
 #
 #   lint           ~20s   ruff + conflict markers        (every push)
-#   python-tests   ~40s   163 tests, benchmark, 140-episode acceptance run
+#   python-tests   ~40s   321 tests, benchmark, results table, acceptance run
 #   harness-tests  ~25s   agent_harness suite (pytest.ini testpaths hides it)
 #   ros2-build     ~5min  10 colcon packages inside ros:humble-ros-base
 #                         (only when src/, scripts/ or the Dockerfile changed)
@@ -78,6 +78,12 @@ jobs:
         run: python -m pytest
       - name: Frozen benchmark still matches its generator
         run: python -m training.data.build_benchmark --check
+      - name: Published results table matches the committed artifacts
+        # docs/results.md mixes hand-written prose with generated tables. This
+        # regenerates the tables from results/ and fails if the document has
+        # drifted, so a number can never be edited by hand behind the report's
+        # back.
+        run: python -m training.report --verify docs/results.md
       - name: Environment acceptance (expert must recover from every fault)
         run: python -m agent_env.scripts.collect_trajectories --acceptance --out /tmp/l1_acceptance.jsonl
 
