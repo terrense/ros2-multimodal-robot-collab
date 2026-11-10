@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -256,7 +257,7 @@ def ros_message_to_dict(message: Any) -> Any:
 
 
 class RosToolExecutor:
-    def __init__(self, timeout_sec: float) -> None:
+    def __init__(self, timeout_sec: float, *, concurrent: bool = False) -> None:
         try:
             import rclpy
             from rclpy.action import ActionClient
@@ -274,7 +275,57 @@ class RosToolExecutor:
         self.rclpy.init(args=None)
         self.node = self.Node("agent_harness_tool_executor")
 
+        # Concurrency is opt-in: the default path is exactly what it was.
+        self._executor = None
+        self._executor_thread = None
+        self._callback_groups: dict[str, Any] = {}
+        if concurrent:
+            self._start_concurrent_executor()
+
+    # ------------------------------------------------------- concurrency
+
+    def _start_concurrent_executor(self) -> None:
+        """Spin the node from a MultiThreadedExecutor in a background thread.
+
+        One callback group per resource lets the base and the arm make progress
+        at the same time. With a single-threaded executor those callbacks would
+        still be serialised, so starting the thread without the groups would
+        buy wall-clock without buying concurrency.
+        """
+        from rclpy.callback_groups import ReentrantCallbackGroup
+        from rclpy.executors import MultiThreadedExecutor
+
+        self._callback_group_type = ReentrantCallbackGroup
+        self._executor = MultiThreadedExecutor(num_threads=4)
+        self._executor.add_node(self.node)
+        self._executor_thread = threading.Thread(
+            target=self._executor.spin, name="ros-executor", daemon=True
+        )
+        self._executor_thread.start()
+
+    @property
+    def concurrent(self) -> bool:
+        return self._executor is not None
+
+    @property
+    def max_workers(self) -> int:
+        """Scheduler workers this executor can actually keep busy."""
+        return 4 if self._executor is not None else 1
+
+    def callback_group(self, resource_key: str | None) -> Any:
+        """The callback group for a resource, or None in serial mode."""
+        if self._executor is None or not resource_key:
+            return None
+        group = self._callback_groups.get(resource_key)
+        if group is None:
+            group = self._callback_group_type()
+            self._callback_groups[resource_key] = group
+        return group
+
     def close(self) -> None:
+        if self._executor is not None:
+            self._executor.shutdown(timeout_sec=2.0)
+            self._executor = None
         self.node.destroy_node()
         self.rclpy.shutdown()
 
@@ -323,6 +374,17 @@ class RosToolExecutor:
         return results
 
     def _spin_until_done(self, future, timeout_sec: float) -> bool:
+        """Wait for a future, driving the node only when nothing else does.
+
+        With a background MultiThreadedExecutor the node is already spun from
+        another thread; spinning here too would put two spinners on one node
+        and make callback ordering unpredictable.
+        """
+        if self._executor is not None:
+            from agent_harness.runtime.concurrency import wait_for_future
+
+            return wait_for_future(future, timeout_sec)
+
         started = time.monotonic()
         while not future.done():
             self.rclpy.spin_once(self.node, timeout_sec=0.1)
@@ -330,10 +392,20 @@ class RosToolExecutor:
                 return False
         return True
 
-    def _execute_action(self, result: ToolCallResult, timeout_sec: float | None = None) -> None:
+    def _execute_action(
+        self,
+        result: ToolCallResult,
+        timeout_sec: float | None = None,
+        resource_key: str | None = None,
+    ) -> None:
         timeout = self.timeout_sec if timeout_sec is None else timeout_sec
         action_type = import_ros_type(result.ros_type)
-        client = self.ActionClient(self.node, action_type, result.endpoint)
+        group = self.callback_group(resource_key)
+        client = (
+            self.ActionClient(self.node, action_type, result.endpoint, callback_group=group)
+            if group is not None
+            else self.ActionClient(self.node, action_type, result.endpoint)
+        )
         if not client.wait_for_server(timeout_sec=timeout):
             raise RuntimeError(f"Action server unavailable: {result.endpoint}")
 
@@ -377,10 +449,20 @@ class RosToolExecutor:
                 pass
         result.message = f"Action completed: {result.endpoint}"
 
-    def _execute_service(self, result: ToolCallResult, timeout_sec: float | None = None) -> None:
+    def _execute_service(
+        self,
+        result: ToolCallResult,
+        timeout_sec: float | None = None,
+        resource_key: str | None = None,
+    ) -> None:
         timeout = self.timeout_sec if timeout_sec is None else timeout_sec
         service_type = import_ros_type(result.ros_type)
-        client = self.node.create_client(service_type, result.endpoint)
+        group = self.callback_group(resource_key)
+        client = (
+            self.node.create_client(service_type, result.endpoint, callback_group=group)
+            if group is not None
+            else self.node.create_client(service_type, result.endpoint)
+        )
         if not client.wait_for_service(timeout_sec=timeout):
             raise RuntimeError(f"Service unavailable: {result.endpoint}")
         request = service_type.Request()
@@ -465,11 +547,14 @@ def execute_plan_runtime(
             print(f"# ledger: {orphans} orphaned command(s) from a previous run")
 
     trace_id = str(plan.get("trace_id") or f"trace-{uuid.uuid4().hex[:10]}")
+    # A plan is a sequence of steps; the backend still keys each one by its
+    # resource, so a plan whose steps touch different resources can overlap
+    # once the executor is running concurrently.
     client = ToolClient(
         RosBackend(executor, registry),
         CapabilityRegistry.load(REPO_ROOT),
         default_timeout_s=timeout_sec,
-        max_workers=1,
+        max_workers=getattr(executor, "max_workers", 1),
         ledger=ledger,
     )
     results: list[ToolCallResult] = []
@@ -547,6 +632,14 @@ def main() -> None:
         default=None,
         help="execute mode only: durable command ledger (SQLite). Recommended for any real run.",
     )
+    parser.add_argument(
+        "--concurrent",
+        action="store_true",
+        help=(
+            "execute mode only: spin the node from a MultiThreadedExecutor with one "
+            "callback group per resource, so the base and the arm can move at once"
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print structured JSON results.")
     args = parser.parse_args()
 
@@ -557,7 +650,7 @@ def main() -> None:
     if args.mode == "dry-run":
         results = dry_run_plan(plan, calls, registry)
     else:
-        executor = RosToolExecutor(timeout_sec=args.timeout_sec)
+        executor = RosToolExecutor(timeout_sec=args.timeout_sec, concurrent=args.concurrent)
         try:
             if args.engine == "legacy":
                 results = executor.execute_plan(plan, calls, registry)

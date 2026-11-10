@@ -46,13 +46,16 @@ class FakeExecutor:
     def __init__(self, behaviour) -> None:
         self.behaviour = behaviour
         self.timeouts: list[float | None] = []
+        self.resources: list[str | None] = []
 
-    def _execute_action(self, record, timeout_sec=None) -> None:
+    def _execute_action(self, record, timeout_sec=None, resource_key=None) -> None:
         self.timeouts.append(timeout_sec)
+        self.resources.append(resource_key)
         self.behaviour(record)
 
-    def _execute_service(self, record, timeout_sec=None) -> None:
+    def _execute_service(self, record, timeout_sec=None, resource_key=None) -> None:
         self.timeouts.append(timeout_sec)
+        self.resources.append(resource_key)
         self.behaviour(record)
 
 

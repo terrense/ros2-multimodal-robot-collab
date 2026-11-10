@@ -12,15 +12,15 @@ Two honesty rules:
 - a timeout is ``unknown``, never ``failed``: a goal that timed out may still be
   executing, and calling it failed would invite a replay.
 
-Concurrency: one rclpy node is spun from one thread, so dispatch is serialised
-here. Cross-resource overlap is a property of the scheduler (proved with the
-fake backend); making the ROS 2 side truly concurrent needs a
-MultiThreadedExecutor and belongs to the Phase 3 adapter.
+Concurrency: the caller keys the work by resource, so two commands on different
+resources must not block each other. Dispatch is serialised *per resource*
+(`ResourceLocks`) rather than process-wide; whether the ROS side can actually
+run them at the same time is the executor's business -- `RosToolExecutor`
+pumps `spin_once` in serial mode and runs a `MultiThreadedExecutor` in
+concurrent mode. Passing `concurrent=True` here only forwards that request.
 """
 
 from __future__ import annotations
-
-import threading
 
 from agent_harness.contracts import (
     ActionRequest,
@@ -36,12 +36,23 @@ from agent_harness.scripts.ros_tool_executor import (
     transport_for,
 )
 
+from .concurrency import ResourceLocks
+
 
 class RosBackend:
-    def __init__(self, executor, registry: SkillRegistry) -> None:
+    def __init__(
+        self,
+        executor,
+        registry: SkillRegistry,
+        *,
+        concurrent: bool | None = None,
+    ) -> None:
         self._executor = executor
         self._registry = registry
-        self._lock = threading.Lock()
+        #: One lock per resource key. Two arm commands still queue behind each
+        #: other; an arm command and a base command do not.
+        self._locks = ResourceLocks()
+        self._concurrent = concurrent
 
     def execute(self, request: ActionRequest) -> ExecutionReceipt:
         skill, _, action = request.capability.partition(".")
@@ -75,11 +86,11 @@ class RosBackend:
         )
 
         try:
-            with self._lock:
+            with self._locks.hold(request.resource_key):
                 if transport == "action":
-                    self._executor._execute_action(record, request.timeout_s)
+                    self._executor._execute_action(record, request.timeout_s, request.resource_key)
                 elif transport == "service":
-                    self._executor._execute_service(record, request.timeout_s)
+                    self._executor._execute_service(record, request.timeout_s, request.resource_key)
                 elif transport == "topic":
                     self._executor._execute_topic(record)
                 else:
@@ -88,6 +99,10 @@ class RosBackend:
             return self._from_exception(request, error)
 
         return self._from_record(request, record)
+
+    @property
+    def locks(self) -> ResourceLocks:
+        return self._locks
 
     def close(self) -> None:
         """No-op: the script owns the rclpy node and shuts it down itself."""
