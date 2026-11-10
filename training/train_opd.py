@@ -87,6 +87,25 @@ def gate_config_from(config: OPDTrainConfig) -> GateConfig:
     )
 
 
+def _world_size() -> int:
+    """How many ranks this run has.
+
+    Read from torch when the process group is up, and from the launcher
+    environment otherwise -- `deepspeed --num_gpus 4` sets both, but the
+    environment is there before torch initialises.
+    """
+    import os
+
+    try:
+        import torch.distributed as distributed
+
+        if distributed.is_initialized():
+            return distributed.get_world_size()
+    except Exception:  # pragma: no cover - torch may be absent
+        pass
+    return int(os.environ.get("WORLD_SIZE", "1") or 1)
+
+
 class OPDRunner(PPORunner):
     """PPO runner plus a frozen teacher and the mixing schedule."""
 
@@ -141,13 +160,53 @@ class OPDRunner(PPORunner):
 
     def setup(self) -> None:
         super().setup()
-        from .policies.teacher import TeacherScorer
+        self.teacher = self.build_teacher()
 
-        self.teacher = TeacherScorer(
-            self.opd_config.teacher.path,
-            dtype=self.opd_config.teacher.dtype,
+    def build_teacher(self) -> Any:
+        """Put the teacher where it fits.
+
+        The teacher is 30B -- 60.8 GB in bf16 -- and this process already holds
+        the student, its gradients and its optimizer state on these cards. One
+        copy per rank cannot fit next to them, so the default is a separate
+        server process that the ranks query over HTTP.
+        """
+        from .policies.teacher import (
+            RemoteTeacherScorer,
+            TeacherPlacementError,
+            TeacherScorer,
+            spread_max_memory,
+        )
+
+        teacher = self.opd_config.teacher
+        if teacher.backend == "server":
+            return RemoteTeacherScorer(
+                teacher.base_url,
+                model=teacher.model or teacher.path,
+                api_key=teacher.api_key,
+                timeout_s=teacher.timeout_s,
+                config=self.weight_config,
+                tokenizer=self.tokenizer,  # same family, so student token ids address the same text
+            )
+
+        if teacher.backend != "local":
+            raise TeacherPlacementError(f"unknown teacher.backend {teacher.backend!r}")
+
+        world_size = _world_size()
+        if world_size > 1 and not teacher.allow_multi_rank_local:
+            raise TeacherPlacementError(
+                f"the teacher is {teacher.params_billion}B "
+                f"(~{teacher.params_billion * 2:.0f} GB in bf16) and this run has {world_size} ranks. "
+                "One copy per rank puts that many copies on the same cards as the student and "
+                "OOMs. Run the teacher as its own server (bash training/scripts/serve_teacher.sh) "
+                "and set teacher.backend=server with teacher.base_url, or set "
+                "teacher.allow_multi_rank_local=true if you really mean it."
+            )
+        return TeacherScorer(
+            teacher.path,
+            dtype=teacher.dtype,
             config=self.weight_config,
-            tokenizer=self.tokenizer,  # same family, so student token ids address the same text
+            tokenizer=self.tokenizer,
+            max_memory=spread_max_memory(teacher.max_memory_fraction),
         )
 
     # -------------------------------------------------------------- rollout
@@ -192,8 +251,6 @@ class OPDRunner(PPORunner):
 
         Returns the per-turn teacher reward (used only by the `reward` OPD path).
         """
-        import torch
-
         gate = TurnGate(self.gate_config, rng=self.rng)
         turn_rewards = [0.0] * len(experience.turns)
         previous_disagreement = 0.0
@@ -215,9 +272,8 @@ class OPDRunner(PPORunner):
             if not any(decision.scored for decision in decisions):
                 continue  # no teacher pass for a sequence with nothing worth asking about
 
-            input_ids = torch.tensor([sequence.input_ids], device=self.teacher.model.device)
             distillations = self.teacher.score_spans(
-                input_ids,
+                sequence.input_ids,
                 sequence.spans,
                 student_logprobs,
                 student_entropies,
@@ -225,10 +281,7 @@ class OPDRunner(PPORunner):
                 sequence.turn_indices,
             )
 
-            with torch.no_grad():
-                from .policies.teacher import sequence_logprobs
-
-                teacher_per_token = sequence_logprobs(self.teacher.model, input_ids)[0].float().cpu().numpy()
+            teacher_per_token = self.teacher.token_logprobs(sequence.input_ids)
 
             position_of = {turn.turn_index: index for index, turn in enumerate(experience.turns)}
             weights: list[float] = []

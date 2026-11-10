@@ -24,6 +24,20 @@ import random
 from dataclasses import asdict, dataclass, field
 from typing import Any, Sequence
 
+from ..memory import GIB
+
+# --------------------------------------------------------------------- errors
+
+
+class TeacherPlacementError(RuntimeError):
+    """Raised when the teacher cannot be placed where the config asks for it.
+
+    The teacher is 30B -- 60.8 GB in bf16 -- and the training run already holds
+    the student, its gradients and its optimizer state on the same cards. There
+    is no placement of one teacher copy per rank that fits, so the options are
+    a separate server process or a smaller teacher, and the error says which.
+    """
+
 # --------------------------------------------------------------------- gating
 
 
@@ -275,6 +289,7 @@ class TeacherScorer:
         config: OPDConfig | None = None,
         model: Any = None,
         tokenizer: Any = None,
+        max_memory: dict[int, int] | None = None,
     ) -> None:
         self.model_path = model_path
         self.config = config or OPDConfig()
@@ -290,11 +305,25 @@ class TeacherScorer:
                 model_path,
                 torch_dtype=getattr(torch, dtype, torch.float32),
                 device_map=device,
+                max_memory=max_memory,
                 trust_remote_code=True,
             )
         self.model.eval()
         for parameter in self.model.parameters():
             parameter.requires_grad_(False)
+
+    def token_logprobs(self, input_ids: Any) -> Any:
+        """Per-token log-probabilities in the shared convention.
+
+        Index `i` holds `log p(token_{i+1} | tokens_<=i)`, the same layout
+        `sequence_logprobs` returns, so the span arithmetic below is identical
+        for the in-process and the served teacher.
+        """
+        import torch
+
+        with torch.no_grad():
+            values = sequence_logprobs(self.model, _as_tensor(input_ids, self.model.device))[0]
+        return values.detach().float().cpu().numpy()
 
     def score_spans(
         self,
@@ -307,35 +336,222 @@ class TeacherScorer:
     ) -> list[TurnDistillation]:
         """Teacher log-probs on the student's sampled tokens for the given spans.
 
-        `input_ids` is one tokenized episode `(1, seq_len)`; the teacher shares the
-        student's tokenizer family, so the same ids address the same text.
+        `input_ids` is one tokenized episode; the teacher shares the student's
+        tokenizer family, so the same ids address the same text.
         """
-        import torch
+        teacher_logprobs = self.token_logprobs(input_ids)
+        return _span_distillations(
+            teacher_logprobs,
+            spans,
+            student_logprobs,
+            student_entropies,
+            reasons,
+            turn_indices,
+            self.config,
+        )
 
-        with torch.no_grad():
-            teacher_logprobs = sequence_logprobs(self.model, input_ids)[0]
 
-        results: list[TurnDistillation] = []
-        for index, (start, end) in enumerate(spans):
-            # logprob[i] scores token i+1, so a token span [start, end) maps to [start-1, end-1).
-            window = teacher_logprobs[max(0, start - 1) : max(0, end - 1)]
-            teacher_mean = float(window.mean().item()) if window.numel() else 0.0
-            student_mean = float(student_logprobs[index])
-            entropy = float(student_entropies[index])
-            disagreement = student_mean - teacher_mean
-            results.append(
-                TurnDistillation(
-                    turn_index=int(turn_indices[index]),
-                    reason=str(reasons[index]),
-                    span=(int(start), int(end)),
-                    student_logprob=student_mean,
-                    teacher_logprob=teacher_mean,
-                    disagreement=disagreement,
-                    student_entropy=entropy,
-                    weight=distillation_weight(entropy, disagreement, self.config),
-                )
+class RemoteTeacherScorer:
+    """Teacher served over HTTP and scored through an OpenAI-compatible API.
+
+    The teacher is 30B: 60.8 GB in bf16. One copy per training rank cannot
+    share cards with the student, so the teacher runs as its own process (see
+    `training/scripts/serve_teacher.sh`) and the ranks ask it for
+    log-probabilities over HTTP.
+
+    The request carries token ids rather than text, so the teacher's tokenizer
+    can never re-tokenize the student's tokens differently.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        model: str,
+        api_key: str = "",
+        timeout_s: float = 120.0,
+        config: OPDConfig | None = None,
+        tokenizer: Any = None,
+    ) -> None:
+        if not base_url:
+            raise TeacherPlacementError(
+                "teacher.backend=server needs teacher.base_url, e.g. http://127.0.0.1:8100/v1"
             )
-        return results
+        self.base_url = base_url.rstrip("/")
+        self.model_path = model
+        self.model = model
+        self.api_key = api_key
+        self.timeout_s = timeout_s
+        self.config = config or OPDConfig()
+        self.tokenizer = tokenizer
+
+    # ------------------------------------------------------------------ http
+
+    def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
+        import json
+        import urllib.request
+
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        request = urllib.request.Request(
+            f"{self.base_url}/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def token_logprobs(self, input_ids: Any) -> Any:
+        """Per-token log-probabilities in the shared convention.
+
+        The server returns `log p(token_j)` per prompt token; index `i` must
+        hold `log p(token_{i+1})`, so the array is shifted by one.
+        """
+        import numpy as np
+
+        ids = _as_id_list(input_ids)
+        response = self._post(
+            {
+                "model": self.model,
+                "prompt": ids,
+                "max_tokens": 0,
+                "echo": True,
+                "logprobs": 0,
+                "temperature": 0.0,
+            }
+        )
+        raw = _token_logprobs_from_response(response)
+        if len(raw) != len(ids):
+            raise ValueError(
+                f"teacher returned {len(raw)} log-probabilities for {len(ids)} tokens"
+            )
+        return np.array([_coerce_logprob(value) for value in raw[1:]], dtype=np.float64)
+
+    def score_spans(
+        self,
+        input_ids: Any,
+        spans: Sequence[tuple[int, int]],
+        student_logprobs: Sequence[float],
+        student_entropies: Sequence[float],
+        reasons: Sequence[str],
+        turn_indices: Sequence[int],
+    ) -> list[TurnDistillation]:
+        """Same arithmetic as the in-process scorer, over the served teacher."""
+        teacher_logprobs = self.token_logprobs(input_ids)
+        return _span_distillations(
+            teacher_logprobs,
+            spans,
+            student_logprobs,
+            student_entropies,
+            reasons,
+            turn_indices,
+            self.config,
+        )
+
+
+# ------------------------------------------------------------------ helpers
+
+
+def _as_id_list(input_ids: Any) -> list[int]:
+    """Token ids as a flat list of ints, from a list or a tensor."""
+    if hasattr(input_ids, "tolist"):
+        input_ids = input_ids.tolist()
+    if input_ids and isinstance(input_ids[0], (list, tuple)):
+        input_ids = input_ids[0]
+    return [int(token) for token in input_ids]
+
+
+def _as_tensor(input_ids: Any, device: Any = None) -> Any:
+    """Token ids as a `(1, seq_len)` tensor, from a list or a tensor."""
+    import torch
+
+    if isinstance(input_ids, torch.Tensor):
+        tensor = input_ids
+    else:
+        tensor = torch.tensor([_as_id_list(input_ids)], dtype=torch.long)
+    return tensor.to(device) if device is not None else tensor
+
+
+def _coerce_logprob(value: Any) -> float:
+    """A log-probability from any of the shapes the API may return."""
+    if isinstance(value, dict):
+        value = value.get("logprob")
+    if value is None:
+        return 0.0
+    return float(value)
+
+
+def _token_logprobs_from_response(response: dict[str, Any]) -> list[Any]:
+    """Pull the per-token log-probabilities out of a completions response."""
+    choices = response.get("choices") or []
+    if not choices:
+        raise ValueError("teacher response carried no choices")
+    choice = choices[0]
+    values = (choice.get("logprobs") or {}).get("token_logprobs")
+    if values is None:
+        values = choice.get("prompt_logprobs")
+    if values is None:
+        raise ValueError("teacher response carried no token log-probabilities")
+    return list(values)
+
+
+def _span_distillations(
+    teacher_logprobs: Any,
+    spans: Sequence[tuple[int, int]],
+    student_logprobs: Sequence[float],
+    student_entropies: Sequence[float],
+    reasons: Sequence[str],
+    turn_indices: Sequence[int],
+    config: OPDConfig,
+) -> list[TurnDistillation]:
+    """Turn-level distillation from per-token teacher log-probabilities.
+
+    `teacher_logprobs[i]` is `log p(token_{i+1})`, so a token span
+    `[start, end)` maps to the window `[start-1, end-1)`.
+    """
+    results: list[TurnDistillation] = []
+    for index, (start, end) in enumerate(spans):
+        window = teacher_logprobs[max(0, start - 1) : max(0, end - 1)]
+        teacher_mean = float(window.mean()) if len(window) else 0.0
+        student_mean = float(student_logprobs[index])
+        entropy = float(student_entropies[index])
+        disagreement = student_mean - teacher_mean
+        results.append(
+            TurnDistillation(
+                turn_index=int(turn_indices[index]),
+                reason=str(reasons[index]),
+                span=(int(start), int(end)),
+                student_logprob=student_mean,
+                teacher_logprob=teacher_mean,
+                disagreement=disagreement,
+                student_entropy=entropy,
+                weight=distillation_weight(entropy, disagreement, config),
+            )
+        )
+    return results
+
+
+def spread_max_memory(fraction: float = 0.0, *, reserve_bytes: int = 2 * GIB) -> dict[int, int] | None:
+    """How much of each visible card the in-process teacher may use.
+
+    `device_map="auto"` alone fills the first card until the model fits, which
+    for a 60.8 GB teacher means card 0 alone and an OOM next to the student.
+    Handing accelerate an explicit per-card budget spreads the weights over
+    every card instead. `fraction` is the share of the *free* memory each card
+    may give; 0 means "as much as is free".
+    """
+    import torch
+
+    if not torch.cuda.is_available():
+        return None
+    budget: dict[int, int] = {}
+    for index in range(torch.cuda.device_count()):
+        free, _total = torch.cuda.mem_get_info(index)
+        allowed = int(free * fraction) if fraction > 0 else int(free)
+        budget[index] = max(0, allowed - reserve_bytes)
+    return budget
 
 
 __all__ = [
@@ -343,6 +559,8 @@ __all__ = [
     "GateDecision",
     "MixSchedule",
     "OPDConfig",
+    "RemoteTeacherScorer",
+    "TeacherPlacementError",
     "TeacherScorer",
     "TurnDistillation",
     "TurnFeatures",
@@ -351,4 +569,5 @@ __all__ = [
     "features_from_turn",
     "sequence_entropy",
     "sequence_logprobs",
+    "spread_max_memory",
 ]
