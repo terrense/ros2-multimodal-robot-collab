@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-11-10 | 显存配置修复:rollout 预算预检 + teacher 独立服务
+
+**内容**:把上一条记录里定位的两个 OOM 修掉,并让"下次还会不会 OOM"变成启动时的
+一次检查,而不是跑一小时之后的崩溃。
+
+- **rollout 预算**:`training/memory.py` 新增显存账——ZeRO-3 分片、**未切分的参考
+  模型**、vLLM 自己那份权重副本、KV cache 需求,按训练循环的真实布局逐项算。四份
+  rollout 配置的 `gpu_memory_utilization` 从 0.55 / 0.45 统一降到 **0.42**
+  (96 GB 卡上是 40.3 GB = 权重 16.4 + KV cache 23.9)。
+- **启动预检**:`PPORunner.preflight_rollout_memory` 在引擎起来之前用
+  `torch.cuda.mem_get_info()` 量真实剩余显存,装不下就带着"改成多少能装下"的错误
+  信息退出;同时打印这张卡的 KV cache 能同时放下多少条全长序列(并发 32 在 8192
+  上限下是超订的)。
+- **teacher 独立服务**:teacher 是 30B(60.8 GB bf16),**每个 rank 各加载一份就是
+  4 × 60.8 GB**,没有任何摆法放得下。改为 `teacher.backend: server`——teacher 自己
+  起一个 vLLM 服务(`training/scripts/serve_teacher.sh`),训练进程用 HTTP 问它要
+  log-probability。请求带 **token id 而不是文本**,teacher 的 tokenizer 不可能把
+  student 的 token 重新切一遍;返回的 log-prob 转成与进程内路径完全一致的对齐。
+  `backend: local` 保留给单进程调试,多 rank 时直接报错并指向服务后端。
+
+**验收命令**:
+```bash
+python -m pytest tests/test_memory_budget.py tests/test_remote_teacher.py tests/test_training_memory_config.py
+python -m pytest
+```
+
+**结果**:
+- 26 个新测试:显存账、预检、teacher 客户端(用假 HTTP 服务端)、以及"四份配置
+  在 96 GB 卡上必须装得下"的回归测试。
+- 347 passed / 3 skipped。
+
+**结论**:两条 OOM 路径在跑之前被堵住了,而且不是靠注释——配置值本身被测试钉住,
+摆法不对时是明确报错而不是崩溃。
+
+**遗留**:预检量的是"装得下",不是"跑得快"。KV cache 在 8192 上限下只放得下 19 条
+全长序列;实测 episode p95 约 5k token 时是 39 条,够 32 并发用,但 episode 变长
+就要降 `rollout.concurrency`。第一次 GPU run 之后要把
+`torch.cuda.max_memory_allocated()` 写进 metrics,用实测替换这里的算术。
+
+---
+
 ## 2026-11-10 | 实验基线复现 + results.md 生成机制收尾 + 显存预算
 
 **内容**:把"实测数字"和"生成机制"两件事补齐,让 `docs/results.md` 从一份手抄的

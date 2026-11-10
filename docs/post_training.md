@@ -379,8 +379,8 @@ skill executability，研究假设就得到了支持；如果两者改善的是�
 |---|---|---|---|
 | SFT | 25–33 GB（ZeRO-3 4 卡切分） | 4×48 GB 稳妥；4×24 GB 要配 `zero3_offload.json` | `use_lora: false`，全参数 |
 | DPO | SFT + 16.4 GB 参考模型 | 4×48 GB 以上 | 参考模型是整份拷贝，不参与切分 |
-| PPO（`ppo_terminal` / `ppo_progress`） | 33 GB 分片 + 16.4 GB 参考模型 + vLLM 0.55×卡显存 | 4×80–96 GB，且需下调 `gpu_memory_utilization` | 见下面第 1 条 |
-| OPD（`opd_pure` / `opd_warmup_ppo`） | PPO + 60.8 GB teacher | 4×96 GB，teacher 必须跨卡摊开或独立服务 | 见下面第 3 条 |
+| PPO（`ppo_terminal` / `ppo_progress`） | 33 GB 分片 + 16.4 GB 参考模型 + vLLM 0.42×卡显存 | 4×96 GB | 已按第 1 条改过，配置值 0.42 |
+| OPD（`opd_pure` / `opd_warmup_ppo`） | student 同 PPO；teacher 独立成服务 | student 4×96 GB **+** teacher 2–4 张卡 | 见下面第 3 条 |
 
 四个结论，都是读配置读出来的，不是猜的：
 
@@ -388,9 +388,26 @@ skill executability，研究假设就得到了支持；如果两者改善的是�
 32 并发 × 8192 上下文 × 36 层，KV cache 需要 16–39 GB 量级。再加上 ZeRO-3 分片
 （约 33 GB）、**没有切分的参考模型**（`train_ppo.py` 里 `self.reference =
 load_causal_lm(..., trainable=False)` 在 DeepSpeed engine 之外，每张卡一整份
-16.4 GB）、以及 vLLM 自己那份权重副本（16.4 GB），在 96 GB 卡上按当前
+16.4 GB）、以及 vLLM 自己那份权重副本（16.4 GB），在 96 GB 卡上按原来的
 `gpu_memory_utilization: 0.55` 算是 33 + 16.4 + 52.8 + 5 ≈ **107 GB，装不下**。
-把 `gpu_memory_utilization` 降到 0.33–0.35 就落回 96 GB 以内。
+
+现在已经改掉：四份 rollout 配置统一降到 **0.42**（96 GB 卡上是 40.3 GB = 权重
+16.4 + KV cache 23.9）。而且不再靠人记这个数——`training/memory.py` 在训练启动时
+用 `torch.cuda.mem_get_info()` 量真实的剩余显存，算出这张卡最多能分给引擎多少，
+装不下就直接报错并把可用的数值写进错误信息：
+
+```
+the rollout engine does not fit next to the training state.
+  rollout budget: card 96.0 GiB, training state 45.0 GiB, free 51.0 GiB; engine
+  asks 0.55 (52.8 GiB) for weights 16.4 GiB + KV cache 36.4 GiB; maximum that
+  fits is 0.53
+  Fix: lower rollout.gpu_memory_utilization to 0.53 or below, or lower
+  rollout.concurrency so the KV cache shrinks.
+```
+
+同一处还会打印"这张卡的 KV cache 能同时放下多少条全长序列"，因为并发 32 在
+8192 的上下文下是超订的（23.9 GB 只放得下 19 条全长序列；实测 episode p95 约
+5k token 时是 39 条，够用）。
 
 注意 `VLLMPolicy` 一定会在进程内 `vllm.LLM(...)` 起一个引擎，没有连外部 server 的
 后端——所以"rollout 单独占几张卡"的解法今天还做不了，能调的是显存分配比例。
@@ -400,13 +417,33 @@ load_causal_lm(..., trainable=False)` 在 DeepSpeed engine 之外，每张卡一
 + 24.6（优化器与 master）≈ 57 GB，比 ZeRO-3 更贵。它只在"卡少、显存大"时才有
 意义。
 
-**3. OPD 的 teacher 放置是当前的硬阻塞。**
-`TeacherScorer` 用 `device_map="auto"` 加载 `Qwen/Qwen3-30B-A3B`，accelerate 会
-先把 60.8 GB 塞进 0 号卡，和 ZeRO-3 分片叠加后在 96 GB 卡上必然 OOM。要么给
-`device_map` 显式 `max_memory` 把 teacher 摊到 4 张卡（15.2 GB/卡），要么把
-teacher 做成独立的 vLLM 服务（`teacher.path` 已经是配置项，缺的是 client 后端）。
-第 11 节说的"按 phase 复用 GPU"只有在 teacher 不与 student 常驻同一批卡时才成立。
+**3. OPD 的 teacher 现在是独立服务，不再跟 student 抢卡。**
+原来的写法是 `TeacherScorer` 用 `device_map="auto"` 在训练进程里加载
+`Qwen/Qwen3-30B-A3B`：accelerate 会先把 60.8 GB 塞进 0 号卡，和 ZeRO-3 分片叠加
+后在 96 GB 卡上必然 OOM；就算用 `max_memory` 摊开也没用——**4 个 rank 各加载一
+份 teacher 就是 4 × 60.8 GB**，谁也放不下。
+
+所以 teacher 改成一个独立的 vLLM 服务，训练进程通过 HTTP 问它要 log-probability：
+
+```bash
+bash training/scripts/serve_teacher.sh Qwen/Qwen3-30B-A3B 8100 4   # 另开几张卡
+# 配置里对应：
+#   teacher:
+#     backend: server
+#     base_url: http://127.0.0.1:8100/v1
+```
+
+请求里带的是 **token id 而不是文本**，所以 teacher 的 tokenizer 不可能把 student
+的 token 重新切一遍；返回的 log-probability 会转成和进程内路径完全一致的对齐
+（`tests/test_remote_teacher.py` 用一个假的服务端把这两点都钉住了）。
+
+代价是卡数：student 4×96 GB，teacher 再要 2–4 张（TP=2 的话 2×48 GB 就够，
+权重 30.4 GB/卡）。第 11 节说的"按 phase 复用 GPU"要等到 teacher 能与 student
+轮流占用同一批卡才成立，今天是两张卡组。
+`teacher.backend: local` 保留给单进程调试，多 rank 时会直接报错并指向服务后端。
 
 **4. 这些数字在跑之前都只是算术。**
 真跑起来以后第一件事应该是把 `torch.cuda.max_memory_allocated()` 写进
-`metrics.jsonl`，用实测替换估算——包括上面这条 0.55 的调整值。
+`metrics.jsonl`，用实测替换估算——包括上面这条 0.42 的调整值。启动时的预检
+（`training/memory.py`）已经会打印实际剩余显存，但那只是"装得下"的判据，不是
+"跑得快"的判据。

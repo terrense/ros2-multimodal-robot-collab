@@ -79,6 +79,14 @@ bash training/scripts/run_pipeline.sh ppo_progress # or one stage
 bash training/scripts/run_experiment_matrix.sh     # score every existing checkpoint, rebuild docs/results.md
 ```
 
+The OPD arms additionally need the teacher served on its own cards -- it is 30B
+(60.8 GB in bf16) and one copy per training rank cannot share a card with the
+student:
+
+```bash
+bash training/scripts/serve_teacher.sh Qwen/Qwen3-30B-A3B 8100 4
+```
+
 ## The four stages, and what each is for
 
 **SFT** installs a behaviour prior: the skill schema, argument shapes, what a
@@ -189,6 +197,19 @@ have **not** been executed on a GPU in this repository yet; their loss functions
 and experience assembly are unit-tested on CPU, the distributed wiring is not.
 `docs/results.md` shows which arms have actually been run.
 
+What *is* checked before a GPU run is the memory budget. `training/memory.py`
+lays out the card the way the training loop actually uses it -- the ZeRO-3
+actor shard, the unsharded reference copy, and the in-process rollout engine --
+and `PPORunner.preflight_rollout_memory` measures the free memory with
+`torch.cuda.mem_get_info()` once the trainer is resident. If the engine cannot
+start, the run stops there with the number that would have worked:
+
+```
+the rollout engine does not fit next to the training state.
+  rollout budget: card 96.0 GiB, training state 45.0 GiB, free 51.0 GiB; ...
+  Fix: lower rollout.gpu_memory_utilization to 0.53 or below, ...
+```
+
 The two reference arms have been measured, and their artifacts are committed
 under `results/` so the published table can be rebuilt from a clean checkout
 with no GPU:
@@ -199,6 +220,6 @@ python -m training.evaluate --policy rules --label rule_baseline \
 python -m training.report --update docs/results.md
 ```
 
-The measured memory budget for each stage — and the two places where the current
-configuration does not fit — is in
+The measured memory budget for each stage — and the two places where the
+configuration did not fit until it was fixed — is in
 [`docs/post_training.md`](../docs/post_training.md) §15.

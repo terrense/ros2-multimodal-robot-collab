@@ -138,7 +138,9 @@ success describe one number, not two problems.
 Six arms are unmeasured: `sft`, `sft_dpo`, `ppo_terminal`, `ppo_progress`,
 `opd_pure`, `opd_warmup_ppo`. They need GPU time -- the memory budget is in
 [`docs/post_training.md`](post_training.md) -- and their numbers will not appear
-here until they run.
+here until they run. Two of them (`opd_pure`, `opd_warmup_ppo`) also need the
+30B teacher served on its own cards, because one teacher copy per training rank
+cannot share a card with the student.
 
 The report will not invent them. An arm with an evaluation file but no run
 record renders as `unverified`; a regeneration that would drop a measurement
