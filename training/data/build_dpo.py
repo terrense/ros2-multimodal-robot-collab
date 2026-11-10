@@ -42,6 +42,7 @@ from agent_env.l1_sim import L1DeliveryEnv
 from agent_env.protocol import Action, ActionRegistry, Observation
 
 from ..chat_format import action_content, observation_content
+from ..counterfactual import require_level, verify_clone
 from ..envs import MultiTurnDeliveryEnv
 from ..rewards import PRESETS, RewardConfig, compute_step_rewards
 from .corruptors import CorruptionRule, propose_all
@@ -59,7 +60,13 @@ class Branch:
 
 
 def clone_env(env: L1DeliveryEnv) -> L1DeliveryEnv:
-    """Deep copy of world state, sharing the (immutable) action registry."""
+    """Deep copy of world state, sharing the (immutable) action registry.
+
+    The copy is verified before it is used. A counterfactual branch is only
+    worth anything if it starts from exactly the state the original was in, so
+    a clone whose state hash differs is refused rather than scored -- the
+    preference pair would otherwise compare two different situations.
+    """
     registry = env.registry
     env.registry = None  # type: ignore[assignment]
     try:
@@ -67,6 +74,8 @@ def clone_env(env: L1DeliveryEnv) -> L1DeliveryEnv:
     finally:
         env.registry = registry
     clone.registry = registry
+    require_level("l1")
+    verify_clone(env, clone)
     return clone
 
 

@@ -14,7 +14,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 SCHEMA_VERSION = 2
 SHORT_HASH_CHARS = 16
@@ -112,3 +112,69 @@ def require_trainable(sample: Mapping[str, Any], reference: Mapping[str, Any]) -
         raise ProvenanceMismatch(
             "sample provenance disagrees with the run record: " + ", ".join(differences)
         )
+
+
+def environment_provenance(
+    model_id: str,
+    benchmark_path: Path | str,
+    *,
+    prompt_text: str | None = None,
+    registry: Any = None,
+) -> Provenance:
+    """Provenance for a run that used the live prompt surface and action catalogue.
+
+    The hashes come from the objects the run actually used, not from a copy of
+    them: a prompt edit or a schema edit changes the hash, and the report then
+    refuses to present a number measured under the old rules as current.
+    """
+    from agent_env.protocol import ActionRegistry
+
+    from .chat_format import system_prompt
+
+    catalogue = registry or ActionRegistry.load()
+    prompt = prompt_text if prompt_text is not None else system_prompt(catalogue)
+    schema = {name: catalogue.spec(name) for name in catalogue.action_names}
+    return Provenance.build(
+        model_id=model_id,
+        prompt_text=prompt,
+        action_schema=schema,
+        benchmark_path=benchmark_path,
+    )
+
+
+def record_provenance(record: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The provenance block of a record, or None for a v1 record.
+
+    Trajectory records carry it at the top level; corpus samples carry it
+    inside `meta`, because that is where the dataset builder put it.
+    """
+    provenance = record.get("provenance")
+    if isinstance(provenance, Mapping):
+        return dict(provenance)
+    meta = record.get("meta")
+    if isinstance(meta, Mapping):
+        nested = meta.get("provenance")
+        if isinstance(nested, Mapping):
+            return dict(nested)
+    return None
+
+
+def require_trainable_records(
+    records: Iterable[Mapping[str, Any]],
+    expected: Provenance,
+) -> int:
+    """Refuse records whose provenance disagrees with the run record.
+
+    v1 records carry no provenance and are accepted unchanged -- that is what
+    keeps old corpora usable. What is refused is a v2 record measured under a
+    different prompt or a different action catalogue, because training on it
+    would silently mix two distributions.
+    """
+    checked = 0
+    for record in records:
+        provenance = record_provenance(record)
+        if provenance is None:
+            continue
+        require_trainable(provenance, expected.to_dict())
+        checked += 1
+    return checked

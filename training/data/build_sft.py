@@ -34,9 +34,17 @@ from agent_env.protocol import ActionRegistry
 
 from ..chat_format import build_messages, system_prompt
 from ..envs import EpisodeRecord, episode_from_records, run_episode, scripted_policy
+from ..provenance import Provenance, require_trainable_records
 from .scenario_bank import ScenarioSpec, bucket_of, sample_scenarios
 
 GRANULARITIES = ("episode", "turn")
+
+
+def _expected_provenance(run_record: Path) -> Provenance:
+    """The provenance a corpus must match, read from a run record."""
+    from ..run_record import RunRecord
+
+    return Provenance.from_dict(RunRecord.load(run_record).provenance)
 
 
 @dataclass
@@ -56,18 +64,18 @@ def episode_sample(record: EpisodeRecord, system: str) -> Sample:
     messages = list(record.messages)
     if messages and messages[0]["role"] == "system":
         messages[0] = {"role": "system", "content": system}
-    return Sample(
-        messages=messages,
-        meta={
-            "episode_id": record.episode_id,
-            "granularity": "episode",
-            "outcome": record.outcome,
-            "bucket": _bucket(record),
-            "turns": len(record.turns),
-            "recovery_turns": sum(1 for turn in record.turns if _is_recovery_turn(turn.observation)),
-            "faults": sorted(item["fault"] for item in record.scenario.get("faults") or []),
-        },
-    )
+    meta = {
+        "episode_id": record.episode_id,
+        "granularity": "episode",
+        "outcome": record.outcome,
+        "bucket": _bucket(record),
+        "turns": len(record.turns),
+        "recovery_turns": sum(1 for turn in record.turns if _is_recovery_turn(turn.observation)),
+        "faults": sorted(item["fault"] for item in record.scenario.get("faults") or []),
+    }
+    if record.provenance is not None:
+        meta["provenance"] = dict(record.provenance)
+    return Sample(messages=messages, meta=meta)
 
 
 def turn_samples(record: EpisodeRecord, system: str, max_history_turns: int | None) -> list[Sample]:
@@ -80,21 +88,19 @@ def turn_samples(record: EpisodeRecord, system: str, max_history_turns: int | No
         history = build_messages(steps[:index], system=system, max_history_turns=max_history_turns)
         history.append({"role": "user", "content": _observation_message(steps[index]["observation"], index == 0)})
         history.append({"role": "assistant", "content": turn.assistant_text})
-        samples.append(
-            Sample(
-                messages=history,
-                meta={
-                    "episode_id": record.episode_id,
-                    "granularity": "turn",
-                    "turn_index": turn.turn_index,
-                    "outcome": record.outcome,
-                    "bucket": _bucket(record),
-                    "phase": turn.info.get("phase"),
-                    "error_code": (turn.observation.get("last_result") or {}).get("error_code"),
-                    "recovery_turn": _is_recovery_turn(turn.observation),
-                },
-            )
-        )
+        meta = {
+            "episode_id": record.episode_id,
+            "granularity": "turn",
+            "turn_index": turn.turn_index,
+            "outcome": record.outcome,
+            "bucket": _bucket(record),
+            "phase": turn.info.get("phase"),
+            "error_code": (turn.observation.get("last_result") or {}).get("error_code"),
+            "recovery_turn": _is_recovery_turn(turn.observation),
+        }
+        if record.provenance is not None:
+            meta["provenance"] = dict(record.provenance)
+        samples.append(Sample(messages=history, meta=meta))
     return samples
 
 
@@ -191,6 +197,12 @@ def main() -> None:
     parser.add_argument("--val-fraction", type=float, default=0.02)
     parser.add_argument("--split", default="train", help="Scenario split to draw from (never 'benchmark').")
     parser.add_argument("--from-trajectories", type=Path, default=None, help="Reuse a rollout JSONL instead of the expert.")
+    parser.add_argument(
+        "--run-record",
+        type=Path,
+        default=None,
+        help="run record the corpus must match; v2 records with a different prompt or schema are refused",
+    )
     parser.add_argument("--allow-step-limit", action="store_true")
     parser.add_argument("--seed", type=int, default=17)
     args = parser.parse_args()
@@ -202,9 +214,18 @@ def main() -> None:
     system = system_prompt(registry)
 
     if args.from_trajectories:
-        records = episode_from_records(
-            [json.loads(line) for line in args.from_trajectories.read_text(encoding="utf-8").splitlines() if line.strip()]
-        )
+        raw = [
+            json.loads(line)
+            for line in args.from_trajectories.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        checked = 0
+        if args.run_record is not None:
+            expected = _expected_provenance(args.run_record)
+            checked = require_trainable_records(raw, expected)
+            if checked:
+                print(f"verified {checked} records against {args.run_record}")
+        records = episode_from_records(raw)
         print(f"loaded {len(records)} episodes from {args.from_trajectories}")
     else:
         specs = sample_scenarios(args.split, args.episodes)

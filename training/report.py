@@ -47,6 +47,21 @@ DEFAULT_CALIBRATION = Path("benchmarks/calibration_v1.json")
 FAILURE_ROWS = ("premature_stop", "false_success", "wrong_cancel", "step_limit")
 FLAG_ROWS = ("invalid_recovery", "malformed_output", "observation_misuse", "safety_violation", "stalled")
 
+#: Keys that would turn an L1 result into a physical claim. The generator has
+#: no column for L2, L3 or real-robot performance, so it refuses a matrix that
+#: declares one (P7-R9).
+FORBIDDEN_CLAIM_FIELDS = frozenset(
+    {
+        "physical_robot_success",
+        "real_robot_success",
+        "hardware_success",
+        "l2_success",
+        "l3_success",
+        "sim_to_real",
+        "physical_effect_verified",
+    }
+)
+
 #: The blocks this generator owns. Order is the order they appear in the
 #: document; the name is what the markers carry.
 BLOCK_NAMES = ("summary", "arms", "failures", "buckets", "audit", "ablations")
@@ -66,7 +81,29 @@ class MissingBlocks(RuntimeError):
 def load_matrix(path: Path) -> dict[str, Any]:
     import yaml
 
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    claims = _claim_fields(data)
+    if claims:
+        raise ValueError(
+            f"{path} declares physical-claim fields the generator has no column for: "
+            + ", ".join(sorted(claims))
+            + ". Results measured on L1 cannot be presented as physical-robot results."
+        )
+    return data
+
+
+def _claim_fields(node: Any) -> set[str]:
+    """Every forbidden key anywhere in a nested structure."""
+    found: set[str] = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if str(key).lower() in FORBIDDEN_CLAIM_FIELDS:
+                found.add(str(key))
+            found |= _claim_fields(value)
+    elif isinstance(node, list):
+        for item in node:
+            found |= _claim_fields(item)
+    return found
 
 
 def load_evaluations(directory: Path) -> dict[str, dict[str, Any]]:

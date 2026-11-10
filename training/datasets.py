@@ -14,12 +14,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
+from .provenance import Provenance, require_trainable_records
 from .tokenization import tokenize_episode
 
 IGNORE_INDEX = -100
 
 
-def read_jsonl(path: str | Path, limit: int | None = None) -> list[dict[str, Any]]:
+def read_jsonl(
+    path: str | Path,
+    limit: int | None = None,
+    *,
+    expected_provenance: Provenance | None = None,
+) -> list[dict[str, Any]]:
+    """Read a JSONL corpus, refusing samples that drifted from the run record.
+
+    A sample whose prompt or action catalogue differs from the one the run
+    record names is not trainable: it was measured under different rules, and
+    training on it would silently mix two distributions. v1 samples carry no
+    provenance and are accepted unchanged.
+    """
     rows: list[dict[str, Any]] = []
     with Path(path).open("r", encoding="utf-8") as handle:
         for line in handle:
@@ -29,6 +42,10 @@ def read_jsonl(path: str | Path, limit: int | None = None) -> list[dict[str, Any
             rows.append(json.loads(line))
             if limit is not None and len(rows) >= limit:
                 break
+    if expected_provenance is not None:
+        checked = require_trainable_records(rows, expected_provenance)
+        if checked:
+            print(f"{path}: verified {checked} samples against the run record")
     return rows
 
 

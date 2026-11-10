@@ -24,6 +24,16 @@ from pathlib import Path
 
 from .config import SFTConfig, add_config_args, load_config, save_config
 from .datasets import IGNORE_INDEX, PaddedCollator, SFTDataset, read_jsonl
+from .provenance import Provenance
+
+
+def _expected_provenance(run_record: Path | None) -> Provenance | None:
+    """The provenance a corpus must match, read from a run record."""
+    if run_record is None:
+        return None
+    from .run_record import RunRecord
+
+    return Provenance.from_dict(RunRecord.load(run_record).provenance)
 
 
 def build_tokenizer(config: SFTConfig):
@@ -68,6 +78,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_config_args(parser, "sft")
     parser.add_argument("--local_rank", type=int, default=-1)  # injected by the deepspeed launcher
+    parser.add_argument(
+        "--run-record",
+        type=Path,
+        default=None,
+        help="run record the corpus must match; samples measured under other rules are refused",
+    )
     args = parser.parse_args()
 
     config: SFTConfig = load_config("sft", args.config, args.overrides)
@@ -78,7 +94,8 @@ def main() -> None:
 
     tokenizer = build_tokenizer(config)
 
-    train_rows = read_jsonl(config.data.train_path, config.data.max_samples)
+    expected = _expected_provenance(args.run_record)
+    train_rows = read_jsonl(config.data.train_path, config.data.max_samples, expected_provenance=expected)
     train_dataset = SFTDataset(train_rows, tokenizer, config.model.max_seq_len, config.mask_observations)
     print(f"train: {train_dataset.report.describe()}")
 

@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
-from .provenance import Provenance, require_trainable
+from .provenance import Provenance, environment_provenance, require_trainable
 
 
 class RunRecordMismatch(ValueError):
@@ -146,18 +146,7 @@ def build_provenance(model_id: str, benchmark_path: Path | str) -> Provenance:
     prompt edit or a schema edit changes the hash, and the report then refuses
     to present a number measured under the old rules as if it were current.
     """
-    from agent_env.protocol import ActionRegistry
-
-    from .chat_format import system_prompt
-
-    registry = ActionRegistry.load()
-    schema = {name: registry.spec(name) for name in registry.action_names}
-    return Provenance.build(
-        model_id=model_id,
-        prompt_text=system_prompt(registry),
-        action_schema=schema,
-        benchmark_path=benchmark_path,
-    )
+    return environment_provenance(model_id, benchmark_path)
 
 
 def write_run_record(

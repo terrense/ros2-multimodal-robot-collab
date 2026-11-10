@@ -23,6 +23,16 @@ from typing import Any
 
 from .config import DPOConfig, add_config_args, load_config, save_config
 from .datasets import IGNORE_INDEX, DPOCollator, DPODataset, read_jsonl
+from .provenance import Provenance
+
+
+def _expected_provenance(run_record: Path | None) -> Provenance | None:
+    """The provenance a corpus must match, read from a run record."""
+    if run_record is None:
+        return None
+    from .run_record import RunRecord
+
+    return Provenance.from_dict(RunRecord.load(run_record).provenance)
 
 
 def masked_logprob_sum(logits: Any, labels: Any) -> Any:
@@ -143,6 +153,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_config_args(parser, "dpo")
     parser.add_argument("--local_rank", type=int, default=-1)
+    parser.add_argument(
+        "--run-record",
+        type=Path,
+        default=None,
+        help="run record the corpus must match; samples measured under other rules are refused",
+    )
     args = parser.parse_args()
 
     config: DPOConfig = load_config("dpo", args.config, args.overrides)
@@ -156,7 +172,11 @@ def main() -> None:
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    train_rows = read_jsonl(config.data.train_path, config.data.max_samples)
+    train_rows = read_jsonl(
+        config.data.train_path,
+        config.data.max_samples,
+        expected_provenance=_expected_provenance(getattr(args, "run_record", None)),
+    )
     train_dataset = DPODataset(train_rows, tokenizer, config.model.max_seq_len, config.max_prompt_len)
     print(f"train: {train_dataset.report.describe()}")
     eval_dataset = None

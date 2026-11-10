@@ -68,6 +68,21 @@ class TurnRecord:
         return asdict(self)
 
 
+def _receipt_for(turn: TurnRecord) -> dict[str, Any]:
+    """The execution receipt shape, derived from what the environment reported.
+
+    The L1 simulator has no ledger behind it, so this is the honest minimum:
+    what the environment said about the action, not a claim about the physical
+    world. `physical_effect_verified` is absent on purpose -- L1 cannot verify
+    a physical effect.
+    """
+    result = turn.result or {}
+    status = str(result.get("status", "none"))
+    if status == "succeeded":
+        return {"execution_status": "completed", "failure_code": None}
+    return {"execution_status": "failed", "failure_code": result.get("error_code")}
+
+
 @dataclass
 class EpisodeRecord:
     episode_id: str
@@ -77,6 +92,9 @@ class EpisodeRecord:
     turns: list[TurnRecord] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
     messages: list[dict[str, str]] = field(default_factory=list)
+    #: v2 provenance. `None` keeps the record at v1: no extra keys at all, so a
+    #: v1 corpus stays byte-identical.
+    provenance: dict[str, Any] | None = None
 
     @property
     def outcome(self) -> str:
@@ -94,26 +112,34 @@ class EpisodeRecord:
         }
 
     def to_jsonl_records(self, include_messages: bool = False) -> list[dict[str, Any]]:
-        """Flatten into the `agent_env.trajectory_logger` line protocol (superset)."""
+        """Flatten into the `agent_env.trajectory_logger` line protocol (superset).
+
+        A v2 record adds `schema_version`, the provenance block and the
+        execution receipt. Nothing is renamed or removed, so a v1 reader keeps
+        working and a v1 corpus keeps hashing to the same bytes.
+        """
         records: list[dict[str, Any]] = []
         for turn in self.turns:
-            records.append(
-                {
-                    "record": "step",
-                    "episode_id": self.episode_id,
-                    "step_index": turn.turn_index,
-                    "observation": turn.observation,
-                    "action": turn.action,
-                    "assistant_text": turn.assistant_text,
-                    "parse_status": turn.parse_status,
-                    "result": turn.result,
-                    "reward_components": turn.reward_components,
-                    "info": turn.info,
-                    "phase": turn.info.get("phase"),
-                    "progress": turn.info.get("progress"),
-                    "invalid": turn.invalid,
-                }
-            )
+            record = {
+                "record": "step",
+                "episode_id": self.episode_id,
+                "step_index": turn.turn_index,
+                "observation": turn.observation,
+                "action": turn.action,
+                "assistant_text": turn.assistant_text,
+                "parse_status": turn.parse_status,
+                "result": turn.result,
+                "reward_components": turn.reward_components,
+                "info": turn.info,
+                "phase": turn.info.get("phase"),
+                "progress": turn.info.get("progress"),
+                "invalid": turn.invalid,
+            }
+            if self.provenance is not None:
+                record["schema_version"] = 2
+                record["provenance"] = dict(self.provenance)
+                record["receipt"] = _receipt_for(turn)
+            records.append(record)
         episode: dict[str, Any] = {
             "record": "episode",
             "episode_id": self.episode_id,
@@ -124,6 +150,9 @@ class EpisodeRecord:
         }
         if include_messages:
             episode["messages"] = self.messages
+        if self.provenance is not None:
+            episode["schema_version"] = 2
+            episode["provenance"] = dict(self.provenance)
         records.append(episode)
         return records
 
@@ -147,6 +176,7 @@ class MultiTurnDeliveryEnv:
         max_turns: int | None = None,
         source: str = "l1_llm",
         episode_id: str | None = None,
+        provenance: Any = None,
     ) -> None:
         self.registry = registry or ActionRegistry.load()
         self.env = L1DeliveryEnv(scenario, seed=seed, registry=self.registry)
@@ -157,6 +187,8 @@ class MultiTurnDeliveryEnv:
         self.system = system if system is not None else system_prompt(self.registry)
         self.max_history_turns = max_history_turns
         self.max_turns = max_turns
+        #: A `Provenance` makes the episode a v2 record; None keeps it at v1.
+        self.provenance = provenance
         self.turns: list[TurnRecord] = []
         self._observation: Observation | None = None
         self._messages: list[dict[str, str]] = []
@@ -259,6 +291,7 @@ class MultiTurnDeliveryEnv:
             turns=list(self.turns),
             summary=self.summary(),
             messages=self.full_messages,
+            provenance=self.provenance.to_dict() if self.provenance is not None else None,
         )
 
 
@@ -273,6 +306,7 @@ def run_episode(
     source: str = "l1_llm",
     episode_id: str | None = None,
     system: str | None = None,
+    provenance: Any = None,
 ) -> EpisodeRecord:
     """Drive one episode to termination with a text policy."""
     env = MultiTurnDeliveryEnv(
@@ -284,6 +318,7 @@ def run_episode(
         max_turns=max_turns,
         source=source,
         episode_id=episode_id,
+        provenance=provenance,
     )
     messages = env.reset()
     done = False
@@ -386,6 +421,7 @@ def episode_from_records(records: Sequence[dict[str, Any]]) -> list[EpisodeRecor
                 turns=turns,
                 summary=closer.get("summary") or {},
                 messages=closer.get("messages") or [],
+                provenance=closer.get("provenance"),
             )
         )
     return episodes
