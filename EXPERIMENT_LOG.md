@@ -9,6 +9,43 @@
 
 ---
 
+## 2026-11-10 | **O3.1** ROS 侧并发：每资源一把锁 + MultiThreadedExecutor
+
+**内容**:调度器一直按资源分组、不同资源并行,假后端也证明了;但 ROS 侧没跟上
+——一个节点单线程 spin、`RosBackend` 一把全局锁,于是不管调度器允许什么,每次派发
+都串行。
+
+**改动**:
+- `agent_harness/runtime/concurrency.py`:`ResourceLocks`(每个 resource key 一把锁,
+  首次使用时创建)和 `wait_for_future`(等完成信号,不 pump `spin_once`)。
+- `RosBackend` 由全局锁改成按 `request.resource_key` 取锁:机械臂命令不再等底盘命令,
+  但同一个机械臂上的两条命令仍然互斥——它们抢的是同一台硬件。
+- `RosToolExecutor(concurrent=True)`:后台线程跑 `MultiThreadedExecutor`,每个资源
+  一个 `ReentrantCallbackGroup`;`_spin_until_done` 在这种模式下改成等信号,不再
+  从等待线程 spin——否则一个节点会有两个 spinner,回调顺序就不可预测了。
+- CLI 加 `--concurrent`;默认仍是原来的串行路径,什么都没变。
+
+**验收命令**:
+```bash
+python -m pytest agent_harness/tests        # 29 passed, 含 10 个新并发测试
+python -m pytest
+```
+
+**结果**:
+- 10 个新测试:两资源可重叠、同资源互斥、锁按需创建、已完成 future 立即返回、
+  等待中途完成、超时、并发模式不 spin、串行模式保持原行为、后端两资源峰值=2、
+  同资源峰值=1。
+- 384 passed / 3 skipped(主套件)+ 29 passed(harness 套件)。
+
+**结论**:调度器承诺的并发现在在 ROS 侧也成立了——至少逻辑上。默认路径没有改,
+所以这次改动不会在没有验证的情况下改变任何现有行为。
+
+**遗留**:**rclpy 的真实路径没跑过(NOT RUN)**。要证明 `ReentrantCallbackGroup`
+确实让底盘和机械臂同时推进、以及 `wait_for_future` 不会漏掉执行器线程解析的完成
+信号,需要真节点和真 action server,本机没有。线缆层故障注入(DDS 丢包)仍未做。
+
+---
+
 ## 2026-11-10 | **O6 / O7** L2 适配器 + Phase 7 验收补齐 + 编号理清
 
 **内容**:三件事。(1) 把两套 Phase 编号理清——仓库里有三条线各自用过 "Phase N";

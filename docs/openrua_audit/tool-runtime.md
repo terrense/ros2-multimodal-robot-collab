@@ -53,17 +53,23 @@ safety mechanism — it is a payload field.
 - `FakeBackend` is deterministic: declared outcomes, recorded call order and
   in-flight intervals. Every failure path is tested through it.
 
-## Known limitations (deliberate, Phase 3 scope)
+## Known limitations
 
-1. **The ROS backend serialises dispatch through one node.** Cross-resource
-   overlap is proved by the fake backend; making it true on ROS needs a
-   `MultiThreadedExecutor` and belongs to the Phase 3 adapter.
-2. **No ledger.** Receipts live in memory and die with the process. A crash
-   after a physical command loses the evidence, not the motion.
+1. ~~**The ROS backend serialises dispatch through one node.**~~ Resolved in
+   O3.1: `RosBackend` now takes one lock per resource key, and
+   `RosToolExecutor(concurrent=True)` runs a `MultiThreadedExecutor` with one
+   `ReentrantCallbackGroup` per resource, so two different resources can
+   dispatch at once while two commands on the same resource still queue. The
+   overlap and the exclusion are tested against a recording executor without
+   ROS 2; **the live rclpy behaviour is NOT RUN** — it needs a node and an
+   action server.
+2. ~~**No ledger.**~~ Resolved in O3: `agent_harness/runtime/ledger.py`, a
+   SQLite ledger with fail-closed reconciliation.
 3. **`physical_effect_verified` is always `None`.** Nothing observes the world
-   yet; Phase 3/4 will populate it.
+   yet. It stays `None` on purpose: an action server's `SUCCEEDED` is the
+   action server's claim, not evidence about the world.
 4. **`--engine legacy` still exists.** It is the one-phase retreat hatch on
-   `ros_tool_executor`; Phase 3 removes it.
+   `ros_tool_executor`. Removing it was deferred; nothing depends on it.
 
 ## Failure mapping
 

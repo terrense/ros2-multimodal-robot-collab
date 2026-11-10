@@ -110,20 +110,28 @@ What that means in practice:
 - [x] Verify command ↔ goal uuid correlation on real goals:
       `e86c3cdbb3854988b1cedffa2c1075f5`, `1714300f840748358266073ecb6bd079`
 - [x] Reproducible script: `scripts/smoke_ros2_runtime.sh`
-- [ ] MultiThreadedExecutor + per-resource callback groups — still outstanding
+- [x] MultiThreadedExecutor + per-resource callback groups — `agent_harness/runtime/concurrency.py` (`ResourceLocks`, `wait_for_future`), `RosBackend` keyed by resource, `RosToolExecutor(concurrent=True)` with one `ReentrantCallbackGroup` per resource and `--concurrent` on the CLI. The logic is tested without ROS; the live MultiThreadedExecutor path is **NOT RUN**.
 - [ ] Fault injection on the wire (DDS-level drops) — still outstanding
 
-## What the two open items need
+## What is done on concurrency, and what is not
 
-**Concurrency.** The scheduler already runs different resources at the same
-time, and the fake backend proves it. What is missing is the ROS 2 side:
-`RosToolExecutor` spins one node from one thread and `RosBackend` holds a
-global lock, so every dispatch serialises. The fix is a `MultiThreadedExecutor`
-with one callback group per resource key, so the arm and the base can move at
-once while two calls on the same resource still queue.
+**Done.** `RosBackend` no longer holds one process-wide lock: it takes a lock
+per resource key, so an arm command and a base command no longer wait for each
+other. `RosToolExecutor(concurrent=True)` starts a `MultiThreadedExecutor` in a
+background thread, creates one `ReentrantCallbackGroup` per resource, and
+`_spin_until_done` stops pumping `spin_once` — with a background executor,
+spinning from the waiting thread would be two spinners on one node.
+`tests/test_concurrency.py` (harness suite) proves the overlap and the
+exclusion against a recording executor, with no ROS 2 installed.
 
-**Wire faults.** The eight transport faults are injected in-process, which
-proves the *state machine* is right but not that the real transport is. What is
-missing is packet loss and delay injected below the application, with the
-stack running, to see whether a live system still refuses to double-apply a
-command whose effect is uncertain.
+**NOT RUN.** The live path. It needs a node and an action server to prove that
+`ReentrantCallbackGroup` actually lets the base and the arm make progress
+simultaneously through rclpy, and that `wait_for_future` never misses a
+completion that the executor thread resolves. Nothing on this machine can
+answer that; the code is in place and the default is still the serial path.
+
+**Still open.** Fault injection on the wire. The eight transport faults are
+injected in-process, which proves the *state machine* is right but not that the
+real transport is. What is missing is packet loss and delay injected below the
+application, with the stack running, to see whether a live system still refuses
+to double-apply a command whose effect is uncertain.
