@@ -9,6 +9,43 @@
 
 ---
 
+## 2026-11-10 | **O6** 校准执行器：五个族能测，四个族诚实拒测
+
+**内容**:`l2_calibration.py` 写明了每族"要观察到什么才算 L1 说得对",但一直没有
+去观察的那一半。补上:`agent_env/calibration_runner.py` + `scripts/run_calibration.py`。
+
+**两个设计事实**:
+1. **有些族不是靠调用能力造出来的**。遮挡、掉落、阻塞交接、运动中取消都需要先把
+   场景摆好;任何能力调用序列都造不出来。这些探针抛 `SceneRequired` 并说明要摆什么,
+   而不是悄悄测了别的东西。
+2. **问"这族能不能测"不能动机器人**。`skipped()` 检查探针本身的标注
+   (`scene_required`)而不是运行它们——为了回答一个问题就去派发真实命令,等于让
+   提问产生了物理副作用。
+
+**能测的五族**:`nav_timeout`(同一站点先短超时再正常重试)、`grasp_failure`(连续
+两次 pick)、`low_confidence`(两次 query_state)、`identity_mismatch`(两次 verify)、
+`tool_missing`(query_state 有应答)。**拒测的四族**:`visual_occlusion`、`tool_drop`、
+`no_progress`、`user_cancel`,各自打印需要摆的场景。
+
+**验收命令**:
+```bash
+python -m agent_env.scripts.run_calibration --plan
+python -m pytest tests/test_calibration_runner.py
+```
+
+**结果**:
+- 12 个新测试:探针行为、场景族拒测不产生样本、`skipped()` 不派发任何命令、样本数
+  就是尝试数、<30 样本进不了 calibrated、整条链 runner → log → manifest。
+- 396 passed / 3 skipped。
+
+**结论**:校准这条链现在从"要观察什么"一路通到"manifest 怎么写",中间没有一段是
+空的。缺的只有那四个 Gazebo 场景文件和一个按按钮的人。
+
+**遗留**:**ROS 路径未跑(NOT RUN)**——本机没起栈。真跑起来会动机器人,所以必须由
+人在场。`user_cancel` 的 scene_setup 补上了(之前是空的,导致拒测理由为空)。
+
+---
+
 ## 2026-11-10 | **O3.1** ROS 侧并发：每资源一把锁 + MultiThreadedExecutor
 
 **内容**:调度器一直按资源分组、不同资源并行,假后端也证明了;但 ROS 侧没跟上

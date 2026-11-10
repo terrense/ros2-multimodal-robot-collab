@@ -133,7 +133,7 @@ See [`specs/README.md`](specs/README.md) for the phase-by-phase table.
 | Fault injection on the wire (DDS-level drops) | O3.1 | The eight transport faults are injected in-process. The real question is whether a live stack under packet loss still refuses to double-apply a command. |
 | `agent_env/l2_gazebo.py` — the L2 adapter | O6 | **Done.** One `reset()`/`step()` interface over the live stack, with the action mapping written out and the unsupported actions refused with a reason. |
 | Receipt metrics wired into the evaluator | O6 | **Done.** `training/evaluate_l2.py` scores the live stack with the L1 evaluator and computes the receipt metrics, which only a live mission can produce. |
-| The L2 calibration runner and its scenes | O6 | The contract, the L1 reference rates, the adapter and the evaluator exist; what is missing is the runner that executes the per-family programmes on Gazebo and the scenes that make occlusion, a dropped tool and a blocked handover reproducible. This is what turns L1's fault parameters from assumptions into measurements. |
+| The L2 calibration runner and its scenes | O6 | **Runner done, scenes missing.** `agent_env/calibration_runner.py` executes the programmes: five families have probes that call the stack, four need the world arranged first and are reported as unmeasured with the reason. What is missing is the Gazebo scenes for occlusion, tool drop, a blocked handover and a mid-motion cancel. |
 
 ### The rule that governs all of it
 

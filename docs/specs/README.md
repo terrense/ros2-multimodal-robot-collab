@@ -36,7 +36,7 @@ Audit: [`docs/openrua_audit/`](../openrua_audit/).
 
 | Item | Phase it belongs to | Why it is still open |
 |---|---|---|
-| The L2 calibration runner and its scenes | O6 | The contract, the L1 reference rates, the L2 adapter and the evaluator all exist; what is missing is the runner that executes the per-family programmes on Gazebo and the scenes that make occlusion, a dropped tool and a blocked handover reproducible. |
+| The Gazebo scenes for the four scene-dependent calibration families | O6 | The contract, the L1 reference rates, the L2 adapter, the evaluator and the runner all exist. Five families have probes that work by calling the stack; four (occlusion, tool drop, blocked handover, mid-motion cancel) need the world arranged first, and the runner reports them as unmeasured with the reason. |
 | Fault injection on the wire (DDS-level drops) | O3.1 | The eight transport faults are injected in-process; proving the real DDS stack survives them needs a live stack under packet loss. |
 
 Done since the line was first planned, and worth knowing about:
