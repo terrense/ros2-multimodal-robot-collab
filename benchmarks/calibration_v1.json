@@ -1,0 +1,136 @@
+{
+  "version": "calibration_v1",
+  "seed": 20261110,
+  "generated_at": 1794303576.0420477,
+  "min_samples": 30,
+  "families": [
+    {
+      "name": "grasp_failure",
+      "l1_rate": 0.6587,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a pick that failed once succeeds on the next attempt",
+      "l1_source": "default_params.failed_attempts == 1"
+    },
+    {
+      "name": "identity_mismatch",
+      "l1_rate": 0.3462,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a face check that mismatched once passes on the next attempt",
+      "l1_source": "default_params.sensor_glitch"
+    },
+    {
+      "name": "low_confidence",
+      "l1_rate": 0.5,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a re-perceive of a low-confidence detection returns a confident one",
+      "l1_source": "default_params.reperceive_fix_prob"
+    },
+    {
+      "name": "nav_timeout",
+      "l1_rate": 0.6653,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a navigate that timed out once succeeds on the next attempt",
+      "l1_source": "default_params.timeouts_before_success == 1"
+    },
+    {
+      "name": "no_progress",
+      "l1_rate": 1.0,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a blocked handover is unblocked by calling the operator",
+      "l1_source": "l1_sim: handover_blocked clears on hri.publish_tts"
+    },
+    {
+      "name": "tool_drop",
+      "l1_rate": 1.0,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a dropped tool can be re-picked from where it fell",
+      "l1_source": "l1_sim: drop_pending puts the tool in DROP_ZONE"
+    },
+    {
+      "name": "tool_missing",
+      "l1_rate": 1.0,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a missing tool is reported as missing, never re-detected",
+      "l1_source": "l1_sim: _detection_confidence returns None while the fault holds"
+    },
+    {
+      "name": "user_cancel",
+      "l1_rate": 1.0,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a cancel stops the motion and terminates the mission",
+      "l1_source": "l1_sim: user_cancel raises a safety event"
+    },
+    {
+      "name": "visual_occlusion",
+      "l1_rate": 1.0,
+      "l2_rate": null,
+      "wilson_95": [
+        0.0,
+        1.0
+      ],
+      "samples": 0,
+      "calibrated": false,
+      "reason": "not_measured",
+      "question": "a blocked detection is cleared by changing viewpoint",
+      "l1_source": "l1_sim: occlusion_cleared is set by navigation.reposition"
+    }
+  ],
+  "all_calibrated": false,
+  "l1_reference_draws": 4096
+}
