@@ -1,4 +1,4 @@
-# Gazebo L2 — Working End to End
+﻿# Gazebo L2 鈥?Working End to End
 
 Status: **navigation works**. A `navigation.navigate_to_station` goal sent from
 the harness runtime drives the simulated robot from the spawn point to
@@ -58,13 +58,13 @@ With a clean system and ground truth from Gazebo
 | SLAM `map -> base` | ~0.28 m |
 
 Odometry was exact; the matcher was the problem. `transform_timeout: 0.2` also
-produced `Message Filter dropping … queue is full`.
+produced `Message Filter dropping 鈥?queue is full`.
 
 Fix, in `slam_toolbox_params.yaml`:
 
-- `transform_timeout: 1.0`, `throttle_scans: 2` — drops went from recurring to
+- `transform_timeout: 1.0`, `throttle_scans: 2` 鈥?drops went from recurring to
   one at startup;
-- `use_scan_matching: false` — map is built from the (correct) wheel odometry.
+- `use_scan_matching: false` 鈥?map is built from the (correct) wheel odometry.
   `map -> odom` stays identity, the map matches the world, and Nav2 plans on it.
   Re-enable only after the matcher issue is understood; the comment in the file
   says so.
@@ -105,10 +105,10 @@ and a navigation run.
 
 - `collab_lab.world`: adds the `gazebo_ros_state` plugin, so `/model_states`
   gives ground truth. Without it every "is the robot moving?" question is
-  guesswork — this is what settled fault 3.
-- `nav2_params.yaml`: the global costmap is a 20×20 rolling window built from
+  guesswork 鈥?this is what settled fault 3.
+- `nav2_params.yaml`: the global costmap is a 20脳20 rolling window built from
   live scans (no static map, unknown treated as free). It works both with SLAM
-  and with the map→odom anchor.
+  and with the map鈫抩dom anchor.
 - `gazebo_nav_vins_demo.launch.py`: publishes a static identity `map -> odom`
   when `start_slam:=false`, so station coordinates stay meaningful.
 - `scripts/run_gazebo_demo.sh` / `scripts/stop_gazebo_demo.sh`: one-command
@@ -126,7 +126,7 @@ and a navigation run.
   stereo/RGB-D or visual-inertial input and output 3D poses that would need
   conversion to the 2D grid Nav2 consumes; LIO-SAM expects a 3D LiDAR, while
   this robot has a 2D ray sensor. For a 2D Nav2 stack, slam_toolbox remains the
-  right tool — the failure was configuration and process hygiene, not the
+  right tool 鈥?the failure was configuration and process hygiene, not the
   algorithm class.
 - **L1 calibration against L2** (master plan Phase 6) can now start, but needs
   the fault taxonomy mapped onto what Gazebo can reproduce.
@@ -154,10 +154,10 @@ mapping is written out in `ACTION_MAP`:
 | `hri.publish_tts` | `hri.publish_tts` | one to one |
 | `system-state.query_state` | `system-state.query_state` | one to one |
 | `manipulation.select_grasp_pose` / `pick_tool` / `verify_grasp` / `handover_tool` | `manipulation.pick_and_place` | composite: pick and place are one goal, so "grasp selected" and "grasp verified" do not exist on the live stack |
-| `perception.request_tool_detection` | — | the YOLO node publishes; there is no request to make |
-| `navigation.reposition` | — | no viewpoint-change skill exists |
-| `hri.request_confirmation` | — | no confirmation skill exists |
-| `mission.terminate` | — | the episode ends when the caller stops dispatching |
+| `perception.request_tool_detection` | 鈥?| the YOLO node publishes; there is no request to make |
+| `navigation.reposition` | 鈥?| no viewpoint-change skill exists |
+| `hri.request_confirmation` | 鈥?| no confirmation skill exists |
+| `mission.terminate` | 鈥?| the episode ends when the caller stops dispatching |
 
 An action with no counterpart is **refused with a reason**, not silently
 skipped: on the live stack, "not supported" and "did nothing" are different
@@ -184,8 +184,7 @@ mapping are covered by tests that need no ROS 2 installation.
 scripts/run_gazebo_demo.sh --nav2     # SLAM + Nav2 + visible window
 # in another shell:
 python3 agent_harness/scripts/ros_tool_executor.py \
-  /tmp/nav_plan.json --mode execute --engine runtime \
-  --ledger /tmp/nav_ledger.db
+  /tmp/nav_plan.json --mode execute --ledger /tmp/nav_ledger.db
 # score the live stack with the L1 evaluator:
 python3 -m training.evaluate_l2 --label l2_baseline --missions 10 \
   --out runs/eval/l2_baseline.json --run-record results/run_records/l2_baseline.json

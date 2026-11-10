@@ -329,50 +329,6 @@ class RosToolExecutor:
         self.node.destroy_node()
         self.rclpy.shutdown()
 
-    def execute_plan(
-        self,
-        plan: dict[str, Any],
-        calls: list[SkillCall],
-        registry: SkillRegistry,
-    ) -> list[ToolCallResult]:
-        trace_id = str(plan.get("trace_id") or f"trace-{uuid.uuid4().hex[:10]}")
-        results: list[ToolCallResult] = []
-        for call in calls:
-            action_schema = registry.get_action(call.skill, call.action)
-            transport, endpoint, ros_type = transport_for(action_schema)
-            payload = payload_for_call(call)
-            command = render_ros_command(transport, endpoint, ros_type, payload)
-            result = ToolCallResult(
-                step_index=call.index,
-                skill=call.skill,
-                action=call.action,
-                trace_id=trace_id,
-                mode="execute",
-                status="pending",
-                transport=transport,
-                endpoint=endpoint,
-                ros_type=ros_type,
-                command=command,
-                payload=payload,
-                message="Dispatch pending.",
-            )
-            try:
-                if transport == "action":
-                    self._execute_action(result)
-                elif transport == "service":
-                    self._execute_service(result)
-                elif transport == "topic":
-                    self._execute_topic(result)
-                else:
-                    raise RuntimeError(f"Unsupported transport: {transport}")
-            except Exception as exc:  # noqa: BLE001 - convert ROS/runtime failures into tool results.
-                result.status = "failed"
-                result.message = str(exc)
-            results.append(result)
-            if result.status == "failed":
-                break
-        return results
-
     def _spin_until_done(self, future, timeout_sec: float) -> bool:
         """Wait for a future, driving the node only when nothing else does.
 
@@ -621,12 +577,6 @@ def main() -> None:
     parser.add_argument("--mode", choices=["dry-run", "execute"], default="dry-run")
     parser.add_argument("--timeout-sec", type=float, default=60.0)
     parser.add_argument(
-        "--engine",
-        choices=["runtime", "legacy"],
-        default="runtime",
-        help="execute mode only: dispatch through the local runtime or the pre-Phase-2 loop",
-    )
-    parser.add_argument(
         "--ledger",
         type=Path,
         default=None,
@@ -652,12 +602,13 @@ def main() -> None:
     else:
         executor = RosToolExecutor(timeout_sec=args.timeout_sec, concurrent=args.concurrent)
         try:
-            if args.engine == "legacy":
-                results = executor.execute_plan(plan, calls, registry)
-            else:
-                results = execute_plan_runtime(
-                    plan, calls, registry, executor, args.timeout_sec, args.ledger
-                )
+            # One path only. The pre-runtime loop dispatched straight to the
+            # executor: no ledger, no reconciliation, no resource scheduling.
+            # That made it the one way to move the robot and leave no evidence,
+            # which is the failure this whole runtime exists to prevent.
+            results = execute_plan_runtime(
+                plan, calls, registry, executor, args.timeout_sec, args.ledger
+            )
         finally:
             executor.close()
 

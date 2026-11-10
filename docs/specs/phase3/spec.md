@@ -49,7 +49,7 @@ Consequences, which drive everything below:
 | Dry-run output | `tests/test_harness_dryrun_golden.py` (byte-identical) |
 | The 19 harness tests | `agent_harness/tests/` |
 | `agent_env/`, `training/`, `skills/` | untouched |
-| `--engine legacy` | still present in Phase 3; removed in Phase 4 |
+| `--engine legacy` | was pinned for Phase 3; **removed in O3.1** — see below |
 | Contract v1 wire fields | additive only (v1.1), see §4 |
 
 ## 1. Execution ledger
@@ -213,7 +213,7 @@ All eight run against an in-process fake environment; none require ROS.
 | P3-R9 | Dry-run golden and the 19 harness tests unchanged | test run |
 | P3-R10 | No new runtime dependency | import check |
 | P3-R11 | The ledger is not consulted as mission authority | review |
-| P3-R12 | `--engine legacy` still works | CLI smoke test |
+| P3-R12 | `--engine legacy` still works | superseded: the flag was **removed** in O3.1 |
 
 ## 9. Non-goals
 

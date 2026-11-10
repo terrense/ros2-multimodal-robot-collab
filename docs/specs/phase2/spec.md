@@ -131,6 +131,9 @@ class ToolClient:
 output, but each step is routed through `ToolClient`. Rollback plan for review:
 
 - `--engine runtime|legacy`, default `runtime`, `legacy` removed in Phase 3.
+  *(Superseded: the flag was removed in O3.1. There is one execute path — the
+  legacy loop dispatched with no ledger and no reconciliation, which made it the
+  one way to move the robot and leave no evidence.)*
 - This is the only new CLI surface in Phase 2; it exists so a bad deploy on a
   robot has a one-flag retreat.
 

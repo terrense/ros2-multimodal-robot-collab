@@ -68,8 +68,11 @@ safety mechanism — it is a payload field.
 3. **`physical_effect_verified` is always `None`.** Nothing observes the world
    yet. It stays `None` on purpose: an action server's `SUCCEEDED` is the
    action server's claim, not evidence about the world.
-4. **`--engine legacy` still exists.** It is the one-phase retreat hatch on
-   `ros_tool_executor`. Removing it was deferred; nothing depends on it.
+4. ~~**`--engine legacy` still exists.**~~ Removed. The pre-runtime loop dispatched
+   straight to the executor: no ledger, no reconciliation, no resource
+   scheduling. Keeping it as a retreat hatch meant keeping the one way to move
+   the robot and leave no evidence, which is the failure the runtime exists to
+   prevent. There is now one execute path.
 
 ## Failure mapping
 

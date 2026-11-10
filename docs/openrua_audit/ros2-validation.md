@@ -1,4 +1,4 @@
-# ROS 2 Validation — 2026-11-09
+﻿# ROS 2 Validation 鈥?2026-11-09
 
 First run of the Phase 2/3 runtime against a **live ROS 2 graph**. This
 document records exact commands and outputs; everything not listed here was not
@@ -53,7 +53,7 @@ active_nodes=['mission_state_machine', 'nav_skill_server', 'arm_skill_server',
 warnings=[] motion_enabled=True
 ```
 
-3. `ros_tool_executor.py ... --mode execute --engine runtime --ledger ...`
+3. `ros_tool_executor.py ... --mode execute --ledger ...`
    executed the two-step delivery plan:
 
 ```
@@ -82,9 +82,9 @@ commands=2
 ## What this proves
 
 - The workspace builds on ROS 2 Humble outside the CI container.
-- `ToolClient` → `RosBackend` → action clients work against real action servers,
+- `ToolClient` 鈫?`RosBackend` 鈫?action clients work against real action servers,
   and receipts come back `completed`.
-- **goal uuid ↔ command id correlation works** (`backend_ref` was `NOT RUN` in
+- **goal uuid 鈫?command id correlation works** (`backend_ref` was `NOT RUN` in
   the Phase 3 report; it is now measured).
 - Submissions are durable before dispatch and terminal receipts are written,
   on a real run.
@@ -97,7 +97,7 @@ commands=2
   per-resource callback groups) is still outstanding.
 - **No fault injection on the wire.** Dropped ACKs and restarts were simulated
   against the fake backend, not by killing DDS.
-- **Timing is not representative.** Simulated steps run at 0.2–0.5 s each; a
+- **Timing is not representative.** Simulated steps run at 0.2鈥?.5 s each; a
   real navigation goal takes orders of magnitude longer.
 
 ## Repetition

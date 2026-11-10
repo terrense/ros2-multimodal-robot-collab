@@ -86,7 +86,7 @@ What that means in practice:
 
 - [x] Dry-run golden + 19 harness tests unchanged
 - [x] `ruff` clean, full pytest green: **244 passed, 3 skipped**
-- [x] `--engine legacy` untouched and still reachable
+- [x] `--engine legacy` untouched and still reachable — *at the time*; the flag was removed in O3.1, see below
 - [x] ROS 2 build status recorded; hardware **NOT RUN**
 - [x] Report before Phase 4
 
@@ -112,6 +112,7 @@ What that means in practice:
 - [x] Reproducible script: `scripts/smoke_ros2_runtime.sh`
 - [x] MultiThreadedExecutor + per-resource callback groups — `agent_harness/runtime/concurrency.py` (`ResourceLocks`, `wait_for_future`), `RosBackend` keyed by resource, `RosToolExecutor(concurrent=True)` with one `ReentrantCallbackGroup` per resource and `--concurrent` on the CLI. The logic is tested without ROS; the live MultiThreadedExecutor path is **NOT RUN**.
 - [x] Fault injection on the wire (DDS-level drops) — `agent_harness/runtime/wire_faults.py` (netem rules + the three invariants) and `scripts/wire_fault_check.py` (apply, dispatch, restore in a `finally`, audit the ledger). **NOT RUN**: needs root, a live stack and a person.
+- [x] `--engine legacy` removed — the pre-runtime loop dispatched straight to the executor: no ledger, no reconciliation, no resource scheduling. Keeping it as a retreat hatch meant keeping the one way to move the robot and leave no evidence. There is now one execute path, and `execute_plan` is gone rather than merely unreachable.
 
 ## What is done on concurrency, and what is not
 

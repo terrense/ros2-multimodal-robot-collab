@@ -46,7 +46,7 @@ timeout 15 ros2 service call /system/query_state \
 echo "== execute delivery plan (runtime engine, ledger: $LEDGER) =="
 timeout 90 python3 agent_harness/scripts/ros_tool_executor.py \
   agent_harness/examples/deliver_hex_key_plan.json \
-  --mode execute --engine runtime --timeout-sec 30 --ledger "$LEDGER"
+  --mode execute --timeout-sec 30 --ledger "$LEDGER"
 EXIT=$?
 echo "harness_exit=$EXIT"
 
