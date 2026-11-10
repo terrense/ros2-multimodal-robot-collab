@@ -19,6 +19,29 @@
 
 </div>
 
+## 当前状态 · 2026-11-10
+
+> 本节随每次合并更新，仓库首页即可看到进展。详细记录见 [`docs/openrua_audit/`](docs/openrua_audit/) 与 [`docs/specs/`](docs/specs/)。
+
+| 模块 | 已实现 | 验证 |
+|---|---|---|
+| **CI/CD** | lint · pytest · harness · ROS 2 容器构建 · GHCR 镜像 | CI 全绿 |
+| **契约 v1.2** | 命令身份、执行状态、回执、快照新鲜度、能力注册表 | 294 tests |
+| **工具运行时** | 每资源 FIFO、只撤销排队、SQLite 账本、失败关闭 | 15 项故障注入 |
+| **Agent 闭环** | observe → decide → act → receipt；轮数/字符/墙钟预算 | 13 tests |
+| **观测快照** | D435 快照 + `map→camera_link` + 评估字段隔离 | 仿真实测 |
+| **仿真车间** | KUKA KR10（橙黑）、FANUC M-10iA（绿）、车载 Dobot CR10（白+深蓝），四面墙+门洞、全局相机、标定板 | Gazebo 实测 |
+| **传感器** | RealSense D435（RGB-D）、Velodyne VLP-16、16 线激光、2D 雷达、IMU | 话题实测 |
+| **评测对齐** | L1 回执后端、L1↔L2 校准（Wilson 区间）、回执指标、消融表 | Phase 6 |
+
+**路线图**：OpenRUA 迁移计划 Phase 0–6 已完成，下一步 Phase 7（训练集成）。
+
+### 最近变更
+
+- **2026-11-10** — Phase 6：L1 回执后端、故障率校准、回执级指标、等预算消融表
+- **2026-11-09** — 仿真车间（真实 KUKA/FANUC/Dobot 模型）、RealSense D435 + VLP-16、SLAM/Nav2 导航打通
+- **2026-11-08** — Phase 0–5：双仓审计、契约、工具运行时、账本、观测快照、Agent 闭环；CI/CD 与 GHCR 镜像上线
+
 ## 项目一句话
 
 这是一个由 **Agent Supervisor 负责决策调度**、由 **Mission State Machine 负责确定性执行**、由 **移动小车和机械臂分别完成导航与抓取** 的 ROS2 多模态机器人系统。
