@@ -43,6 +43,7 @@ Audit: [`docs/openrua_audit/`](../openrua_audit/).
 |---|---|---|
 | The Gazebo scenes for the four scene-dependent calibration families | O6 | The props and the driver exist (`scripts/calibration_scene.py`), but no prop has been spawned in Gazebo and no probe has run. |
 | Running the wire faults | O3.1 | The injection tool, five scenarios and the three invariants are built and tested; running them needs root, a live stack and a person. |
+| The receipt metrics from a live run | O6 | The L1 side is measured and published (`docs/results.md`). The L2 side needs a live stack and a ledger behind it; that run has not happened. |
 
 Done since the line was first planned, and worth knowing about:
 
@@ -57,6 +58,7 @@ Done since the line was first planned, and worth knowing about:
 | The calibration runner, and the scene props it needs | O6 | `agent_env/calibration_runner.py`, `scripts/run_calibration.py`, `src/robot_collab_sim/models/calibration/` |
 | The Phase 7 acceptance criteria the merge left open: provenance on v2 records, drifted corpora refused, the verified clone guard, physical claims refused | O7 | `tests/test_phase7_closure.py` |
 | The seven named baselines, as declarative conditions: `rules`, `expert`, `planner_once`, and four loop configurations that switch on receipts, the freshness gate and recovery in turn | O6 | `agent_harness/agent/conditions.py`, `agent_harness/scripts/run_conditions.py` |
+| Receipt metrics on the L1 path, from the contract's own mapping, published in the results table | O6 | `training/evaluate.py`, `training/report.py`, `docs/results.md` |
 
 Three of those are **code complete but NOT RUN against a live stack**: the
 concurrent executor needs a node and an action server, the wire faults need

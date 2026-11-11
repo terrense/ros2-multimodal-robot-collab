@@ -63,10 +63,11 @@ two configuration problems that would have caused an OOM are in
 | Piece | State | Evidence |
 |---|---|---|
 | O0–O7 | complete | `specs/README.md` |
-| Contracts, runtime, ledger, snapshots, agent loop | complete | 59 harness tests |
+| Contracts, runtime, ledger, snapshots, agent loop | complete | 67 harness tests |
 | Per-resource concurrency | **verified with ROS 2** | `test_concurrency_ros.py` in the CI ROS job |
 | L2 adapter over the live stack | **verified** | runtime smoke test: 2 commands, goal uuids correlated |
 | The seven named baselines | **built** | `agent_harness/agent/conditions.py`, `run_conditions.py` |
+| Receipt metrics on both paths | L1 **measured**, L2 **not run** | L1: 4205 calls over the frozen benchmark, published in `docs/results.md` |
 | Calibration contract + runner + scenes | complete | `agent_env/l2_calibration.py` |
 | Calibration measurements | **2 of 9 measured, both falsify L1** | see below |
 | Wire faults | built + criteria written, **never run** | `specs/wire-faults.md` |
@@ -193,12 +194,21 @@ Blocks: the transport-safety claim. The criteria, the injector and the audit are
 built; the run needs a live stack and moving commands. `tc netem` was verified to
 work unprivileged inside `unshare -Ur -n`.
 
-### 6. MoveIt2 or a vendor SDK
+### 6. The headless CI simulation job
+
+~~Blocks nothing, but it was red.~~ The job that starts `gzserver` with no
+window and drives a real delivery through the runtime failed on its first run.
+The container has no GL driver, so the fix is mesa plus
+`LIBGL_ALWAYS_SOFTWARE=1`; the step now also prints the launch log inline when
+the stack does not come up, so the next failure is diagnosable without admin
+rights on the log download.
+
+### 7. MoveIt2 or a vendor SDK
 
 Blocks: any physical-manipulation claim. Replacing the simulated executor in
 `arm_skill_server` is the whole integration point.
 
-### 7. Hardware
+### 8. Hardware
 
 Blocks: R2 and every sim-to-real statement. Needs separate authorization, TF
 calibration and a working stop path first.

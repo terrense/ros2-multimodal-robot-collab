@@ -151,8 +151,19 @@ def test_buckets_split_by_fault_family() -> None:
 def test_report_contains_every_section_and_renders_a_table() -> None:
     records = [run_episode(RuleBaselinePolicy(), _scenario(fault, seed=4), seed=100) for fault in FaultType]
     report = evaluate_records(records, "smoke")
-    assert set(report) == {"label", "overall", "by_fault_bucket", "by_fault", "by_failing_phase", "by_length", "episodes"}
+    assert set(report) == {
+        "label",
+        "overall",
+        "by_fault_bucket",
+        "by_fault",
+        "by_failing_phase",
+        "by_length",
+        "episodes",
+        "receipts",
+    }
     assert len(report["episodes"]) == len(records)
+    # The receipt section is measured, not asserted into existence.
+    assert report["receipts"]["calls"] == sum(len(record.turns) for record in records)
     table = markdown_table(report)
     assert table.startswith("| bucket |")
     assert "overall" in table

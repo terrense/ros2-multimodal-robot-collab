@@ -19,7 +19,7 @@ happened; it does not mean the phase delivered everything the plan asked for.
 | O3 ledger + adapter | done | — |
 | O4 snapshots + skills | done | — |
 | O5 agent gateway | done | — |
-| O6 evaluation alignment | **partial** | The seven named baselines: `rules` and `expert` existed; `planner_once` and the four `loop_*` conditions did not. **Built 2026-11-11** (`agent_harness/agent/conditions.py`). Also: the receipt metrics are computed only on the L2 path, not on the L1 one. |
+| O6 evaluation alignment | done | The seven named baselines are built (`agent_harness/agent/conditions.py`). Receipt metrics are computed on both levels: the L2 path from real receipts, the L1 path from the contract's own mapping applied to the recorded results — with the two things L1 cannot measure (latency, duplicate effects) reported as not applicable *with the reason* rather than as zero. The L1 side is measured and published (`docs/results.md`); the L2 side is code only — the live run has not happened. |
 | O7 training integration | done | — |
 
 **Also open in this line, beyond the phase list:**
@@ -29,7 +29,6 @@ happened; it does not mean the phase delivered everything the plan asked for.
 | Calibration for 7 of 9 families | Four have props nobody has placed; `grasp_failure` needs a slipping tool the simulated arm cannot produce; `low_confidence` and `tool_missing` need a marginal detection and an absent tool. |
 | The wire-fault run | The criteria, the injector and the audit are built; the run needs a live stack and moving commands. `tc netem` works unprivileged inside `unshare -Ur -n`. |
 | The L2 adapter against a live stack | The code path is verified; the ROS path is **NOT RUN** for the calibration specifically. |
-| Receipt metrics on the L1 path | `training/receipt_metrics.py` computes them and `training/evaluate_l2.py` uses them; the L1 evaluator does not, because an L1 episode carries no receipts. |
 
 ## Robot roadmap — `docs/roadmap.md`
 

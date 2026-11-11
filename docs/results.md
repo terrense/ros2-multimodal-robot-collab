@@ -121,6 +121,40 @@ success describe one number, not two problems.
 | rule_baseline | -- | - |
 <!-- END GENERATED: audit -->
 
+## Receipt-level metrics
+
+What the execution layer did, per evaluation: how many commands were issued,
+how often the outcome was never established, how long they took, and whether
+any command reached the backend twice.
+
+<!-- BEGIN GENERATED: receipts -->
+| evaluation | source | calls | uncertain outcome | latency p50 (ms) | latency p95 (ms) | duplicate effect | evidence |
+|---|---|---|---|---|---|---|---|
+| expert_oracle | l1_trajectory | 4691 | 0.0% | n/a | n/a | n/a | run record |
+| rule_baseline | l1_trajectory | 4205 | 0.0% | n/a | n/a | n/a | run record |
+
+Not applicable, and why:
+
+- `expert_oracle.latency_p50_ms`: this path carries no per-command wall clock
+- `expert_oracle.latency_p95_ms`: this path carries no per-command wall clock
+- `expert_oracle.duplicate_effect_rate`: no ledger on this path: one turn is one command by construction, so the rate would be zero by definition rather than by measurement
+- `rule_baseline.latency_p50_ms`: this path carries no per-command wall clock
+- `rule_baseline.latency_p95_ms`: this path carries no per-command wall clock
+- `rule_baseline.duplicate_effect_rate`: no ledger on this path: one turn is one command by construction, so the rate would be zero by definition rather than by measurement
+<!-- END GENERATED: receipts -->
+
+Both rows are the L1 trajectory path. It is not an oversight that they carry no
+latency and no duplicate-effect rate: an L1 episode is a transcript, nobody
+timed a command in it, and it has no ledger to mine. Those two would be zero by
+definition, so they are reported as not applicable *with the reason* -- a "0.0
+ms latency" column would read as a measurement of an action that took no time.
+
+The live path is where both become measurable: a mission against the stack
+returns real receipts with timestamps and writes a ledger, so
+`python -m training.evaluate_l2` can report latency and a duplicate-effect rate
+that are measurements rather than definitions. **That run has not happened
+yet**, which is why there is no `l2` row here rather than an empty one.
+
 ## Ablations
 
 <!-- BEGIN GENERATED: ablations -->

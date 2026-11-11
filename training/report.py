@@ -64,7 +64,7 @@ FORBIDDEN_CLAIM_FIELDS = frozenset(
 
 #: The blocks this generator owns. Order is the order they appear in the
 #: document; the name is what the markers carry.
-BLOCK_NAMES = ("summary", "arms", "failures", "buckets", "audit", "ablations")
+BLOCK_NAMES = ("summary", "arms", "failures", "buckets", "audit", "receipts", "ablations")
 
 #: Cells that mean "there is no number here".
 _EMPTY_CELLS = {"", "--", "pending", "unverified", "not run", "no run record"}
@@ -359,6 +359,71 @@ def ablation_block(matrix: dict[str, Any]) -> str:
     return "\n".join(lines) if lines else "_No ablations defined._"
 
 
+def _millis(value: Any) -> str:
+    if not isinstance(value, (int, float)):
+        return "n/a"
+    return f"{float(value):.1f}"
+
+
+def receipts_table(
+    reports: dict[str, dict[str, Any]],
+    run_names: set[str] | None = None,
+) -> str:
+    """What the execution layer actually did, per evaluation.
+
+    These are the receipt-level numbers: how many commands were issued, how
+    often the outcome was never established, how long the commands took, and
+    whether any command reached the backend twice.
+
+    A path that cannot measure one of them says so, and says why. A "0.0 ms
+    latency" on a trajectory nobody timed is not a measurement, and publishing
+    it would be worse than publishing nothing.
+    """
+    rows = [
+        (label, report["receipts"])
+        for label, report in sorted(reports.items())
+        if report.get("receipts")
+    ]
+    if not rows:
+        return "_No evaluation has produced receipt metrics yet._"
+
+    lines = [
+        "| evaluation | source | calls | uncertain outcome | latency p50 (ms) | latency p95 (ms) | duplicate effect | evidence |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    reasons: list[str] = []
+    for label, receipts in rows:
+        backed = run_names is None or label in run_names
+        not_applicable = receipts.get("not_applicable") or {}
+        duplicate = receipts.get("duplicate_effect_rate")
+        lines.append(
+            "| {label} | {source} | {calls} | {uncertain} | {p50} | {p95} | {duplicate} | {evidence} |".format(
+                label=label,
+                source=receipts.get("source", "unknown"),
+                calls=receipts.get("calls", 0),
+                uncertain=_percent(receipts.get("uncertain_outcome_rate", 0.0)) if backed else "unverified",
+                p50=_millis(receipts.get("latency_p50_ms")) if backed else "unverified",
+                p95=_millis(receipts.get("latency_p95_ms")) if backed else "unverified",
+                duplicate=(
+                    _percent(duplicate)
+                    if isinstance(duplicate, (int, float))
+                    else "n/a"
+                )
+                if backed
+                else "unverified",
+                evidence="run record" if backed else "unverified (no run record)",
+            )
+        )
+        for metric, reason in not_applicable.items():
+            reasons.append(f"- `{label}.{metric}`: {reason}")
+    if reasons:
+        lines.append("")
+        lines.append("Not applicable, and why:")
+        lines.append("")
+        lines.extend(reasons)
+    return "\n".join(lines)
+
+
 def render_blocks(
     matrix: dict[str, Any],
     reports: dict[str, dict[str, Any]],
@@ -373,6 +438,7 @@ def render_blocks(
         "failures": failure_table(matrix, reports, run_names),
         "buckets": bucket_table(matrix, reports, run_names),
         "audit": audit_table(matrix, reports, run_names),
+        "receipts": receipts_table(reports, run_names),
         "ablations": ablation_block(matrix),
     }
 
@@ -419,6 +485,14 @@ def render(
         "## Reward-hacking audit",
         "",
         _marker_block("audit", blocks["audit"]),
+        "",
+        "## Receipt-level metrics",
+        "",
+        "What the execution layer did, per evaluation: how many commands were",
+        "issued, how often the outcome was never established, how long they took,",
+        "and whether any command reached the backend twice.",
+        "",
+        _marker_block("receipts", blocks["receipts"]),
         "",
         "## Ablations",
         "",

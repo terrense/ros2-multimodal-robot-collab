@@ -14,8 +14,11 @@ generator, the same run records, the same ledger. An L2 number and an L1
 number can therefore sit in the same table -- with the header saying which
 fault families have been calibrated against the live stack.
 
-The receipt metrics become reachable here, and only here: a live mission
-produces receipts, and a trajectory cannot.
+The receipt metrics are reachable here, and only here in full: a live mission
+produces receipts with real timestamps and a ledger behind them, so this path
+can measure latency and a duplicate effect. The L1 path produces receipts too,
+from the trajectory -- but it cannot time a command it never timed, and it has
+no ledger to mine. Both say so rather than reporting a zero.
 """
 
 from __future__ import annotations
@@ -126,8 +129,7 @@ def main() -> None:
 
     from agent_harness.contracts import ActionRequest, new_command_id
     from agent_harness.scripts.ros_tool_executor import RosToolExecutor, SkillRegistry
-    from training.evaluate import evaluate_records
-    from training.receipt_metrics import receipt_metrics
+    from training.evaluate import evaluate_records, receipt_section
 
     registry = SkillRegistry.load(SKILLS_DIR)
     arguments = {
@@ -143,6 +145,7 @@ def main() -> None:
     client, ledger = _build_client(executor, registry, args.ledger, args.timeout_sec)
     records = []
     receipt_rows: list[dict[str, Any]] = []
+    ledger_events: list[dict[str, Any]] | None = None
     try:
         for index in range(args.missions):
             episode_id = f"l2-{uuid.uuid4().hex[:10]}"
@@ -168,14 +171,25 @@ def main() -> None:
                 )
             )
             print(f"  mission {index + 1}/{args.missions}: {row.get('execution_status')}")
+        # Read the ledger before it is closed: this is where the duplicate
+        # effect count comes from, and a mission that reached the backend twice
+        # is exactly the thing the L1 path cannot show.
+        if ledger is not None:
+            ledger_events = [
+                {"command_id": command_id, "kind": kind}
+                for command_id, kind in ledger.all_events()
+            ]
     finally:
         client.shutdown(30.0)
         if ledger is not None:
             ledger.close()
         executor.close()
 
-    report = evaluate_records(records, args.label)
-    report["receipts"] = receipt_metrics(receipt_rows)
+    report = evaluate_records(
+        records,
+        args.label,
+        receipts=receipt_section(receipt_rows, source="l2_receipts", events=ledger_events),
+    )
     report["level"] = "l2"
     report["unit"] = "mission"
 

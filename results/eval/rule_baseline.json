@@ -8384,5 +8384,58 @@
       "failing_phase": "NAVIGATE_PICKUP",
       "length_bucket": "short(<=8)"
     }
-  ]
+  ],
+  "receipts": {
+    "source": "l1_trajectory",
+    "calls": 4205,
+    "uncertain_outcome_rate": 0.0,
+    "latency_p50_ms": null,
+    "latency_p95_ms": null,
+    "by_capability": {
+      "hri.request_confirmation": {
+        "completed": 219
+      },
+      "manipulation.handover_tool": {
+        "completed": 252,
+        "failed": 114
+      },
+      "manipulation.pick_tool": {
+        "completed": 345,
+        "failed": 106
+      },
+      "manipulation.publish_arm_control": {
+        "completed": 20
+      },
+      "manipulation.select_grasp_pose": {
+        "completed": 451
+      },
+      "manipulation.verify_grasp": {
+        "completed": 339
+      },
+      "mission.terminate": {
+        "completed": 314,
+        "failed": 86
+      },
+      "navigation.navigate_to_station": {
+        "completed": 693,
+        "failed": 108
+      },
+      "navigation.reposition": {
+        "completed": 107
+      },
+      "perception.request_tool_detection": {
+        "completed": 464,
+        "failed": 167
+      },
+      "perception.verify_operator": {
+        "completed": 388,
+        "failed": 32
+      }
+    },
+    "not_applicable": {
+      "latency_p50_ms": "this path carries no per-command wall clock",
+      "latency_p95_ms": "this path carries no per-command wall clock",
+      "duplicate_effect_rate": "no ledger on this path: one turn is one command by construction, so the rate would be zero by definition rather than by measurement"
+    }
+  }
 }

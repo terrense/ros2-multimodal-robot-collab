@@ -246,8 +246,117 @@ def bucketed(metrics: Sequence[EpisodeMetrics], key: Callable[[EpisodeMetrics], 
     return {name: aggregate(rows) for name, rows in sorted(groups.items())}
 
 
-def evaluate_records(records: Sequence[EpisodeRecord], label: str = "") -> dict[str, Any]:
+class _StepResult:
+    """Adapter so the contract's own mapping can read an L1 result dict.
+
+    The L1 environment records a result as a dictionary; the contract's
+    `receipt_from_step_result` reads attributes. Rather than duplicating the
+    mapping here -- and letting the two drift -- this hands the contract the
+    shape it expects.
+    """
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.status = str(payload.get("status", "none"))
+        self.error_code = str(payload.get("error_code", "OK"))
+        self.message = str(payload.get("message", ""))
+
+
+def receipts_for(record: EpisodeRecord) -> list[dict[str, Any]]:
+    """One contract receipt per turn of an L1 episode.
+
+    This is the same mapping the runtime applies when it drives L1 through the
+    backend, so an L1 receipt and an L2 receipt mean the same thing -- which
+    is the whole reason the contract exists.
+
+    What this *cannot* give is the execution-layer history: an L1 trajectory has
+    no ledger, so it cannot show a duplicate effect, and it carries no per-turn
+    wall clock, so it cannot show latency. Those are reported as not applicable
+    with the reason, rather than as zero: on this path they would be zero by
+    definition, not by measurement.
+    """
+    from agent_harness.contracts import receipt_from_step_result
+
+    rows: list[dict[str, Any]] = []
+    for turn in record.turns:
+        receipt = receipt_from_step_result(
+            _StepResult(turn.result or {}),
+            episode_id=record.episode_id,
+            command_id=f"{record.episode_id}-{turn.turn_index}",
+        )
+        row = receipt.to_dict()
+        # The adapter stamps a receipt with "now" when it is given no times.
+        # On this path nothing was timed, so the timestamps are not carried
+        # over: a latency of 0.0 ms would read as a measurement of an action
+        # that took no time, when in fact nobody measured it.
+        row.pop("started_at", None)
+        row.pop("finished_at", None)
+        skill = str((turn.action or {}).get("skill", ""))
+        action = str((turn.action or {}).get("action", ""))
+        row["capability"] = f"{skill}.{action}" if skill and action else "unknown"
+        rows.append(row)
+    return rows
+
+
+def receipt_section(
+    rows: Sequence[dict[str, Any]],
+    *,
+    source: str,
+    events: Sequence[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """The receipt-level metrics, and what this path cannot measure.
+
+    ``events`` are ledger event rows. Without a ledger there is nothing to count
+    a duplicate effect from, so it is reported as not applicable *with the
+    reason* rather than as zero: on that path the rate would be zero by
+    definition, not by measurement. The same goes for latency -- a path that
+    never timed anything has no latency, and reporting 0.0 ms would look like a
+    measurement of an action that took no time.
+    """
+    from .receipt_metrics import duplicate_effect_rate, receipt_metrics
+
+    metrics = receipt_metrics(rows)
+    section: dict[str, Any] = {"source": source, **metrics}
+    not_applicable: dict[str, str] = {}
+
+    timed = any(
+        row.get("started_at") is not None and row.get("finished_at") is not None for row in rows
+    )
+    if not timed:
+        not_applicable["latency_p50_ms"] = "this path carries no per-command wall clock"
+        not_applicable["latency_p95_ms"] = "this path carries no per-command wall clock"
+    if events is None:
+        not_applicable["duplicate_effect_rate"] = (
+            "no ledger on this path: one turn is one command by construction, so the rate "
+            "would be zero by definition rather than by measurement"
+        )
+    else:
+        section["duplicate_effect_rate"] = duplicate_effect_rate(events)
+    if not_applicable:
+        section["not_applicable"] = not_applicable
+    return section
+
+
+def evaluate_records(
+    records: Sequence[EpisodeRecord],
+    label: str = "",
+    *,
+    receipts: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Score a set of episodes.
+
+    ``receipts`` is a receipt section the caller built. The L2 path builds it
+    from the receipts the stack actually returned; the L1 path has no such
+    thing and gets one derived from the recorded trajectory. Both go through
+    the same contract mapping, so an L1 receipt and an L2 receipt mean the same
+    thing -- which is the whole reason the contract exists.
+    """
     metrics = [episode_metrics(record) for record in records]
+    section = receipts
+    if section is None:
+        section = receipt_section(
+            [row for record in records for row in receipts_for(record)],
+            source="l1_trajectory",
+        )
     return {
         "label": label,
         "overall": aggregate(metrics).to_dict(),
@@ -261,6 +370,7 @@ def evaluate_records(records: Sequence[EpisodeRecord], label: str = "") -> dict[
         },
         "by_length": {name: value.to_dict() for name, value in bucketed(metrics, lambda item: item.length_bucket).items()},
         "episodes": [item.to_dict() for item in metrics],
+        "receipts": section,
     }
 
 
