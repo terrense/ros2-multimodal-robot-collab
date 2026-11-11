@@ -15,6 +15,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 from agent_harness.contracts import (
     ActionRequest,
@@ -31,11 +32,31 @@ from agent_harness.runtime.client import ToolClient
 from agent_harness.runtime.snapshots import model_view
 
 from .budgets import Budgets
+from .conditions import DEFAULT_CONDITION, LoopCondition
 from .policy import Decide, EpisodeResult, Finish, Policy, wall_clock
 
 _TERMINAL = frozenset(
     {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.REJECTED}
 )
+
+
+def _receipt_summary(receipt: ExecutionReceipt) -> dict[str, Any]:
+    """What the policy is told about the last command.
+
+    The essentials, not the whole receipt: what happened, why, and whether the
+    physical effect was verified. `physical_effect_verified` is included
+    because `None` and `False` mean different things -- "nobody checked" and
+    "checked, and it did not happen" -- and a policy that cannot tell them
+    apart will treat a refusal as a success.
+    """
+    failure = receipt.failure_code
+    return {
+        "execution_status": receipt.execution_status.value,
+        "call_ok": receipt.call_ok,
+        "physical_effect_verified": receipt.physical_effect_verified,
+        "failure_code": failure.value if failure is not None else None,
+        "detail": receipt.detail,
+    }
 
 
 class ClosedLoop:
@@ -53,6 +74,8 @@ class ClosedLoop:
         outcome_source: Callable[[], TaskOutcome] | None = None,
         max_observe_wait_s: float = 2.0,
         observe_interval_s: float = 0.05,
+        condition: LoopCondition | None = None,
+        platform: str = "ros2",
     ) -> None:
         self._policy = policy
         self._client = client
@@ -65,8 +88,12 @@ class ClosedLoop:
         self._outcome_source = outcome_source
         self._max_observe_wait = max_observe_wait_s
         self._observe_interval = observe_interval_s
+        #: The named evaluation condition. See `agent_harness/agent/conditions.py`.
+        self._condition = condition or DEFAULT_CONDITION
+        self._platform = platform
         self._cancelled = threading.Event()
         self._cancel_reason: str | None = None
+        self._last_receipt: ExecutionReceipt | None = None
 
     # ------------------------------------------------------------------ run
 
@@ -152,6 +179,7 @@ class ClosedLoop:
 
             receipts.append(receipt)
             turns += 1
+            self._last_receipt = receipt
             self._policy.consume(receipt.to_dict())
 
             if receipt.execution_status is ExecutionStatus.UNKNOWN:
@@ -174,7 +202,7 @@ class ClosedLoop:
 
     def _execute(self, decision: Decide) -> ExecutionReceipt | None:
         try:
-            self._registry.require(decision.capability, "ros2")
+            self._registry.require(decision.capability, self._platform)
         except UnsupportedCapability:
             return None
         request = ActionRequest(
@@ -189,17 +217,56 @@ class ClosedLoop:
         return submitted
 
     def _view(self) -> dict | None:
+        """The view the policy decides from, shaped by the condition.
+
+        Three things are conditional, and each one is a single switch:
+
+        * the freshness gate refuses a snapshot that has gone stale;
+        * the receipt tells the policy what the last command did;
+        * the recovery block lists the operations it may choose from.
+
+        Hiding the outcome has to hide the environment's own report as well as
+        the injected receipt. On L1 the observation carries `last_result`, so
+        hiding only the receipt would leave the answer visible and the
+        ablation would measure nothing.
+        """
         snapshot = self._observe()
         if snapshot is None:
             return None
         try:
-            return model_view(snapshot, now_s=self._now(), max_age_s=self._max_age)
+            if self._condition.freshness_gate:
+                view = model_view(snapshot, now_s=self._now(), max_age_s=self._max_age)
+            else:
+                # The gate is off: an old snapshot is still usable, which is
+                # what this condition is meant to measure.
+                view = model_view(snapshot)
         except StaleSnapshot:
             return None
 
+        payload = view.get("payload")
+        if isinstance(payload, dict):
+            if not self._condition.receipts_visible:
+                payload.pop("last_result", None)
+            else:
+                payload.pop("receipt", None)
+        if self._condition.receipts_visible and self._last_receipt is not None:
+            if isinstance(payload, dict):
+                payload["receipt"] = _receipt_summary(self._last_receipt)
+        if self._condition.recovery_visible:
+            view["capabilities"] = self._registry.describe_for(self._platform)
+        return view
+
     def _await_view(self) -> dict | None:
-        deadline = self._now() + self._max_observe_wait
-        while self._now() < deadline:
+        """Wait for a usable view, bounded by *real* time.
+
+        The deadline is measured against the monotonic clock, not the injected
+        one. With `use_sim_time` the simulation clock stops when Gazebo is
+        paused or the simulation is not running, and a deadline measured
+        against it would never be reached -- the loop would spin forever
+        instead of reporting that there is no observation.
+        """
+        deadline = time.monotonic() + self._max_observe_wait
+        while time.monotonic() < deadline:
             time.sleep(self._observe_interval)
             view = self._view()
             if view is not None:

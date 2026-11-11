@@ -68,6 +68,7 @@ class ToolClient:
         default_timeout_s: float | None = 60.0,
         max_workers: int = 4,
         ledger: ExecutionLedger | None = None,
+        platform: str = "ros2",
     ) -> None:
         self._backend = backend
         self._registry = registry
@@ -80,12 +81,18 @@ class ToolClient:
         self._ledger = ledger
         self._fail_closed_reason: str | None = None
         self._state_version: int | None = None
+        #: Which platform's capabilities this client may dispatch. It was
+        #: hard-coded to "ros2", which quietly made every L1-only capability
+        #: unusable: the client rejected them and the caller never found out
+        #: why. The Phase 6 plan wants L1 and L2 under the same semantics, so
+        #: the platform is a property of the client.
+        self._platform = platform
 
     # ------------------------------------------------------------------ submit
 
     def submit(self, request: ActionRequest) -> ExecutionReceipt:
         try:
-            descriptor = self._registry.require(request.capability, "ros2")
+            descriptor = self._registry.require(request.capability, self._platform)
         except UnsupportedCapability as error:
             return self._rejected(
                 request,
