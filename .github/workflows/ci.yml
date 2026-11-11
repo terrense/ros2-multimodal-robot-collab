@@ -5,8 +5,10 @@ name: CI
 #   lint           ~20s   ruff + conflict markers        (every push)
 #   python-tests   ~40s   321 tests, benchmark, results table, acceptance run
 #   harness-tests  ~25s   agent_harness suite (pytest.ini testpaths hides it)
-#   ros2-build     ~5min  10 colcon packages inside ros:humble-ros-base
-#                         (only when src/, scripts/ or the Dockerfile changed)
+#   ros2-build     ~7min  10 colcon packages inside ros:humble-ros-base, the
+#                         ROS-only runtime tests, and a headless simulation
+#                         smoke test
+#                         (only when src/, scripts/, skills/ or the Dockerfile changed)
 on:
   push:
     branches: [main]
@@ -41,6 +43,8 @@ jobs:
             ros:
               - 'src/**'
               - 'scripts/**'
+              - 'skills/**'
+              - 'agent_harness/**'
               - 'Dockerfile'
               - '.github/workflows/**'
 
@@ -158,3 +162,55 @@ jobs:
           source install/setup.bash
           colcon test --base-paths src --event-handlers console_direct+
           colcon test-result --verbose
+
+      - name: Simulation smoke test (headless)
+        # The three defects found on 2026-11-11 -- a capability missing from the
+        # registry, a timeout computed and discarded, a probe measuring a tool
+        # that did not exist -- were invisible to every test in the suite. All
+        # three needed a running stack. This starts gzserver with no window and
+        # drives one real delivery through the runtime, so that class of defect
+        # lands here instead of on a person's machine.
+        #
+        # It is not a substitute for the ROS test suite: it checks that the
+        # graph comes up and that a plan can be dispatched against it.
+        timeout-minutes: 12
+        run: |
+          set -o pipefail
+          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+          apt-get install -y --no-install-recommends \
+            ros-humble-rmw-cyclonedds-cpp iproute2 procps
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+
+          # No display anywhere: this is the CI condition, and the stack has to
+          # work in it.
+          unset DISPLAY WAYLAND_DISPLAY
+
+          bash scripts/run_gazebo_demo.sh --headless
+
+          # 40s was enough locally; CI runners are slower.
+          for i in $(seq 1 60); do
+            if timeout 15 python3 scripts/ros_graph.py wait /mission/deliver_tool 5 >/dev/null 2>&1; then
+              echo "stack answered after ${i} attempt(s)"
+              break
+            fi
+            sleep 3
+          done
+
+          echo "=== nodes ==="
+          timeout 30 python3 scripts/ros_graph.py nodes | sort
+
+          echo "=== runtime smoke ==="
+          SMOKE_USE_RUNNING=1 bash scripts/smoke_ros2_runtime.sh /tmp/ci_smoke.db
+
+      - name: Stop the simulation
+        if: always()
+        run: bash scripts/stop_gazebo_demo.sh || true
+
+      - name: Simulation logs on failure
+        if: failure()
+        run: |
+          echo "=== launch log (last 120 lines) ==="
+          tail -120 /tmp/gazebo_demo.log 2>/dev/null || echo "(no log)"
+          echo "=== gzserver output ==="
+          tail -40 /tmp/gzserver.log 2>/dev/null || true

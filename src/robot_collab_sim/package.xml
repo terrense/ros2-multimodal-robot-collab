@@ -13,6 +13,12 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>xacro</exec_depend>
+  <!-- The URDF includes `$(find realsense2_description)` and
+       `$(find velodyne_description)`. Without these declared, rosdep installs
+       nothing for them, xacro resolves fine on a machine where someone apt-
+       installed them by hand, and fails in a clean container. -->
+  <exec_depend>realsense2_description</exec_depend>
+  <exec_depend>velodyne_description</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
