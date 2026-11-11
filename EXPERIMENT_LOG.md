@@ -9,6 +9,54 @@
 
 ---
 
+## 2026-11-11 | **O3.1 / R** 真栈冒烟进 CI；顺带抓到第四个"只有我这台机器能跑"
+
+**内容**:昨天三个 bug(能力缺失、超时失效、探针测错东西)**没有一个被测试抓到**,全是
+真跑才暴露。所以把真栈冒烟接进 CI —— 而不是继续加纯逻辑测试。
+
+**新增 CI 步骤**(`ros2-build` job 末尾):`gzserver` 无窗口起栈 → 等 mission action
+server → 用运行时派发一次真实递送。失败时导出仿真日志,停止步骤放在 `if: always()`。
+router 也加了 `skills/**` 和 `agent_harness/**` —— 仿真要读能力 schema,schema 改坏了
+它就会坏。
+
+**写这个 job 的过程中立刻抓到第四个 bug**:
+
+> `realsense2_description` 和 `velodyne_description` 被 URDF 里的 `$(find ...)` 引用,
+> **但从来没在任何 `package.xml` 里声明过**。它们能解析,只是因为这台机器上有人手动
+> apt 装过。干净的容器里 `xacro` 会直接失败 —— 而且看起来会像"URDF 坏了",不会像
+> "少了一个依赖声明"。
+
+这正是"在我机器上能跑"那一类。补了声明,并且加了静态检查
+`tests/test_package_dependencies.py`:扫 `src/` 里所有 `$(find X)`、
+`FindPackageShare("X")`、`package="X"` 和 ROS import,要求每个被引用的包都在某个
+`package.xml` 里出现;另外查"包不能依赖自己""声明的 workspace 包必须存在"
+"每个包必须声明 build_type"。
+
+**`--headless` 之前加了却从没验证过**,这次实测:无 `DISPLAY`、无 `WAYLAND_DISPLAY`,
+31 秒起栈,12 个节点在线,冒烟通过。
+
+**验收命令**:
+```bash
+# 本地
+unset DISPLAY WAYLAND_DISPLAY && bash scripts/run_gazebo_demo.sh --headless
+SMOKE_USE_RUNNING=1 bash scripts/smoke_ros2_runtime.sh /tmp/headless_smoke.db
+python -m pytest tests/test_package_dependencies.py
+```
+
+**结果**:
+- 本地 headless:栈起来,`gzserver` 1 个、`gzclient` 0 个(预期),冒烟两条命令
+  `completed`,goal uuid 关联。
+- 470 passed / 3 skipped。
+
+**结论**:真栈验证从"只能人工跑"变成"每次 push 都跑一次"。这一步不需要 GPU,
+而且它抓到的东西是纯逻辑测试抓不到的 —— 包括一个会让 CI 在那天第一次跑就失败的
+依赖缺失。
+
+**遗留**:CI 里这一步只证明"图能起来、一条计划能派发",**不驱动 Nav2**,也不跑校准
+探针。那两样仍然要人工。
+
+---
+
 ## 2026-11-11 | **O6** 校准扩到两族，两个都推翻了 L1；丢了一个假结果
 
 **内容**:把之前只有 3 样本的族凑到 30,并在这过程中发现两个探针**测的不是它们该测的

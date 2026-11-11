@@ -33,6 +33,7 @@ trained**, because that needs a GPU.
 | SLAM | **odometry only** | scan matching off: best measured tracking 84% and navigation still failed |
 | Arm execution | **simulated** | `arm_skill_server` sleeps `simulate_step_seconds`; no MoveIt2 |
 | Face auth / gesture / voice | stubs or vendored source | no camera-driven recognition in the loop |
+| Headless stack + one dispatch | **in CI** | `ci.yml` simulation smoke step: gzserver, no window, real delivery |
 | Real hardware | **not started** | needs separate authorization, and calibration first |
 
 The gap that matters: **the arm does not really grasp.** Every grasp in this
@@ -106,22 +107,31 @@ Blocks: the six experiment arms, and therefore the entire supervision-source
 comparison. Nothing else in the repository is waiting on it and nothing else can
 substitute for it.
 
-### 2. Real-stack verification is manual, so today's bugs would come back
+### 2. Real-stack verification is in CI now — and it found a fourth bug
 
 Three defects were found the first time the stack was run for real — a
 capability missing from the registry, a timeout that was computed and discarded,
 and a probe measuring a tool that did not exist. All three were invisible to
 every test in the suite.
 
-The fix is not more tests; it is **a headless Gazebo job in CI**:
+The ROS container job now starts `gzserver` with no window, waits for the
+mission action server, and drives a real delivery through the runtime. Writing
+it found a fourth defect immediately:
 
-```
-gzserver + mission stack  ->  ros_graph.py wait  ->  smoke_ros2_runtime.sh
-                          ->  run_calibration --samples 1 --family identity_mismatch
-```
+> `realsense2_description` and `velodyne_description` are reached by `$(find …)`
+> from the robot's URDF and were never declared in any `package.xml`. They
+> resolved here only because someone apt-installed them by hand. A clean
+> container would have failed at `xacro` — and it would have looked like a
+> broken URDF rather than a missing declaration.
 
-`--headless` already exists (`gzserver` alone, no window). This is the highest
-value next step that does not need a GPU.
+That is the "works on my machine" class, and it is now covered statically too:
+`tests/test_package_dependencies.py` scans every `$(find X)`,
+`FindPackageShare("X")`, `package="X"` and ROS import under `src/` and requires
+each referenced package to be declared.
+
+**Still open here:** the CI job proves the graph comes up and a plan dispatches.
+It does not drive Nav2, and it does not run a calibration probe. Those stay
+manual.
 
 ### 3. Four scenes and one unproducible fault
 

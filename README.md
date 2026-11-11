@@ -698,13 +698,15 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] 线缆故障注入工具与三条不变量（netem + ledger 审计）
 - [x] 校准真跑：两族各 30 样本，两个都推翻了 L1 的假设
 - [x] 端点覆盖测试：每个 action server 必须在 schema 里有对应能力（这条本来能提前抓到 `pick_and_place` 的缺失）
+- [x] **headless 真栈冒烟进 CI**：`gzserver` 无窗口起栈 + 派发一次真实递送
+- [x] 依赖声明检查：`$(find X)` / `FindPackageShare` / ROS import 引用的包必须在 `package.xml` 里（抓到两个没声明的传感器包）
 
 待做：
 
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
 - [ ] **摆场景测剩下七族**：四个有道具但没摆过，`grasp_failure` 需要一个"会滑脱的工具"，`low_confidence` / `tool_missing` 需要边缘光照与缺失物体
 - [ ] **跑线缆故障注入**：判据在 `docs/specs/wire-faults.md`，netem 已验证免 sudo
-- [ ] **把一次真栈冒烟接进 CI**（`--headless` 已就绪）——今天三个 bug 全都只能靠真跑发现
+- [ ] CI 里再往前一步：驱动 Nav2、跑一次校准探针（现在只到"图起来 + 一条计划派发"）
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定
 - [ ] 录制 rosbag 数据集做感知/调度回归测试
