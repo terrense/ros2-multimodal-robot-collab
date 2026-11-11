@@ -151,15 +151,61 @@ def test_the_three_reasons_are_kept_apart() -> None:
     scene = _runner(FakeStack()).reason_unmeasured([FaultType.VISUAL_OCCLUSION])
     assert scene[0]["reason"].startswith("scene not arranged")
 
-    unavailable = _runner(
-        FakeStack({"system-state.query_state": ["rejected"]})
-    ).reason_unmeasured([FaultType.LOW_CONFIDENCE])
-    assert unavailable[0]["reason"].startswith("stack unavailable")
-
-    clean = _runner(FakeStack({"navigation.navigate_to_station": ["completed"]})).reason_unmeasured(
-        [FaultType.NAV_TIMEOUT]
-    )
+    # The first attempt succeeding means the fault never happened. A *rejected*
+    # first attempt is different: that is the fault occurring, and the probe
+    # goes on to ask whether a retry recovers.
+    clean = _runner(
+        FakeStack({"navigation.navigate_to_station": ["completed"]})
+    ).reason_unmeasured([FaultType.NAV_TIMEOUT])
     assert clean[0]["reason"].startswith("no fault produced")
+
+    clean_identity = _runner(
+        FakeStack({"perception.verify_operator": ["completed"]})
+    ).reason_unmeasured([FaultType.IDENTITY_MISMATCH])
+    assert clean_identity[0]["reason"].startswith("no fault produced")
+
+
+def test_a_rejected_first_attempt_is_a_fault_not_a_clean_path() -> None:
+    """A rejected check is the mismatch happening; the probe must keep going."""
+    stack = FakeStack({"perception.verify_operator": ["rejected", "rejected"]})
+    measurement = _runner(stack).measure(FaultType.IDENTITY_MISMATCH, samples=1)
+    assert measurement is not None
+    assert measurement.successes == 0
+    assert len(stack.calls) == 2, "both attempts should have run"
+
+
+def test_only_two_families_can_produce_their_own_fault() -> None:
+    """The list is short on purpose: every other family needs the world arranged.
+
+    `low_confidence` used to be here with a probe that asked `query_state`
+    twice. That measures liveness, and reporting it as a confidence-recovery
+    rate produced a calibration verdict that looked real and was not.
+
+    `grasp_failure` has a real probe rather than a scene stub, but that probe
+    refuses when its fault does not occur -- which on this stack is always,
+    because the simulated arm never fails a grasp.
+    """
+    from agent_env.calibration_runner import PROBES
+    from agent_env.faults import FaultType
+
+    self_producing = {
+        family
+        for family, probe in PROBES.items()
+        if getattr(probe, "scene_required", None) is None
+    }
+    assert self_producing == {
+        FaultType.NAV_TIMEOUT,
+        FaultType.IDENTITY_MISMATCH,
+        FaultType.GRASP_FAILURE,
+    }
+
+
+def test_a_scene_family_cannot_be_measured_without_a_scene_driver() -> None:
+    runner = _runner(FakeStack())
+    for family in (FaultType.LOW_CONFIDENCE, FaultType.TOOL_MISSING):
+        assert runner.measure(family) is None
+        reason = runner.reason_unmeasured([family])[0]["reason"]
+        assert reason.startswith("scene not arranged"), family
 
 
 # ------------------------------------------------------------- the manifest

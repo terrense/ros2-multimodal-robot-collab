@@ -24,7 +24,7 @@
 ## 目录
 
 - [快速开始](#快速开始) · [仿真车间](#仿真车间workshop)
-- [项目状态](#项目状态) · [三条工作线](#三条工作线)
+- [项目状态](#项目状态) · [**全项目现状与卡点**](docs/status.md) · [三条工作线](#三条工作线)
 - [总体架构](#总体架构) · [分层职责](#分层职责)
 - [移动小车](#移动小车负责什么) · [机械臂](#机械臂负责什么) · [感知](#感知系统怎么配合) · [Agent](#agent-和-multi-agent-设计)
 - [完整任务流程](#完整任务怎么跑) · [ROS 2 接口速查](#ros2-接口速查)
@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-**2026-11-11** · 主套件 440 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
+**2026-11-11** · 主套件 455 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -221,7 +221,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测，ROS 路径未跑** |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **rclpy 层已验（CI 里跑），全栈未跑** |
 | **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，11 条：安全/活性/设置）+ `tc netem` 五套场景 + 按判据判定 | **已构建，未运行**（netem 免 sudo 已验证） |
-| **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、清单写入 | **已入库**：`identity_mismatch` 30 样本实测 0%，区间排除 L1 的 34.6% → `interval_excludes_l1_rate` |
+| **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、清单写入 | **2/9 已测，两个都推翻了 L1**：`identity_mismatch` 实测 0%（L1 说 34.6%）、`nav_timeout` 实测 100%（L1 说 66.5%） |
 | **实验基线** | 规则基线 76.1% / 脚本专家 100%（400 条故障注入 benchmark） | **CPU 可复现**，产物入库 |
 | **后训练栈** | SFT / DPO / Step-Level PPO / OPD + 显存预检 + teacher 独立服务 | **未上 GPU**，六条臂 pending |
 
@@ -231,6 +231,10 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 - **机械臂执行是仿真的。** `arm_skill_server` 用 `simulate_step_seconds` 模拟动作，没有接 MoveIt2 或厂商 SDK。
 - **人脸 / 语音 / 手势是桩或用 vendored 源码跑，没有真机。**
 - **六条模型实验臂没跑过。** `docs/results.md` 里 pending 的行就是它们。
+
+> 上表是模块清单。**哪条线卡在哪、下一步该动什么**，见
+> [`docs/status.md`](docs/status.md) —— 全项目现状页。一句话版本：
+> **机器人和运行时都通了，但一个模型都还没训**，因为那要 GPU。
 
 ---
 
@@ -527,7 +531,7 @@ bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
 它跑的和 CI 完全一样，所以"本地绿"和"CI 绿"是一回事。分开跑也行：
 
 ```bash
-python -m pytest                 # 440 passed, 3 skipped（agent_env + training）
+python -m pytest                 # 455 passed, 3 skipped（agent_env + training）
 python -m pytest agent_harness/tests   # 59 passed（运行时：契约、调度、并发、线缆故障）
 python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
@@ -616,14 +620,27 @@ python -m agent_env.scripts.run_calibration --plan # 会在实时栈上跑什么
 | L1 参考值（从 `default_params` 抽样推导，非手写） | 完成 |
 | 每族的测量方案与「什么算成功」 | 完成 |
 | L2 适配器（实时栈装进 `reset()/step()`） | 完成；对真栈跑通 |
-| 校准执行器（五族可测，四族需场景） | 完成；**首次对真栈跑通 3 样本** |
-| 四个场景道具 + 布置脚本 | 完成，**未在 Gazebo 里试过** |
-| 实际测量 | **未完成**——`benchmarks/calibration_v1.json` 仍九族 `not_measured`，因为 3 样本 < 30 门槛 |
+| 校准执行器 | 完成；两族各 30 样本已测 |
+| 场景道具 + 布置脚本 | 完成，**未在 Gazebo 里试过** |
+| 实际测量 | **2/9**，两个都推翻了 L1 |
 
-第一次真栈运行抓到三个缺陷（`pick_and_place` 不在注册表里、能力超时从未生效、
-探针硬编码了工具名），细节见 [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md) 2026-11-11。
-其中第三个最值得记：**探针测了自己造不出来的故障，然后把结果报成 0%**——看起来
-像数据。
+**测出来的两族，方向相反**：
+
+| 族 | L1 假设 | 实测 (n=30) | Wilson 95% | 判定 |
+|---|---|---|---|---|
+| `identity_mismatch` | 0.346 | 0.000 | `[0.000, 0.114]` | 排除 L1 |
+| `nav_timeout` | 0.665 | 1.000 | `[0.886, 1.000]` | 排除 L1 |
+
+放在一起看，结论比"L1 不准"具体：**L1 在两个方向上都有偏差**。它高估了人脸
+不匹配的自愈概率（说三次有一次，实际一次都没有），低估了导航重试的可靠度
+（说三次有一次要重试两轮，实际 30 次全部一轮成功）。在 L1 上训出来的策略，
+一种情况会等一个永远不来的重试，另一种会过早放弃。
+
+**一个被丢弃的结果**：早期一次运行报 `tool_missing: CALIBRATED`——L1 说 1.000、
+探针测到 1.000，区间包含，于是"通过"。**这个判定被丢掉了**，因为那个探针只问了
+两次 `query_state`,测的是"栈会应答",不是"缺失工具被正确上报"。**一个永远成功的
+存活性探针，会匹配任何值为 1.0 的 L1 假设**，输出和"验证过的故障模型"长得一模一样。
+两个探针现在都改成需要场景。
 
 场景道具由 `scripts/calibration_scene.py` 通过 Gazebo 服务动态 spawn/delete，
 **不派发任何机器人技能**，所以布置场景不会动机器人：
@@ -679,13 +696,15 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] Gazebo 车间：官方 KUKA/FANUC/Dobot、D435 + VLP-16、SLAM + Nav2 导航打通
 - [x] L2 适配器 + 实时栈评测 + 校准执行器 + 场景道具
 - [x] 线缆故障注入工具与三条不变量（netem + ledger 审计）
+- [x] 校准真跑：两族各 30 样本，两个都推翻了 L1 的假设
+- [x] 端点覆盖测试：每个 action server 必须在 schema 里有对应能力（这条本来能提前抓到 `pick_and_place` 的缺失）
 
 待做：
 
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
-- [ ] **在 Gazebo 上真跑一次校准**，让 `calibration_v1.json` 里出现 `calibrated: true`
-- [ ] **rclpy 并发实证**：验证 `ReentrantCallbackGroup` 真的让底盘和机械臂同时推进（**rclpy 层已在 CI 验证**；剩下的是全栈一起动）
-- [ ] **跑线缆故障注入**：判据在 `docs/specs/wire-faults.md`，要 root + 活栈 + 人在场
+- [ ] **摆场景测剩下七族**：四个有道具但没摆过，`grasp_failure` 需要一个"会滑脱的工具"，`low_confidence` / `tool_missing` 需要边缘光照与缺失物体
+- [ ] **跑线缆故障注入**：判据在 `docs/specs/wire-faults.md`，netem 已验证免 sudo
+- [ ] **把一次真栈冒烟接进 CI**（`--headless` 已就绪）——今天三个 bug 全都只能靠真跑发现
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定
 - [ ] 录制 rosbag 数据集做感知/调度回归测试

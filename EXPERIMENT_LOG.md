@@ -9,6 +9,69 @@
 
 ---
 
+## 2026-11-11 | **O6** 校准扩到两族，两个都推翻了 L1；丢了一个假结果
+
+**内容**:把之前只有 3 样本的族凑到 30,并在这过程中发现两个探针**测的不是它们该测的
+东西**。
+
+**先说被丢掉的假结果。** 第一次 30 样本跑出来:
+```
+nav_timeout      1.000 (30/30)
+low_confidence   1.000 (30/30)
+tool_missing     1.000 (30/30)
+```
+按判据算,`tool_missing` 得到 **CALIBRATED**——L1 说 1.000,探针测到 1.000,区间
+包含,通过。
+
+**这个判定是假的,已丢弃。** `low_confidence` 和 `tool_missing` 的探针只是问了两次
+`system-state.query_state`。它们测的是**栈会应答**,不是"低置信重拍返回了可信检测"
+或"缺失工具被正确上报"。一个永远成功的存活性探针,会匹配任何值为 1.0 的 L1 假设,
+输出和"验证过的故障模型"长得一模一样——**这是所有失败方式里最坏的一种**。
+
+修法:这两个族都改成场景依赖,并把场景写明白(边缘光照的工具 / 世界里没有的物体)。
+现在 PROBES 里只剩两族能靠调用产出自己的故障:`nav_timeout` 和 `identity_mismatch`。
+
+**两个真结果,方向相反**:
+
+| 族 | L1 | 实测 (n=30) | Wilson 95% | 判定 |
+|---|---|---|---|---|
+| `identity_mismatch` | 0.346 | 0.000 | `[0.000, 0.114]` | 排除 L1 |
+| `nav_timeout` | 0.665 | 1.000 | `[0.886, 1.000]` | 排除 L1 |
+
+合起来看,结论比"L1 不准"具体:**L1 在两个方向上都有偏差**。
+- 高估人脸不匹配的自愈概率(说三次有一次,实际一次都没有)——策略会等一个永远
+  不来的重试。
+- 低估导航重试的可靠度(说三次有一次要重试两轮,实际 30 次全部一轮成功)——策略会
+  过早放弃。
+
+**顺带补的一条静态检查**(`tests/test_endpoint_coverage.py`):扫 `src/` 里所有
+`ActionServer(...)` 的端点,要求每一个都在 `skills/*/schema.json` 里有对应能力,
+反过来也查。**这条本来能提前抓到昨天那个 `pick_and_place` 缺失**——不需要机器人。
+另外把"能力的 `timeout_s` 会被 `min(请求, 上限)` 真正用上"也钉住了。
+
+**验收命令**:
+```bash
+bash scripts/run_gazebo_demo.sh --workshop
+python -m agent_env.scripts.run_calibration --samples 30 \
+  --family nav_timeout --family identity_mismatch
+python -m agent_env.scripts.run_calibration --samples 30 \
+  --family low_confidence --family tool_missing   # 现在会如实拒测
+python -m training.report --update docs/results.md
+```
+
+**结果**:
+- `benchmarks/calibration_v1.json`:两族有真实测量,七个 `not_measured`。
+- 报告头区分出 `interval_excludes_l1_rate` 与 `not_measured`。
+- 455 passed / 3 skipped。
+
+**结论**:校准第一次产出了两个**方向相反**的、能推翻 L1 的结果。同时它也暴露了
+自己最危险的失败模式:探针测了别的东西,却输出一个绿的判定。
+
+**遗留**:七族仍缺场景(四个有道具没摆,`grasp_failure` 需要会滑脱的工具,
+`low_confidence`/`tool_missing` 需要边缘光照和缺失物体);线缆故障仍未跑;栈已关。
+
+---
+
 ## 2026-11-11 | **O6** 重测两族：一个入库结论 + 一个"产不出故障"
 
 **内容**:上一条修完探针后重测 `grasp_failure` 和 `identity_mismatch`。两个结果

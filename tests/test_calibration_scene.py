@@ -50,19 +50,23 @@ def test_every_scene_dependent_family_has_a_scene() -> None:
     from agent_env.l2_calibration import PROGRAMMES
 
     needs_scene = {
-        family
-        for family in PROBES
-        if PROGRAMMES[family].scene_setup and getattr(PROBES[family], "scene_required", None)
+        family for family in PROBES if getattr(PROBES[family], "scene_required", None)
     }
+    # Everything except the two families whose fault a probe can produce by
+    # calling the stack, and `grasp_failure`, which is dispatchable but cannot
+    # be made to fail.
     assert needs_scene == set(FaultType) - {
         FaultType.NAV_TIMEOUT,
-        FaultType.GRASP_FAILURE,
-        FaultType.LOW_CONFIDENCE,
         FaultType.IDENTITY_MISMATCH,
-        FaultType.TOOL_MISSING,
+        FaultType.GRASP_FAILURE,
     }
     for family in needs_scene:
         assert family.value in scene_module.SCENES, f"{family.value} has no scene"
+        # A scene entry with no props is only acceptable when it explains what a
+        # human has to do instead.
+        scene = scene_module.SCENES[family.value]
+        assert scene.props or scene.manual, f"{family.value} has neither props nor manual steps"
+        assert PROGRAMMES[family].scene_setup, f"{family.value} has no scene_setup text"
 
 
 def test_every_prop_file_exists_and_is_valid_sdf() -> None:

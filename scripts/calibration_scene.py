@@ -107,6 +107,32 @@ SCENES: dict[str, Scene] = {
         ),
         note="the handover station is occupied until the operator is called over",
     ),
+    "low_confidence": Scene(
+        family="low_confidence",
+        props=(),
+        note="the detector must publish a confidence below the tool threshold",
+        manual=(
+            "the YOLO stub publishes one fixed confidence, so a marginal detection has "
+            "to be arranged rather than called for",
+            "either move the tool to the edge of the camera's range, dim the light over "
+            "the shelf, or set front_rgbd/lighting so the detection falls below 0.70",
+            "read /perception/tool_detections and confirm the published confidence is "
+            "below the threshold before running the probe",
+        ),
+    ),
+    "tool_missing": Scene(
+        family="tool_missing",
+        props=(),
+        note="the requested tool must not be in the scene at all",
+        manual=(
+            "there is no 'detect this tool' capability: the YOLO stub publishes "
+            "whatever its tool_id parameter names",
+            "set the detector's tool_id to something that is not in the world, or remove "
+            "the tool from the shelf",
+            "read /perception/tool_detections and confirm no detection for it is "
+            "published before running the probe",
+        ),
+    ),
     "user_cancel": Scene(
         family="user_cancel",
         props=(),

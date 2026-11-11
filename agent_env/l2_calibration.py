@@ -289,9 +289,16 @@ PROGRAMMES: dict[FaultType, FamilyProgramme] = {
         question="a missing tool is reported as missing, never re-detected",
         success_event="every detection attempt reported the tool as not found",
         steps=(
-            "request_tool_detection for a tool that is not in the scene",
-            "repeat twice",
+            "point the detector at a tool that is not in the scene",
+            "read the published detections twice",
             "count the sample successful when no detection ever came back",
+        ),
+        # There is no "detect this tool" capability on the live stack: the YOLO
+        # stub publishes whatever its `tool_id` parameter names. So a tool
+        # cannot be made absent by calling -- the world has to not contain it.
+        scene_setup=(
+            "the requested tool must not be in the scene, which means changing the "
+            "detector's tool_id parameter or removing the object",
         ),
     ),
     FaultType.IDENTITY_MISMATCH: FamilyProgramme(

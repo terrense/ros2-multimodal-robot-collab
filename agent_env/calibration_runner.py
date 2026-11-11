@@ -270,29 +270,6 @@ def probe_grasp_failure(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     )
 
 
-def probe_low_confidence(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
-    """Does a re-perceive return a confident detection?
-
-    The live stack publishes detections rather than answering a request, so the
-    probe asks for the current system state twice. A stack that reports no
-    detections at all cannot answer, and says so instead of counting a zero.
-    """
-    first = stack.call("system-state.query_state", {"requester": "calibration"})
-    second = stack.call("system-state.query_state", {"requester": "calibration"})
-    first_status = _status(stack, first)
-    second_status = _status(stack, second)
-    if first_status != "completed" or second_status != "completed":
-        raise StackUnavailable("system-state is not answering")
-    return ProbeResult(
-        success=second_status == "completed",
-        detail={
-            "first": first_status,
-            "second": second_status,
-            "note": "detection confidence is not published, so this is a liveness check",
-        },
-    )
-
-
 def probe_identity_mismatch(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     """Does a face check that mismatched once pass on the next attempt?"""
     # An operator the camera does not know: the mismatch is produced, not hoped
@@ -314,24 +291,6 @@ def probe_identity_mismatch(stack: Stack, scene: CalibrationRunner) -> ProbeResu
     )
 
 
-def probe_tool_missing(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
-    """Is a tool that is not in the scene reported as missing?
-
-    Asks the stack for a detection of a tool it cannot have. The stack answering
-    `completed` for a tool it never saw is the failure this probe exists to
-    catch; a refusal or a not-found is the correct behaviour.
-    """
-    absent = f"{scene.tool_id}_absent"
-    receipt = stack.call("perception.verify_operator", {"operator_id": scene.operator_id})
-    status = _status(stack, receipt)
-    if status != "completed":
-        raise StackUnavailable("the stack is not answering at all")
-    return ProbeResult(
-        success=True,
-        detail={"status": status, "absent_tool": absent, "note": "tool_missing is not producible without the scene"},
-    )
-
-
 def _scene_probe(family: FaultType):
     """A probe for a family whose fault cannot be produced by a skill call.
 
@@ -347,12 +306,30 @@ def _scene_probe(family: FaultType):
     return probe
 
 
+#: Probes that can produce their own fault by calling the stack.
+#:
+#: Only two families belong here. Every other family needs the world arranged
+#: first, and the reason is specific in each case:
+#:
+#:   grasp_failure    the simulated arm never fails a grasp
+#:   low_confidence   the detector stub publishes one fixed confidence; nothing
+#:                    produces a marginal detection, and asking `query_state`
+#:                    twice measures liveness, not confidence recovery
+#:   tool_missing     there is no "detect this tool" capability to ask, so a
+#:                    tool cannot be made absent by calling
+#:   visual_occlusion, tool_drop, no_progress, user_cancel
+#:                    no capability produces these at all
+#:
+#: The distinction matters: a probe that measures liveness and reports the
+#: result as a recovery rate produces a calibration verdict that looks real and
+#: is not. `low_confidence` was exactly that until this list was corrected.
 PROBES: dict[FaultType, Any] = {
     FaultType.NAV_TIMEOUT: probe_nav_timeout,
-    FaultType.GRASP_FAILURE: probe_grasp_failure,
-    FaultType.LOW_CONFIDENCE: probe_low_confidence,
     FaultType.IDENTITY_MISMATCH: probe_identity_mismatch,
-    FaultType.TOOL_MISSING: probe_tool_missing,
+    # Dispatchable by calling, but the stack cannot be made to fail this way.
+    FaultType.GRASP_FAILURE: probe_grasp_failure,
+    FaultType.LOW_CONFIDENCE: _scene_probe(FaultType.LOW_CONFIDENCE),
+    FaultType.TOOL_MISSING: _scene_probe(FaultType.TOOL_MISSING),
     FaultType.VISUAL_OCCLUSION: _scene_probe(FaultType.VISUAL_OCCLUSION),
     FaultType.TOOL_DROP: _scene_probe(FaultType.TOOL_DROP),
     FaultType.NO_PROGRESS: _scene_probe(FaultType.NO_PROGRESS),
