@@ -236,15 +236,37 @@ def probe_grasp_failure(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     stack whose stub detector publishes `hex_key_3mm`, a probe hard-coded to
     `wrench` measures a tool that does not exist and reports 0% recovery for a
     fault the robot never encountered.
+
+    `target_frame` is not optional: the arm server rejects a goal that does not
+    name where the tool is going, so a probe that omits it produces a rejection
+    rather than a grasp attempt and then reports 0% recovery for a fault that
+    was never tried.
     """
-    arguments = {"tool_id": scene.tool_id, "source_frame": scene.pickup_station}
-    first = stack.call("manipulation.pick_and_place", arguments)
-    second = stack.call("manipulation.pick_and_place", dict(arguments))
+    arguments = {
+        "tool_id": scene.tool_id,
+        "source_frame": scene.pickup_station,
+        "target_frame": scene.delivery_station,
+    }
+    first = stack.call("manipulation.pick_and_place", dict(arguments))
     first_status = _status(stack, first)
+    if first_status == "completed":
+        raise ProbeUnavailable(
+            "the first pick succeeded; the probe produced no grasp failure to recover from"
+        )
+    if first_status == "rejected":
+        raise ProbeUnavailable(
+            "the grasp goal was rejected before execution, so no grasp was attempted: "
+            f"{getattr(first, 'detail', '')}"
+        )
+    second = stack.call("manipulation.pick_and_place", dict(arguments))
     second_status = _status(stack, second)
     return ProbeResult(
         success=second_status == "completed",
-        detail={"first": first_status, "second": second_status, "tool_id": scene.tool_id},
+        detail={
+            "first": first_status,
+            "second": second_status,
+            "tool_id": scene.tool_id,
+        },
     )
 
 

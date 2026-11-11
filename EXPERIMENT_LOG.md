@@ -9,6 +9,74 @@
 
 ---
 
+## 2026-11-11 | **O6** 重测两族：一个入库结论 + 一个"产不出故障"
+
+**内容**:上一条修完探针后重测 `grasp_failure` 和 `identity_mismatch`。两个结果
+都不是"修好了",而是一个真实结论和一个真实限制。
+
+**先修的两处**:
+
+- `pick_and_place` 被 action server **拒绝**了——探针只发了 `tool_id` +
+  `source_frame`,而 `_handle_goal` 要求 `source_frame` 和 `target_frame` 都有。
+  补上 `target_frame`。
+- **探针现在区分三种"没测到"**:场景没摆 (`SceneRequired`)、栈没应答
+  (`StackUnavailable`)、**故障根本没产生** (`ProbeUnavailable`)。第三种是这次
+  才需要的:抓取第一次就成功了,那不是"恢复率 0%",是"没有故障可恢复"。
+
+**结果一:`identity_mismatch` 入库,结论是 L1 错了。**
+
+30 样本,**0 次恢复**。Wilson 95% = `[0.000, 0.114]`,而 L1 假设 **0.346**
+(`default_params.sensor_glitch`),区间不含 0.346 → 清单记
+`interval_excludes_l1_rate`。
+
+这是校准机制在正常工作,不是失败。L1 把人脸不匹配建模成**瞬态抖动**(有 35% 的
+概率重试通过);live stack 的人脸认证桩节点**没有这个随机性**——它不认识的
+operator id 每次都失败。所以 L1 那个数字描述的是一个这套栈并不具备的故障过程。
+
+两个后果,直说:
+- **L1 高估了这类故障自愈的概率。** 在 L1 上训出来的策略会等一个永远不来的重试。
+- **这不是探针的 bug。** 探针在计数之前先确认第一次真的失败了;没失败就带原因拒测。
+
+**结果二:`grasp_failure` 在这套栈上靠调用测不出来。**
+
+补上 `arm_start` 和两个 frame 之后,simulated pick **第一次就成功**。没有故障,
+就没有恢复率。探针如实报告:
+
+```
+grasp_failure  not measured: no fault produced:
+               the first pick succeeded; the probe produced no grasp failure to recover from
+```
+
+要测它需要"工具会滑脱"的场景。四个场景道具已经写好了,但这一个还没人去摆。
+
+**顺带抓到的集成 bug**:`run_calibration` 把日志写在 `families` 键下,而
+`calibrate_l2 --from-log` 只读 `measurements`——**于是真实的 30 样本运行被静默丢弃,
+每一族都报 `not_measured`**。这比它想防的失败更隐蔽:看起来跑通了,其实什么都没
+入库。现在两个键都接受,两个都没有就报错而不是返回空列表。
+
+**验收命令**:
+```bash
+bash scripts/run_gazebo_demo.sh --workshop
+python -m agent_env.scripts.run_calibration --samples 30 \
+  --tool-id hex_key_3mm --family identity_mismatch --family grasp_failure
+python -m agent_env.scripts.calibrate_l2 --from-log <日志> --seed 20261111
+python -m training.report --update docs/results.md
+```
+
+**结果**:
+- `benchmarks/calibration_v1.json` 第一次有一条非 `not_measured` 的记录。
+- 报告头现在区分两种未校准:`identity_mismatch (interval_excludes_l1_rate)` vs
+  其余八个 `(not_measured)`——**"测了但不一致"和"没测"是两件事**。
+- 440 passed / 3 skipped。
+
+**结论**:校准第一次产出了一个能推翻 L1 假设的结果。这正是它存在的理由。
+
+**遗留**:`grasp_failure` 需要"会滑脱的工具"场景;`nav_timeout`、`low_confidence`、
+`tool_missing` 上一轮测过 3 样本(全部 `insufficient_samples`),要凑到 30 才算数;
+四个场景族仍未摆过。栈已按要求关闭。
+
+---
+
 ## 2026-11-11 | **O6** 第一次对着真 Gazebo 栈跑校准，抓到三个真 bug
 
 **内容**:之前所有"实时栈"相关的东西都只是逻辑测试。这次把 workshop 场景真起起来

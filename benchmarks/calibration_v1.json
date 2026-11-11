@@ -1,7 +1,7 @@
 {
   "version": "calibration_v1",
-  "seed": 20261110,
-  "generated_at": 1794303576.0420477,
+  "seed": 20261111,
+  "generated_at": 1794376806.8118749,
   "min_samples": 30,
   "families": [
     {
@@ -21,14 +21,14 @@
     {
       "name": "identity_mismatch",
       "l1_rate": 0.3462,
-      "l2_rate": null,
+      "l2_rate": 0.0,
       "wilson_95": [
         0.0,
-        1.0
+        0.1135
       ],
-      "samples": 0,
+      "samples": 30,
       "calibrated": false,
-      "reason": "not_measured",
+      "reason": "interval_excludes_l1_rate",
       "question": "a face check that mismatched once passes on the next attempt",
       "l1_source": "default_params.sensor_glitch"
     },

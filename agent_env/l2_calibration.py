@@ -410,11 +410,28 @@ def write_manifest(manifest: dict[str, Any], path: Path | str) -> Path:
 
 
 def load_measurements(path: Path | str) -> list[L2Measurement]:
-    """Read a measurement log: a JSON list, or {"measurements": [...]}."""
+    """Read a measurement log.
+
+    Accepts a bare list, or a mapping under either key this project writes:
+    `measurements` (the hand-written shape) and `families`
+    (`run_calibration`'s output). Accepting only one of them turned a real
+    thirty-sample run into "not measured" for every family, silently — which is
+    the failure mode this whole module exists to prevent.
+    """
     import json
 
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    rows = data.get("measurements", []) if isinstance(data, dict) else data
+    if isinstance(data, dict):
+        rows = data.get("measurements")
+        if rows is None:
+            rows = data.get("families")
+        if rows is None:
+            raise ValueError(
+                f"{path} has no measurement list: expected a 'measurements' or "
+                f"'families' key, found {sorted(data)}"
+            )
+    else:
+        rows = data
     return [L2Measurement.from_dict(row) for row in rows]
 
 

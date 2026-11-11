@@ -5,7 +5,7 @@ Primary metric: `recovery_success` -- share of fault-injected episodes that end 
 
 <!-- BEGIN GENERATED: summary -->
 Runs completed: 1/7. Pending: sft, sft_dpo, ppo_terminal, ppo_progress, opd_pure, opd_warmup_ppo.
-L2 status: 0/9 fault families calibrated against the live stack; not calibrated: grasp_failure (not_measured), identity_mismatch (not_measured), low_confidence (not_measured), nav_timeout (not_measured), no_progress (not_measured), tool_drop (not_measured), tool_missing (not_measured), user_cancel (not_measured), visual_occlusion (not_measured). Every result below is L1 only.
+L2 status: 0/9 fault families calibrated against the live stack; not calibrated: grasp_failure (not_measured), identity_mismatch (interval_excludes_l1_rate), low_confidence (not_measured), nav_timeout (not_measured), no_progress (not_measured), tool_drop (not_measured), tool_missing (not_measured), user_cancel (not_measured), visual_occlusion (not_measured). Every result below is L1 only.
 <!-- END GENERATED: summary -->
 
 Targets are pre-registered acceptance criteria, not results. Measured columns
@@ -147,3 +147,36 @@ The report will not invent them. An arm with an evaluation file but no run
 record renders as `unverified`; a regeneration that would drop a measurement
 that is already published is refused rather than applied; and an arm that has
 not run stays `pending` in the table instead of disappearing from it.
+
+## One L1 assumption the live stack rejected
+
+`identity_mismatch` has been measured against the real Gazebo stack: **30
+samples, 0 recovered**. Wilson 95% is `[0.000, 0.114]`, and L1 assumes **0.346**
+-- so the interval excludes the L1 value and the manifest records
+`interval_excludes_l1_rate`.
+
+That is the calibration mechanism working, not failing. L1 models a face
+mismatch as a *transient* glitch: `default_params` gives it a 35% chance of
+passing on retry. The live stack's face-authentication stub has no such
+randomness -- an operator id it does not know fails every time, deterministically.
+So the L1 number describes a fault process this stack does not have.
+
+Two consequences worth stating plainly:
+
+- **L1 over-estimates how often this fault resolves itself.** A policy trained
+  on L1 will wait for a retry that never comes.
+- **It is not a bug in the probe.** The probe checks that the first attempt
+  really failed before counting a sample, and refuses (with the reason) when it
+  did not.
+
+`grasp_failure` came back **unmeasurable by calling the stack**: with the arm
+started and both frames supplied, the simulated pick succeeds on the *first*
+attempt, so there is no failure to recover from. Its probe says exactly that
+rather than reporting 0%. Making it measurable needs a scene where the tool
+slips -- the four scene props exist, but no one has arranged this one yet.
+
+Also found while re-measuring: `run_calibration` writes its log under a
+`families` key and `calibrate_l2 --from-log` read only `measurements`, so a real
+thirty-sample run was silently discarded and every family came back
+`not_measured`. Both keys are now accepted, and a log with neither raises
+instead of returning an empty list.

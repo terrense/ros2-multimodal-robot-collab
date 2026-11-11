@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from agent_env.faults import FaultType
 from agent_env.l2_calibration import (
     PROGRAMMES,
@@ -138,6 +140,42 @@ def test_a_measurement_log_round_trips(tmp_path: Path) -> None:
     assert len(measurements) == 1
     assert measurements[0].rate == 20 / 30
     assert measurements[0].note == "run 1"
+
+
+def test_the_runner_log_shape_is_read(tmp_path: Path) -> None:
+    """`run_calibration` writes `families`; reading only `measurements` turned a
+    real thirty-sample run into "not measured" for every family, silently."""
+    path = tmp_path / "l2_measurements.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": "l2_measurements_v1",
+                "families": [
+                    {"family": "identity_mismatch", "successes": 0, "samples": 30, "note": ""}
+                ],
+                "unmeasured": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    measurements = load_measurements(path)
+    assert len(measurements) == 1
+    assert measurements[0].samples == 30
+    assert measurements[0].rate == 0.0
+
+
+def test_a_log_without_a_measurement_list_is_an_error_not_an_empty_result(tmp_path: Path) -> None:
+    """Silently returning nothing would report every family as unmeasured."""
+    path = tmp_path / "wrong.json"
+    path.write_text(json.dumps({"results": []}), encoding="utf-8")
+    with pytest.raises(ValueError, match="measurements.*families"):
+        load_measurements(path)
+
+
+def test_a_bare_list_still_works(tmp_path: Path) -> None:
+    path = tmp_path / "list.json"
+    path.write_text(json.dumps([{"family": "tool_missing", "successes": 30, "samples": 30}]))
+    assert len(load_measurements(path)) == 1
 
 
 def test_the_plan_is_printable_per_family() -> None:
