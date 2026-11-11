@@ -352,3 +352,21 @@ class ToolClient:
     def jobs(self) -> dict[str, ActionRequest]:
         with self._lock:
             return dict(self._requests)
+
+    def job_status(self, command_id: str) -> str | None:
+        """The scheduler's state of one command: queued, running, done, cancelled.
+
+        An interruption must leave running work alone, and that is only
+        checkable if the state of a command can be read.
+        """
+        job = self._scheduler.job(command_id)
+        return job.status if job is not None else None
+
+    def running_count(self) -> int:
+        """How many commands are executing right now.
+
+        An interruption of the decision source leaves the physical work in
+        flight, so the count has to be reportable: "the model died" and "the
+        model died and the arm is still moving" are different findings.
+        """
+        return self._scheduler.running_count()

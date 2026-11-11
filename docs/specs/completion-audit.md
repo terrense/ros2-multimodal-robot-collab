@@ -18,7 +18,7 @@ happened; it does not mean the phase delivered everything the plan asked for.
 | O2 tool runtime | done | — |
 | O3 ledger + adapter | done | — |
 | O4 snapshots + skills | done | — |
-| O5 agent gateway | done | **"model interrupted while physical job runs"** — no interruption concept exists. A model that dies mid-decision leaves no defined trace. |
+| O5 agent gateway | done | — |
 | O6 evaluation alignment | **partial** | The seven named baselines: `rules` and `expert` existed; `planner_once` and the four `loop_*` conditions did not. **Built 2026-11-11** (`agent_harness/agent/conditions.py`). Also: the receipt metrics are computed only on the L2 path, not on the L1 one. |
 | O7 training integration | done | — |
 
@@ -29,6 +29,7 @@ happened; it does not mean the phase delivered everything the plan asked for.
 | Calibration for 7 of 9 families | Four have props nobody has placed; `grasp_failure` needs a slipping tool the simulated arm cannot produce; `low_confidence` and `tool_missing` need a marginal detection and an absent tool. |
 | The wire-fault run | The criteria, the injector and the audit are built; the run needs a live stack and moving commands. `tc netem` works unprivileged inside `unshare -Ur -n`. |
 | The L2 adapter against a live stack | The code path is verified; the ROS path is **NOT RUN** for the calibration specifically. |
+| Receipt metrics on the L1 path | `training/receipt_metrics.py` computes them and `training/evaluate_l2.py` uses them; the L1 evaluator does not, because an L1 episode carries no receipts. |
 
 ## Robot roadmap — `docs/roadmap.md`
 

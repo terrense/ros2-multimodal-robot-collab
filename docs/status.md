@@ -170,10 +170,22 @@ simulated arm cannot produce at all.
 
 ### 4. The interrupted model
 
-Blocks: a claim that the agent gateway is safe to interrupt. The plan asks for
-"model interrupted while physical job runs" as an acceptance test and there is
-no interruption concept: a model that dies mid-decision leaves no defined
-trace, and the loop cannot tell an interrupted decision from a failed one.
+~~Blocks a claim that the agent gateway is safe to interrupt.~~ **Done
+2026-11-11.** `Interrupted` is a first-class outcome: the decision source can
+die (the policy raises) or be interrupted from outside (a watchdog or a
+signal handler), and in both cases:
+
+- the episode ends as `interrupted`, with **success unknown rather than false** --
+  the episode never finished, and a command in flight may still complete;
+- **the physical work is not touched.** An interruption is not a cancellation:
+  nobody asked the arm to stop, and a model that died is not in a position to
+  authorise a stop;
+- the report says how much work may still be running, because "the model died"
+  and "the model died and the arm is still moving" are different findings.
+
+Getting the last point right needed the wait for a receipt to become
+interruptible: a command that takes thirty seconds used to keep the episode
+alive for thirty seconds after the decision source died.
 
 ### 5. Wire-fault run
 

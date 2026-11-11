@@ -151,6 +151,16 @@ class ResourceScheduler:
         with self._condition:
             return len(self._queues.get(resource_key, ()))
 
+    def running_count(self) -> int:
+        """How many commands are executing right now.
+
+        The question matters when something interrupts the decision source: the
+        physical work in flight keeps running, and the report has to say how
+        much of it there was.
+        """
+        with self._condition:
+            return len(self._running)
+
     def is_running(self, resource_key: str) -> bool:
         with self._condition:
             return resource_key in self._running

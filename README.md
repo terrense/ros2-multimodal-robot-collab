@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-**2026-11-11** · 主套件 492 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
+**2026-11-11** · 主套件 492 passed / 3 skipped，harness 套件 67 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -532,7 +532,7 @@ bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
 
 ```bash
 python -m pytest                 # 492 passed, 3 skipped（agent_env + training）
-python -m pytest agent_harness/tests   # 59 passed（运行时：契约、调度、并发、线缆故障）
+python -m pytest agent_harness/tests   # 67 passed（运行时：契约、调度、并发、中断、线缆故障）
 python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
 ```
@@ -701,13 +701,13 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] **headless 真栈冒烟进 CI**：`gzserver` 无窗口起栈 + 派发一次真实递送
 - [x] 依赖声明检查：`$(find X)` / `FindPackageShare` / ROS import 引用的包必须在 `package.xml` 里（抓到两个没声明的传感器包）
 - [x] **七个具名基线**（Phase 6 要求）：`rules` / `expert` / `planner_once` + 四个只差一项的闭环配置。实测：回执给闭环带来 **+80 个百分点**的任务成功率（3.3% → 83.3%）
+- [x] **模型被中断**（Phase 5 最后一条验收）：中断是一等结果——episode 结束为 `interrupted`、成功性**未知而非失败**、**物理作业不被取消**、报告写明还有多少命令在跑。等回执改成可中断，否则一条 30 秒的命令会把已死的 episode 拖住 30 秒
 
 待做：
 
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
 - [ ] **摆场景测剩下七族**：四个有道具但没摆过，`grasp_failure` 需要一个"会滑脱的工具"，`low_confidence` / `tool_missing` 需要边缘光照与缺失物体
 - [ ] **跑线缆故障注入**：判据在 `docs/specs/wire-faults.md`，netem 已验证免 sudo
-- [ ] **模型被中断**：Phase 5 要求"物理作业运行中模型被中断"有验收用例，目前没有"中断"这个概念
 - [ ] CI 里再往前一步：驱动 Nav2、跑一次校准探针（现在只到"图起来 + 一条计划派发"）
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定

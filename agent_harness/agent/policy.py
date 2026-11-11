@@ -34,6 +34,20 @@ class Finish:
 Decision = Union[Decide, Finish]
 
 
+class Interrupted(RuntimeError):
+    """The decision source died while the episode was running.
+
+    An interruption is not a failure of the episode and not a failure of the
+    robot. It says the thing that was choosing the next action stopped
+    choosing. Whatever physical work was already in flight keeps running --
+    the loop has no authority to stop it -- and the episode's success is
+    *unknown*, because the episode never got to finish.
+
+    This is distinct from a cancellation: a cancellation is a decision, and
+    somebody asked for it. An interruption is the absence of a decision.
+    """
+
+
 class Policy(Protocol):
     name: str
 

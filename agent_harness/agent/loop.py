@@ -1,4 +1,4 @@
-"""The closed loop: observe one snapshot, decide one action, read the receipt.
+﻿"""The closed loop: observe one snapshot, decide one action, read the receipt.
 
 Phase 5 composes the earlier phases. The rules below are not stylistic; each
 one closes a failure mode found in the audit:
@@ -33,7 +33,11 @@ from agent_harness.runtime.snapshots import model_view
 
 from .budgets import Budgets
 from .conditions import DEFAULT_CONDITION, LoopCondition
-from .policy import Decide, EpisodeResult, Finish, Policy, wall_clock
+from .policy import Decide, EpisodeResult, Finish, Interrupted, Policy, wall_clock
+
+#: The scheduler's job states, as strings.
+DONE = "done"
+CANCELLED = "cancelled"
 
 _TERMINAL = frozenset(
     {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.REJECTED}
@@ -76,6 +80,7 @@ class ClosedLoop:
         observe_interval_s: float = 0.05,
         condition: LoopCondition | None = None,
         platform: str = "ros2",
+        wait_poll_s: float = 0.02,
     ) -> None:
         self._policy = policy
         self._client = client
@@ -93,6 +98,9 @@ class ClosedLoop:
         self._platform = platform
         self._cancelled = threading.Event()
         self._cancel_reason: str | None = None
+        self._interrupt_event = threading.Event()
+        self._interrupt_reason: str | None = None
+        self._wait_poll_s = wait_poll_s
         self._last_receipt: ExecutionReceipt | None = None
 
     # ------------------------------------------------------------------ run
@@ -116,6 +124,11 @@ class ClosedLoop:
                     started=started,
                     failure="cancelled",
                 )
+
+            if self._interrupt_event.is_set():
+                # Somebody interrupted the decision source from outside. The
+                # physical work in flight is left alone.
+                return self._interrupted_outcome(receipts, turns, started)
 
             reason = self._budgets.exceeded(
                 turns=turns,
@@ -143,7 +156,13 @@ class ClosedLoop:
                     )
                 continue
 
-            decision = self._policy.decide(view)
+            try:
+                decision = self._policy.decide(view)
+            except Interrupted as error:
+                # The decision source died. Whatever is physically in flight
+                # keeps running -- the loop does not stop it -- and the
+                # episode's outcome is unknown rather than failed.
+                return self._interrupted_result(receipts, turns, started, str(error))
             if isinstance(decision, Finish):
                 return self._finish(decision, receipts, turns, started)
             if not isinstance(decision, Decide):
@@ -167,8 +186,28 @@ class ClosedLoop:
                     failure="cancelled",
                 )
 
+            if self._interrupt_event.is_set():
+                # The decision source died between deciding and submitting. The
+                # action is not dispatched: nobody is left to authorise it.
+                return self._interrupted_result(
+                    receipts, turns, started, self._interrupt_reason or "interrupted"
+                )
+
             receipt = self._execute(decision)
             if receipt is None:
+                if self._interrupt_event.is_set():
+                    # The command is still running; the episode ends without it.
+                    return self._interrupted_result(
+                        receipts, turns, started, self._interrupt_reason or "interrupted"
+                    )
+                if self._cancelled.is_set():
+                    return self._result(
+                        TaskOutcome(success=False, accepted=True, failure_category="cancelled"),
+                        receipts=receipts,
+                        turns=turns,
+                        started=started,
+                        failure="cancelled",
+                    )
                 return self._result(
                     TaskOutcome(success=False, accepted=True, failure_category="invalid_capability"),
                     receipts=receipts,
@@ -200,6 +239,70 @@ class ClosedLoop:
         self._cancel_reason = reason
         self._cancelled.set()
 
+    def interrupt(self, reason: str = "interrupted") -> None:
+        """Record that the decision source died.
+
+        Distinct from `cancel`: a cancellation is a decision somebody asked
+        for, an interruption is the absence of one. Neither touches physical
+        work that is already running.
+        """
+        self._interrupt_reason = reason
+        self._interrupt_event.set()
+
+    def _interrupted_result(
+        self,
+        receipts: list[ExecutionReceipt],
+        turns: int,
+        started: float,
+        detail: str,
+    ) -> EpisodeResult:
+        """The episode ended because the decision source stopped deciding.
+
+        Success is `None` (unknown), not `False`: the episode never finished,
+        and a command that was in flight may still complete. The detail says
+        so, because "the model died" and "the task failed" are different
+        findings and must not be reported as one.
+        """
+        note = f"interrupted: {detail}" if detail else "interrupted"
+        in_flight = self._in_flight()
+        if in_flight:
+            note += f"; {in_flight} command(s) may still be running"
+        return self._result(
+            TaskOutcome(
+                success=None,
+                accepted=True,
+                failure_category="interrupted",
+                detail=note,
+            ),
+            receipts=receipts,
+            turns=turns,
+            started=started,
+            failure="interrupted",
+        )
+
+    def _interrupted_outcome(
+        self,
+        receipts: list[ExecutionReceipt],
+        turns: int,
+        started: float,
+    ) -> EpisodeResult:
+        return self._interrupted_result(receipts, turns, started, self._interrupt_reason or "interrupted")
+
+    def _in_flight(self) -> int:
+        """How many commands may still be running.
+
+        The count matters: an interruption leaves physical work in flight, and
+        saying so is the difference between "the model died" and "the model
+        died and the arm is still moving".
+        """
+        counter = getattr(self._client, "running_count", None)
+        if counter is None:
+            return 0
+        try:
+            return int(counter())
+        except Exception:  # noqa: BLE001 - a client without the view is not a failure
+            return 0
+
     def _execute(self, decision: Decide) -> ExecutionReceipt | None:
         try:
             self._registry.require(decision.capability, self._platform)
@@ -213,8 +316,28 @@ class ClosedLoop:
         )
         submitted = self._client.submit(request)
         if submitted.execution_status is ExecutionStatus.QUEUED:
-            return self._client.wait(request.command_id)
+            return self._wait_for_receipt(request.command_id)
         return submitted
+
+    def _wait_for_receipt(self, command_id: str) -> ExecutionReceipt | None:
+        """Wait for a receipt without holding an interrupted episode hostage.
+
+        A command that takes thirty seconds must not keep the episode alive for
+        thirty seconds after the decision source died. The wait checks the
+        interruption between short polls, so the episode can end while the
+        physical work is still in flight -- and the report can then say how
+        much of it there was.
+
+        Returns None when the episode was interrupted or cancelled while
+        waiting: the command keeps running, and the episode says so.
+        """
+        while True:
+            status = self._client.job_status(command_id)
+            if status in (DONE, CANCELLED):
+                return self._client.poll(command_id)
+            if self._interrupt_event.is_set() or self._cancelled.is_set():
+                return None
+            time.sleep(self._wait_poll_s)
 
     def _view(self) -> dict | None:
         """The view the policy decides from, shaped by the condition.
