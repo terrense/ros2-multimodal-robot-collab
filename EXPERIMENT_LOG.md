@@ -57,7 +57,53 @@ python -m pytest tests/test_package_dependencies.py
 
 ---
 
-## 2026-11-11 | **O6** 校准扩到两族，两个都推翻了 L1；丢了一个假结果
+## 2026-11-11 | **O6** 七个具名基线建起来了；顺手挖出一个 Phase 2 起的静默 bug
+
+**内容**:master plan 明确要七个基线,每个只隔离一件事:`rules`、`expert`、
+`planner_once`,以及四个逐步加码的闭环配置(回执 → 快照新鲜度 → 显式恢复)。之前
+只有前两个。
+
+**四个闭环配置**(`agent_harness/agent/conditions.py`):每个只多开一样东西,所以表里
+两行之差就是那一件事的价值。
+
+**实测(30 条 L1 episode,规则基线,同一批场景)**:
+```
+loop_no_receipts        3.3% 成功率,31.1 步,96.7% 撞到轮数预算
+loop_receipts          83.3% 成功率,10.7 步,无失败
+loop_receipts_fresh    83.3%
+loop_receipts_recovery 83.3%
+```
+**回执层给闭环带来约 80 个百分点的任务成功率** —— 没有回执,策略不知道发生了什么,
+一路循环到预算耗尽。
+
+后两行相同是**诚实结果而不是 bug**:L1 的快照永远新鲜,而规则基线不读能力清单。
+**新鲜度和恢复这两个条件需要模型策略才能显出价值**,用规则基线跑它们是空操作。
+
+**写这个 runner 挖出一个从 Phase 2 就存在的静默 bug**:`ToolClient` 把平台写死成
+"ros2",于是**只有 L1 词表里有的能力**(如 `navigation.reposition`)全部被
+`unknown_capability` 拒掉——而且是**静默的**,因为"被拒的回执"也是一张合法回执。
+于是闭环跑了 32 步的礼貌拒绝,而环境一步都没推进。Phase 6 要求 L1 和 L2 同一套语义,
+所以平台现在是 client 的属性,两个方向都有测试。
+
+**另外两个真缺陷**:
+- 等视图的循环拿注入的时钟算期限。`use_sim_time` 下 Gazebo 一暂停仿真时钟就停,期限
+  永远到不了,**循环会挂死而不是报告"没有观测"**。改成按真实时间限界。
+- 循环自己把平台也写死成 "ros2",L1 能力在到达 client 之前就被拒了。
+
+**验收命令**:
+```bash
+python -m agent_harness.scripts.run_conditions --episodes 30
+python -m pytest tests/test_conditions.py tests/test_platform.py
+```
+
+**结果**:492 passed / 3 skipped + 59 harness。
+
+**结论**:运行时第一次**能驱动 L1 了**。这不只是补功能——它证明了"契约在两个平台上
+同形"这句话原来是假的,而现在有了数字。
+
+---
+
+## 2026-11-11 | **O6** L1↔L2 校准扩到两族，两个都推翻了 L1；丢了一个假结果
 
 **内容**:把之前只有 3 样本的族凑到 30,并在这过程中发现两个探针**测的不是它们该测的
 东西**。

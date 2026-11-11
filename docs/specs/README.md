@@ -4,6 +4,11 @@ Three unrelated lines of work have each used "Phase N". They are still called
 that in old commits and old logs, so this file is the map: **every phase
 reference should carry the prefix of the line it belongs to.**
 
+The line prefixes, and the phase numbering inside each plan, are audited
+against the plan text in
+[`completion-audit.md`](completion-audit.md) — read that for what is finished
+and what is not.
+
 | Prefix | Line | Where its phases are recorded | What it is |
 |---|---|---|---|
 | **R** | Robot body | [`docs/roadmap.md`](../roadmap.md) | The ROS 2 robot itself: sensors, arms, navigation, simulation, hardware. |
@@ -51,6 +56,7 @@ Done since the line was first planned, and worth knowing about:
 | The L1 side of the calibration: per-family reference rates derived from the configuration, and the measurement programmes | O6 | `agent_env/l2_calibration.py`, `agent_env/scripts/calibrate_l2.py` |
 | The calibration runner, and the scene props it needs | O6 | `agent_env/calibration_runner.py`, `scripts/run_calibration.py`, `src/robot_collab_sim/models/calibration/` |
 | The Phase 7 acceptance criteria the merge left open: provenance on v2 records, drifted corpora refused, the verified clone guard, physical claims refused | O7 | `tests/test_phase7_closure.py` |
+| The seven named baselines, as declarative conditions: `rules`, `expert`, `planner_once`, and four loop configurations that switch on receipts, the freshness gate and recovery in turn | O6 | `agent_harness/agent/conditions.py`, `agent_harness/scripts/run_conditions.py` |
 
 Three of those are **code complete but NOT RUN against a live stack**: the
 concurrent executor needs a node and an action server, the wire faults need

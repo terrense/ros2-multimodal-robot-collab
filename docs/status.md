@@ -66,9 +66,37 @@ two configuration problems that would have caused an OOM are in
 | Contracts, runtime, ledger, snapshots, agent loop | complete | 59 harness tests |
 | Per-resource concurrency | **verified with ROS 2** | `test_concurrency_ros.py` in the CI ROS job |
 | L2 adapter over the live stack | **verified** | runtime smoke test: 2 commands, goal uuids correlated |
+| The seven named baselines | **built** | `agent_harness/agent/conditions.py`, `run_conditions.py` |
 | Calibration contract + runner + scenes | complete | `agent_env/l2_calibration.py` |
 | Calibration measurements | **2 of 9 measured, both falsify L1** | see below |
 | Wire faults | built + criteria written, **never run** | `specs/wire-faults.md` |
+
+### What the named conditions measured
+
+The four loop conditions, 30 L1 episodes, rule baseline, identical scenarios:
+
+| Condition | task success | mean turns | what it isolates |
+|---|---|---|---|
+| `loop_no_receipts` | **3.3%** | 31.1 | — |
+| `loop_receipts` | **83.3%** | 10.7 | the receipt |
+| `loop_receipts_fresh` | 83.3% | 10.7 | the freshness gate |
+| `loop_receipts_recovery` | 83.3% | 10.7 | explicit recovery |
+
+The receipt layer is worth about **eighty points** of task success to the closed
+loop: without it the policy cannot tell what happened and loops until the turn
+budget (96.7% of episodes hit it).
+
+The last two rows are identical, and that is the honest result rather than a
+bug: L1's snapshots are always fresh, and the rule policy does not read the
+capability list. **The freshness and recovery conditions need a model policy to
+show any value** — with a rule baseline they are no-ops, and reporting that is
+more useful than a number that looks like a finding.
+
+Building this also exposed a defect that had been there since Phase 2:
+`ToolClient` hard-coded the `ros2` platform, so every L1-only capability was
+rejected — and silently, because a rejected receipt is a valid receipt. The
+loop ran thirty-two turns of polite rejections while the environment never
+advanced a single step.
 
 ### Calibration: the state of the fault model
 
@@ -140,18 +168,25 @@ L1 fault model has been validated. The props exist and the driver exists; nobody
 has placed them. `grasp_failure` additionally needs a tool that slips, which the
 simulated arm cannot produce at all.
 
-### 4. Wire-fault run
+### 4. The interrupted model
+
+Blocks: a claim that the agent gateway is safe to interrupt. The plan asks for
+"model interrupted while physical job runs" as an acceptance test and there is
+no interruption concept: a model that dies mid-decision leaves no defined
+trace, and the loop cannot tell an interrupted decision from a failed one.
+
+### 5. Wire-fault run
 
 Blocks: the transport-safety claim. The criteria, the injector and the audit are
 built; the run needs a live stack and moving commands. `tc netem` was verified to
 work unprivileged inside `unshare -Ur -n`.
 
-### 5. MoveIt2 or a vendor SDK
+### 6. MoveIt2 or a vendor SDK
 
 Blocks: any physical-manipulation claim. Replacing the simulated executor in
 `arm_skill_server` is the whole integration point.
 
-### 6. Hardware
+### 7. Hardware
 
 Blocks: R2 and every sim-to-real statement. Needs separate authorization, TF
 calibration and a working stop path first.
