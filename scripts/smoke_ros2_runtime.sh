@@ -22,6 +22,10 @@ set -o pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LEDGER="${1:-/tmp/ros2_runtime_smoke.db}"
 LOG=/tmp/ros2_runtime_smoke_demo.log
+# The timeouts are generous on purpose: a CI container is several times slower
+# than a workstation, and a slow mission must not be mistaken for a broken one.
+EXEC_TIMEOUT_SEC="${EXEC_TIMEOUT_SEC:-30}"
+RUN_TIMEOUT_SEC="${RUN_TIMEOUT_SEC:-90}"
 cd "$REPO" || exit 1
 
 source /opt/ros/humble/setup.bash
@@ -59,9 +63,9 @@ timeout 20 python3 scripts/ros_graph.py call /system/query_state \
   robot_collab_interfaces/srv/QuerySystemState '{"requester": "smoke_test"}' 2>&1 | tail -3
 
 echo "== execute delivery plan (runtime engine, ledger: $LEDGER) =="
-timeout 90 python3 agent_harness/scripts/ros_tool_executor.py \
+timeout "$RUN_TIMEOUT_SEC" python3 agent_harness/scripts/ros_tool_executor.py \
   agent_harness/examples/deliver_hex_key_plan.json \
-  --mode execute --timeout-sec 30 --ledger "$LEDGER"
+  --mode execute --timeout-sec "$EXEC_TIMEOUT_SEC" --ledger "$LEDGER"
 EXIT=$?
 echo "harness_exit=$EXIT"
 

@@ -3,7 +3,7 @@ name: CI
 # The gate. If this is green on a branch, the branch is mergeable.
 #
 #   lint           ~20s   ruff + conflict markers        (every push)
-#   python-tests   ~40s   321 tests, benchmark, results table, acceptance run
+#   python-tests   ~40s   505 tests, benchmark, results table, acceptance run
 #   harness-tests  ~25s   agent_harness suite (pytest.ini testpaths hides it)
 #   ros2-build     ~7min  10 colcon packages inside ros:humble-ros-base, the
 #                         ROS-only runtime tests, and a headless simulation
@@ -178,30 +178,44 @@ jobs:
           set -o pipefail
           export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
           apt-get install -y --no-install-recommends \
-            ros-humble-rmw-cyclonedds-cpp iproute2 procps
+            ros-humble-rmw-cyclonedds-cpp iproute2 procps \
+            libgl1-mesa-dri libgl1-mesa-glx libglu1-mesa
           source /opt/ros/humble/setup.bash
           source install/setup.bash
 
           # No display anywhere: this is the CI condition, and the stack has to
-          # work in it.
+          # work in it. Gazebo still needs a GL driver for its scene graph, so
+          # the software renderer is what makes the container able to run it.
           unset DISPLAY WAYLAND_DISPLAY
+          export LIBGL_ALWAYS_SOFTWARE=1
+          # The model database is online; a runner with no route to it would
+          # stall the world load.
+          export GAZEBO_MODEL_DATABASE_URI=""
 
           bash scripts/run_gazebo_demo.sh --headless
 
           # 40s was enough locally; CI runners are slower.
+          UP=0
           for i in $(seq 1 60); do
             if timeout 15 python3 scripts/ros_graph.py wait /mission/deliver_tool 5 >/dev/null 2>&1; then
               echo "stack answered after ${i} attempt(s)"
+              UP=1
               break
             fi
             sleep 3
           done
+          if [ "$UP" != "1" ]; then
+            echo "the stack never came up; the launch log follows"
+            tail -80 /tmp/gazebo_demo.log || true
+            exit 1
+          fi
 
           echo "=== nodes ==="
           timeout 30 python3 scripts/ros_graph.py nodes | sort
 
           echo "=== runtime smoke ==="
-          SMOKE_USE_RUNNING=1 bash scripts/smoke_ros2_runtime.sh /tmp/ci_smoke.db
+          EXEC_TIMEOUT_SEC=60 RUN_TIMEOUT_SEC=240 \
+            SMOKE_USE_RUNNING=1 bash scripts/smoke_ros2_runtime.sh /tmp/ci_smoke.db
 
       - name: Stop the simulation
         if: always()
