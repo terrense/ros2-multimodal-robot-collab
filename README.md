@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-**2026-11-11** · 主套件 428 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
+**2026-11-11** · 主套件 437 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -527,7 +527,7 @@ bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
 它跑的和 CI 完全一样，所以"本地绿"和"CI 绿"是一回事。分开跑也行：
 
 ```bash
-python -m pytest                 # 428 passed, 3 skipped（agent_env + training）
+python -m pytest                 # 437 passed, 3 skipped（agent_env + training）
 python -m pytest agent_harness/tests   # 59 passed（运行时：契约、调度、并发、线缆故障）
 python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
