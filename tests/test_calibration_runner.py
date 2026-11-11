@@ -1,13 +1,23 @@
 """The calibration runner: what it measures, and what it refuses to measure.
 
-Two failure modes matter more than the probes themselves.
+Four failure modes matter more than the probes themselves.
 
     A family whose scene is not arranged must not become a sample. Filling the
     gap with the L1 value would turn an assumption back into an assumption --
     one wearing a measurement's clothes.
 
+    A probe that came back clean has measured the healthy path, not a recovered
+    fault. Counting it as a failure of recovery would blame the system for a
+    fault that never happened.
+
+    A probe that hard-codes the tool name measures a tool the stack does not
+    have. Against a stub detector publishing `hex_key_3mm`, a probe asking for
+    `wrench` reports 0% recovery for a fault the robot never encountered -- and
+    that is exactly what happened the first time these ran against a live stack.
+
     Asking whether a family *can* be measured must not move the robot. That is
-    why `skipped()` inspects the probes instead of running them.
+    why the reason list is built from the probes' own annotations, not by
+    running them.
 """
 
 from __future__ import annotations
@@ -31,55 +41,90 @@ class _Receipt:
 
 
 class FakeStack:
-    """A stack that answers a fixed sequence of statuses per capability."""
+    """A stack whose answers cycle through a per-capability script.
 
-    def __init__(self, script: dict[str, list[str]]) -> None:
-        self.script = {name: list(statuses) for name, statuses in script.items()}
+    Cycling rather than consuming matters: a probe repeats, so every sample
+    must see the same fault pattern. A consuming script would let the second
+    sample see the clean path and the probe would be measuring nothing.
+    """
+
+    def __init__(self, script: dict[str, list[str]] | None = None) -> None:
+        self.script = {name: list(statuses) for name, statuses in (script or {}).items()}
         self.calls: list[tuple[str, dict]] = []
+        self._counts: dict[str, int] = {}
 
     def call(self, capability: str, arguments: dict):
         self.calls.append((capability, dict(arguments)))
-        statuses = self.script.get(capability) or ["completed"]
-        status = statuses.pop(0) if len(statuses) > 1 else statuses[0]
-        return _Receipt(status)
+        statuses = self.script.get(capability)
+        if not statuses:
+            return _Receipt("completed")
+        index = self._counts.get(capability, 0)
+        self._counts[capability] = index + 1
+        return _Receipt(statuses[index % len(statuses)])
 
     @staticmethod
     def receipt_status(receipt):
         return receipt.execution_status
 
 
-def _runner(stack, samples=3) -> CalibrationRunner:
-    return CalibrationRunner(stack, min_samples=samples)
+def _runner(stack, samples: int = 3, **kwargs) -> CalibrationRunner:
+    return CalibrationRunner(stack, min_samples=samples, **kwargs)
 
 
 # ---------------------------------------------------------------- the probes
 
 
 def test_a_navigation_timeout_is_measured_by_retrying_the_same_station() -> None:
-    stack = FakeStack(
-        {"navigation.navigate_to_station": ["failed", "completed"]},
-    )
+    stack = FakeStack({"navigation.navigate_to_station": ["unknown", "completed"]})
     measurement = _runner(stack).measure(FaultType.NAV_TIMEOUT, samples=1)
     assert measurement is not None
     assert measurement.successes == 1
-    assert stack.calls[0][0] == "navigation.navigate_to_station"
-    assert stack.calls[0][1]["station_id"] == stack.calls[1][1]["station_id"]
+    stations = [arguments["station_id"] for _capability, arguments in stack.calls]
+    assert len(set(stations)) == 1, "both attempts must target the same station"
 
 
-def test_a_navigation_that_never_recovers_is_a_failed_sample() -> None:
-    stack = FakeStack({"navigation.navigate_to_station": ["failed"]})
-    measurement = _runner(stack).measure(FaultType.NAV_TIMEOUT, samples=2)
+def test_a_navigation_that_never_times_out_is_not_a_measurement() -> None:
+    """A clean navigation says nothing about recovering from a timeout."""
+    stack = FakeStack({"navigation.navigate_to_station": ["completed"]})
+    assert _runner(stack).measure(FaultType.NAV_TIMEOUT, samples=1) is None
+
+
+def test_a_stack_that_is_not_answering_is_not_measured() -> None:
+    stack = FakeStack({"system-state.query_state": ["failed"]})
+    assert _runner(stack).measure(FaultType.LOW_CONFIDENCE, samples=2) is None
+
+
+def test_the_grasp_probe_uses_the_configured_tool_not_a_constant() -> None:
+    """The bug this test exists for: a hard-coded name measured nothing."""
+    stack = FakeStack({"manipulation.pick_and_place": ["unknown", "completed"]})
+    runner = _runner(stack, tool_id="hex_key_3mm")
+    measurement = runner.measure(FaultType.GRASP_FAILURE, samples=1)
     assert measurement is not None
-    assert measurement.successes == 0
-    assert measurement.samples == 2
+    tools = {arguments["tool_id"] for _capability, arguments in stack.calls}
+    assert tools == {"hex_key_3mm"}
 
 
-def test_the_sample_count_is_the_attempt_count() -> None:
-    stack = FakeStack({"navigation.navigate_to_station": ["failed", "completed"]})
-    measurement = _runner(stack).measure(FaultType.NAV_TIMEOUT, samples=5)
+def test_the_grasp_probe_still_works_for_a_configured_tool() -> None:
+    stack = FakeStack({"manipulation.pick_and_place": ["unknown", "completed"]})
+    runner = _runner(stack, tool_id="wrench")
+    assert runner.measure(FaultType.GRASP_FAILURE, samples=1) is not None
+    assert {arguments["tool_id"] for _c, arguments in stack.calls} == {"wrench"}
+
+
+def test_an_identity_check_that_passes_first_time_is_not_a_mismatch() -> None:
+    """A real operator id would verify immediately; the probe must not count that."""
+    stack = FakeStack({"perception.verify_operator": ["completed"]})
+    assert _runner(stack).measure(FaultType.IDENTITY_MISMATCH, samples=1) is None
+
+
+def test_an_identity_mismatch_is_produced_with_a_stranger() -> None:
+    stack = FakeStack({"perception.verify_operator": ["rejected", "completed"]})
+    runner = _runner(stack, operator_id="operator_001")
+    measurement = runner.measure(FaultType.IDENTITY_MISMATCH, samples=1)
     assert measurement is not None
-    assert measurement.samples == 5
-    assert measurement.successes == 5
+    operators = {arguments["operator_id"] for _c, arguments in stack.calls}
+    assert operators == {"operator_001_absent"}
+    assert "operator_001" not in operators
 
 
 # ------------------------------------------------- what it refuses to measure
@@ -87,42 +132,42 @@ def test_the_sample_count_is_the_attempt_count() -> None:
 
 def test_a_family_that_needs_a_scene_is_not_measured() -> None:
     """An occlusion cannot be produced by a skill call, so it is not a sample."""
-    stack = FakeStack({})
-    measurement = _runner(stack).measure(FaultType.VISUAL_OCCLUSION, samples=5)
-    assert measurement is None
+    stack = FakeStack()
+    assert _runner(stack).measure(FaultType.VISUAL_OCCLUSION, samples=5) is None
     assert stack.calls == []
 
 
-def test_a_stack_that_is_not_answering_is_not_measured() -> None:
-    stack = FakeStack({"system-state.query_state": ["failed"]})
-    measurement = _runner(stack).measure(FaultType.LOW_CONFIDENCE, samples=2)
-    assert measurement is None
-
-
-def test_asking_what_cannot_be_measured_does_not_dispatch_anything() -> None:
-    """`skipped()` must answer from the probes, not by running them."""
-    stack = FakeStack({})
-    skipped = _runner(stack).skipped()
+def test_asking_why_a_family_was_not_measured_does_not_dispatch_everything() -> None:
+    """`reason_unmeasured` may probe, but a scene-only family must not be run."""
+    stack = FakeStack()
+    unmeasured = _runner(stack).reason_unmeasured([FaultType.VISUAL_OCCLUSION])
     assert stack.calls == [], "a question about measurability must not move the robot"
-    families = {item["family"] for item in skipped}
-    assert families == {"visual_occlusion", "tool_drop", "no_progress", "user_cancel"}
-    for item in skipped:
-        assert item["reason"]
+    assert unmeasured[0]["family"] == "visual_occlusion"
+    assert unmeasured[0]["reason"]
 
 
-def test_the_runnable_families_are_not_listed_as_skipped() -> None:
-    stack = FakeStack({})
-    skipped = {item["family"] for item in _runner(stack).skipped()}
-    assert "nav_timeout" not in skipped
-    assert "grasp_failure" not in skipped
+def test_the_three_reasons_are_kept_apart() -> None:
+    """Scene, stack and clean-attempt are different problems with different fixes."""
+    scene = _runner(FakeStack()).reason_unmeasured([FaultType.VISUAL_OCCLUSION])
+    assert scene[0]["reason"].startswith("scene not arranged")
+
+    unavailable = _runner(
+        FakeStack({"system-state.query_state": ["rejected"]})
+    ).reason_unmeasured([FaultType.LOW_CONFIDENCE])
+    assert unavailable[0]["reason"].startswith("stack unavailable")
+
+    clean = _runner(FakeStack({"navigation.navigate_to_station": ["completed"]})).reason_unmeasured(
+        [FaultType.NAV_TIMEOUT]
+    )
+    assert clean[0]["reason"].startswith("no fault produced")
 
 
 # ------------------------------------------------------------- the manifest
 
 
 def test_an_unmeasured_family_reaches_the_manifest_as_not_measured() -> None:
-    """The whole chain: runner → measurement log → manifest."""
-    stack = FakeStack({"navigation.navigate_to_station": ["failed", "completed"]})
+    """The whole chain: runner -> measurement log -> manifest."""
+    stack = FakeStack({"navigation.navigate_to_station": ["unknown", "completed"]})
     measurements = _runner(stack).run([FaultType.NAV_TIMEOUT])
     manifest = measurements_to_manifest(measurements, seed=7)
 
@@ -136,7 +181,7 @@ def test_an_unmeasured_family_reaches_the_manifest_as_not_measured() -> None:
 
 
 def test_fewer_samples_than_the_minimum_is_never_calibrated() -> None:
-    stack = FakeStack({"navigation.navigate_to_station": ["failed", "completed"]})
+    stack = FakeStack({"navigation.navigate_to_station": ["unknown", "completed"]})
     measurements = _runner(stack, samples=2).run([FaultType.NAV_TIMEOUT])
     assert measurements[0].samples == 2
     manifest = measurements_to_manifest(measurements, seed=7)
@@ -146,9 +191,8 @@ def test_fewer_samples_than_the_minimum_is_never_calibrated() -> None:
 
 
 def test_the_measurement_log_has_the_shape_the_manifest_reader_expects() -> None:
-    stack = FakeStack({"navigation.navigate_to_station": ["failed", "completed"]})
-    measurements = _runner(stack).run([FaultType.NAV_TIMEOUT])
-    rows = measurements_to_rows(measurements)
+    stack = FakeStack({"navigation.navigate_to_station": ["unknown", "completed"]})
+    rows = measurements_to_rows(_runner(stack).run([FaultType.NAV_TIMEOUT]))
     assert rows[0]["family"] == "nav_timeout"
     assert {"successes", "samples", "note"} <= set(rows[0])
 
@@ -157,15 +201,25 @@ def test_the_measurement_log_has_the_shape_the_manifest_reader_expects() -> None
 
 
 def test_the_runner_reports_what_it_did_and_did_not_do() -> None:
-    stack = FakeStack({"navigation.navigate_to_station": ["failed", "completed"]})
+    stack = FakeStack({"navigation.navigate_to_station": ["unknown", "completed"]})
     runner = _runner(stack)
     text = describe(runner.run([FaultType.NAV_TIMEOUT]))
     assert "nav_timeout" in text and "1.000" in text
 
-    skipped = summarise_skipped(runner.skipped([FaultType.VISUAL_OCCLUSION]))
-    assert "visual_occlusion" in skipped
-    assert "not measured" in skipped
+    unmeasured = summarise_skipped(runner.reason_unmeasured([FaultType.VISUAL_OCCLUSION]))
+    assert "visual_occlusion" in unmeasured
+    assert "not measured" in unmeasured
 
 
 def test_every_family_has_an_entry_in_the_probe_table() -> None:
     assert set(PROBES) == set(FaultType)
+
+
+def test_every_probe_accepts_the_runner() -> None:
+    """The probes take (stack, scene); a stale signature would fail here, not at
+    the first real run."""
+    import inspect
+
+    for family, probe in PROBES.items():
+        parameters = list(inspect.signature(probe).parameters)
+        assert parameters == ["stack", "scene"], f"{family.value}: {parameters}"

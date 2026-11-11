@@ -52,6 +52,8 @@ class CapabilityRegistry:
             resource_key=existing.resource_key,
             timeout_s=existing.timeout_s or descriptor.timeout_s,
             risk=existing.risk,
+            # Visible to the model only if *every* source says so.
+            model_visible=existing.model_visible and descriptor.model_visible,
         )
 
     def get(self, name: str) -> CapabilityDescriptor:
@@ -75,6 +77,22 @@ class CapabilityRegistry:
             key=lambda d: d.name,
         )
 
+    def model_visible_for(self, platform: str) -> list[CapabilityDescriptor]:
+        """The capabilities a *model* should be offered.
+
+        Distinct from `for_platform`: a capability can be dispatchable by the
+        runtime and still not offered to the model, because offering it would
+        let the model bypass a sequence the runtime owns.
+        """
+        return sorted(
+            (
+                d
+                for d in self._by_name.values()
+                if d.supports(platform) and d.model_visible
+            ),
+            key=lambda d: d.name,
+        )
+
     def describe_for(self, platform: str) -> list[str]:
         """One model-facing line per capability, derived from the registry.
 
@@ -82,7 +100,7 @@ class CapabilityRegistry:
         appear, and a capability absent on the platform never does.
         """
         lines = []
-        for descriptor in self.for_platform(platform):
+        for descriptor in self.model_visible_for(platform):
             args = ", ".join(descriptor.required_args) or "-"
             lines.append(
                 f"{descriptor.name}({args}) "

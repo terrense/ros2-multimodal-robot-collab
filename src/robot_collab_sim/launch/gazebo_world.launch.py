@@ -11,6 +11,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     robot_name = LaunchConfiguration("robot_name")
     world = LaunchConfiguration("world")
+    gui = LaunchConfiguration("gui")
 
     sim_share = FindPackageShare("robot_collab_sim")
     robot_description_path = PathJoinSubstitution([sim_share, "urdf", "collab_mobile_base.urdf.xacro"])
@@ -28,6 +29,11 @@ def generate_launch_description():
         launch_arguments={
             "world": world,
             "verbose": "true",
+            # gui:=false starts gzserver only. A machine with no display (a
+            # container, a CI runner, WSLg not started) can still run the whole
+            # stack and be driven by the runtime -- which is what the CI job and
+            # the headless calibration run need.
+            "gui": gui,
         }.items(),
     )
 
@@ -36,6 +42,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("robot_name", default_value="collab_mobile_base"),
             DeclareLaunchArgument("world", default_value=default_world_path),
+            DeclareLaunchArgument("gui", default_value="true"),
             gazebo_launch,
             Node(
                 package="robot_state_publisher",

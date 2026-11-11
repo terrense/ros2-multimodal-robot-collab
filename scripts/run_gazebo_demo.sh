@@ -4,6 +4,7 @@
 #   scripts/run_gazebo_demo.sh              # lab world, simulated nav backend
 #   scripts/run_gazebo_demo.sh --nav2       # SLAM + Nav2
 #   scripts/run_gazebo_demo.sh --workshop   # workshop world + real KUKA/FANUC/Dobot
+#   scripts/run_gazebo_demo.sh --headless   # gzserver only, no window
 #
 # Requirements: Ubuntu 22.04 + ROS 2 Humble, a built workspace, WSLg for the window.
 # Leaves the stack running; stop it with scripts/stop_gazebo_demo.sh.
@@ -30,6 +31,7 @@ export GAZEBO_MODEL_PATH="$GAZEBO_MODELS:${GAZEBO_MODEL_PATH:-}"
 NAV_ARGS=()
 WORLD_ARGS=()
 SPAWN_ARMS=0
+HEADLESS=0
 for arg in "$@"; do
   case "$arg" in
     --nav2) NAV_ARGS=(nav_backend:=nav2 start_slam:=true start_nav2:=true) ;;
@@ -37,17 +39,31 @@ for arg in "$@"; do
       WORLD_ARGS=(world:="$REPO/src/robot_collab_sim/worlds/workshop.world")
       SPAWN_ARMS=1
       ;;
+    --headless) HEADLESS=1 ;;
   esac
 done
+
+if [ "$HEADLESS" = "1" ]; then
+  # No window: gzserver alone. The stack is still fully drivable, which is
+  # what a machine with no display (or a CI runner) needs.
+  GUI_ARGS=(gui:=false)
+  echo "headless: gzserver only, no window"
+else
+  GUI_ARGS=()
+fi
 
 LOG=/tmp/gazebo_demo.log
 : >"$LOG"
 setsid nohup ros2 launch robot_collab_bringup gazebo_nav_vins_demo.launch.py \
-  "${WORLD_ARGS[@]}" "${NAV_ARGS[@]}" >"$LOG" 2>&1 &
+  "${WORLD_ARGS[@]}" "${NAV_ARGS[@]}" "${GUI_ARGS[@]}" >"$LOG" 2>&1 &
 
 echo "launch started; log: $LOG"
 for i in $(seq 1 40); do
-  if pgrep -f gzclient >/dev/null 2>&1; then
+  if pgrep -f gzserver >/dev/null 2>&1; then
+    echo "gazebo server up after ${i}s"
+    break
+  fi
+  if [ "$HEADLESS" != "1" ] && pgrep -f gzclient >/dev/null 2>&1; then
     echo "gazebo window up after ${i}s"
     break
   fi

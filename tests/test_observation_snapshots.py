@@ -95,13 +95,19 @@ def test_capability_description_is_derived_from_the_registry():
     lines = registry.describe_for("ros2")
     names = [line.split("(")[0] for line in lines]
 
-    assert names == [descriptor.name for descriptor in registry.for_platform("ros2")]
+    # The model-facing list is the registry's, minus what the schema says the
+    # model should not see.
+    assert names == [descriptor.name for descriptor in registry.model_visible_for("ros2")]
     deliver = next(line for line in lines if line.startswith("mission-control.deliver_tool("))
     assert "composite" in deliver
     # Non-callable perception internals are not model-visible capabilities.
     joined = " ".join(lines)
     assert "perception.detect_tool_yolov8" not in joined
     assert "perception.recognize_openpose_gesture" not in joined
+    # The grasp action is dispatchable by the runtime but not offered to the
+    # model: offering it would let the model bypass the mission state machine.
+    assert "manipulation.pick_and_place" not in joined
+    assert "manipulation.pick_and_place" in registry.names()
 
 
 def test_capability_description_marks_world_mutation():

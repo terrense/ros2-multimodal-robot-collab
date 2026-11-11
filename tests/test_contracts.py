@@ -351,9 +351,12 @@ def test_registry_covers_every_declared_capability():
         )["actions"]
     )
 
-    # Measured at the pinned revision: 8 declared, 6 agent-callable, 13 L1.
-    assert len(declared) == 8
-    assert len(callable_ros) == 6
+    # Measured at the pinned revision: 9 declared, 7 agent-callable, 13 L1.
+    # The ninth is `manipulation.pick_and_place`: a real action server on the
+    # ROS 2 side that the runtime needs (the L2 adapter and the calibration
+    # probes drive it) and that the model must not be offered.
+    assert len(declared) == 9
+    assert len(callable_ros) == 7
     assert len(l1_actions) == 13
     assert len(callable_ros & l1_actions) == 5
 
@@ -379,12 +382,16 @@ def test_ros_only_capabilities_are_not_exposed_to_l1():
     registry = CapabilityRegistry.load(REPO_ROOT)
     l1_names = {d.name for d in registry.for_platform("l1")}
 
-    # Exactly one agent-callable capability exists only on the ROS 2 side.
+    # Two agent-callable capabilities exist only on the ROS 2 side: the
+    # composite mission, and the grasp action the runtime dispatches for the
+    # L2 adapter and the calibration probes.
     ros_only = {d.name for d in registry.for_platform("ros2")} - l1_names
-    assert ros_only == {"mission-control.deliver_tool"}
+    assert ros_only == {"mission-control.deliver_tool", "manipulation.pick_and_place"}
 
     with pytest.raises(UnsupportedCapability):
         registry.require("mission-control.deliver_tool", "l1")
+    with pytest.raises(UnsupportedCapability):
+        registry.require("manipulation.pick_and_place", "l1")
 
 
 def test_composite_capability_is_marked():

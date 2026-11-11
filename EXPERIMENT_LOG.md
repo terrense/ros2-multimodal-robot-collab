@@ -9,6 +9,83 @@
 
 ---
 
+## 2026-11-11 | **O6** 第一次对着真 Gazebo 栈跑校准，抓到三个真 bug
+
+**内容**:之前所有"实时栈"相关的东西都只是逻辑测试。这次把 workshop 场景真起起来
+(20 节点 / 45 话题)，跑运行时冒烟和校准探针，一次暴露三个缺陷。
+
+**先说明:栈本身是好的。** 起的是 `--workshop`(官方 KUKA/FANUC/Dobot + D435 +
+VLP-16),14 个节点全部启动:
+```
+mission_state_machine, nav_skill_server, arm_skill_server, tool_detector_node,
+face_auth_node, gesture_recognizer_node, voice_gateway_node, agent_gateway_node,
+vins_mono_bridge_node, gazebo, diff_drive, ...
+```
+`ros2` CLI 看不到图(WSL + CycloneDDS 的老问题),但 rclpy 看得到 —— 所以补了
+`scripts/ros_graph.py`,把 CLI 该做的事用节点自己做:`nodes/topics/services/actions/
+call/wait`。冒烟脚本改用它。
+
+**运行时冒烟:通过。** 两条命令都 `completed`,goal uuid 与回执关联:
+```
+perception.verify_operator:     completed  goal_uuid=25a452d8...
+mission-control.deliver_tool:   completed  goal_uuid=c04495ba...
+```
+
+**抓到的三个 bug**:
+
+1. **`manipulation.pick_and_place` 根本不在能力注册表里。** `/skills/pick_and_place`
+   有真的 action server,但 `skills/manipulation/schema.json` 没声明它,L1 词表里也
+   没有这个名字。结果是**我昨天写的 L2 适配器的抓取映射对着真栈必然被拒**。
+   修法不是把它加进模型可见列表——那会让模型绕过状态机自己抓——而是新增
+   `model_visible` 字段:运行时可派发、模型不可见。合并两个来源时"任一来源不可见则
+   不可见"。
+
+2. **能力的 `timeout_s` 从来没被用过。** `ToolClient` 算出 `policy.timeout_s` 就扔了。
+   于是所有命令都跑默认超时,schema 里的 `timeout_sec` 只是注释。校准的
+   `nav_timeout` 探针正需要"先短超时再正常重试",拿不到就测不了。修法:
+   `_effective_timeout` 取 `min(请求值, 能力上限)`——调用方可以要得更短,不能要得
+   更长。
+
+3. **探针硬编码了 `"wrench"`,而栈的桩检测器发布 `hex_key_3mm`。** 结果是
+   `grasp_failure 0/3`——探针在测一个不存在的工具,然后把"机器人根本没遇到这个
+   故障"报成"恢复率 0%"。这比不报更糟。修法:工具名从 runner 传入
+   (`--tool-id`),并且探针必须**先确认故障真的产生了**,否则抛
+   `ProbeUnavailable`——干净路径的结果不能算作恢复。
+
+**第一份真实测量**(3 样本,不是 30,所以全部 `insufficient_samples`):
+```
+nav_timeout         1.000 (3/3)
+low_confidence      1.000 (3/3)
+tool_missing        1.000 (3/3)
+grasp_failure       0.000 (3/3)   ← 修完第 3 条后需要重测
+identity_mismatch   0.000 (3/3)   ← 同上
+```
+四个场景族如实拒测并给出场景要求。
+
+**另外确认了一件事:`tc netem` 不需要 sudo。** `unshare -Ur -n` 能拿到自己命名空间
+内的 CAP_NET_ADMIN,`tc qdisc add` 成功;命名空间外是 `Operation not permitted`。
+代价是节点、工具客户端和注入器必须**全在同一个 namespace 里**。已写进
+`docs/specs/wire-faults.md` §7。
+
+**验收命令**:
+```bash
+bash scripts/run_gazebo_demo.sh --workshop      # 起栈
+SMOKE_USE_RUNNING=1 bash scripts/smoke_ros2_runtime.sh
+python -m agent_env.scripts.run_calibration --samples 3 --tool-id hex_key_3mm
+```
+
+**结果**:428 passed / 3 skipped(主)+ 59 passed(harness)。
+
+**结论**:对着真栈跑一小时抓到的缺陷,比纯逻辑测试一周抓到的多。特别是第 3 条——
+**探针测了自己造不出来的故障,然后把结果报成 0%**——这是"测量"最坏的失败方式:
+它看起来像数据。
+
+**遗留**:`grasp_failure` 和 `identity_mismatch` 修完后需要重测;`MISSION` 的
+`arm_skill_server` 是仿真执行器(不接 MoveIt2),所以抓取类探针测的是仿真行为;
+栈跑完已按要求关掉。
+
+---
+
 ## 2026-11-10 | **O3.1** 并发的 rclpy 半边跑起来了（真执行器 + 真 action server）
 
 **内容**:上一条把每资源锁和"不等 spin"写了,但那只是纯 Python 的半边。另一半只有

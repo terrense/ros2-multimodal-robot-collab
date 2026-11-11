@@ -211,6 +211,9 @@ def capability_descriptor_schema() -> dict[str, Any]:
                 "resource_key": {"type": "string", "minLength": 1, "pattern": r"^\S+$"},
                 "timeout_s": {"type": ["number", "null"], "exclusiveMinimum": 0},
                 "risk": {"type": "string"},
+                # Dispatchable by the runtime, but not necessarily offered to
+                # the model. See CapabilityDescriptor's docstring.
+                "model_visible": {"type": "boolean"},
             },
         },
     )

@@ -312,6 +312,13 @@ class CapabilityDescriptor:
 
     ``granularity="composite"`` means one submission covers several observable
     phases; the executor must still emit progress for it.
+
+    ``model_visible`` separates two questions that were conflated in one:
+    whether the *runtime* may dispatch this, and whether the *model* should be
+    offered it. `/skills/pick_and_place` is a real robot capability with its own
+    action server, and the runtime needs it (the L2 adapter and the calibration
+    probes drive it) -- but a model that can call it directly would bypass the
+    mission state machine's own sequence. So it is dispatchable and not offered.
     """
 
     name: str
@@ -322,6 +329,7 @@ class CapabilityDescriptor:
     resource_key: str = "episode"
     timeout_s: float | None = None
     risk: str = "unknown"
+    model_visible: bool = True
 
     def __post_init__(self) -> None:
         _check_capability(self.name)
@@ -340,6 +348,8 @@ class CapabilityDescriptor:
             raise ValueError("required_args must be non-empty strings")
         if not isinstance(self.mutates_world, bool):
             raise TypeError("mutates_world must be a boolean")
+        if not isinstance(self.model_visible, bool):
+            raise TypeError("model_visible must be a boolean")
         self.resource_key = _check_resource_key(self.resource_key)
         if self.timeout_s is not None:
             timeout = float(self.timeout_s)
@@ -389,4 +399,6 @@ class CapabilityDescriptor:
             resource_key=resource_key_for_risk(risk),
             timeout_s=spec.get("timeout_sec"),
             risk=str(risk or "unknown"),
+            # A schema may say "the runtime may do this, the model should not".
+            model_visible=bool(spec.get("model_visible", True)),
         )

@@ -10,6 +10,17 @@
       "commands": ["arm_start", "arm_pause", "system_stop"],
       "ros_topic": "/arm/control_command",
       "ros_type": "robot_collab_interfaces/msg/ArmControlCommand"
+    },
+    "pick_and_place": {
+      "required": ["tool_id"],
+      "callable": true,
+      "model_visible": false,
+      "risk": "arm_motion",
+      "requires_confirmation": false,
+      "timeout_sec": 120,
+      "ros_action": "/skills/pick_and_place",
+      "ros_type": "robot_collab_interfaces/action/PickAndPlace",
+      "note": "Dispatchable by the runtime, not offered to the model: a model that could call it directly would bypass the mission state machine's own sequence (verify the operator, detect the tool, then pick). The L2 adapter and the calibration probes need it, because L1's grasp vocabulary is finer-grained than this stack's."
     }
   }
 }

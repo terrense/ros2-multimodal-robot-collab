@@ -42,6 +42,23 @@ class ToolBackend(Protocol):
     def close(self) -> None: ...
 
 
+def _effective_timeout(request: ActionRequest, policy: ExecutionPolicy) -> float | None:
+    """The deadline a command actually runs under.
+
+    The capability's own timeout is a *limit*: a caller may ask for less (a
+    probe that needs a quick timeout) but never for more. Before this, the
+    limit was computed and then never used, so a schema's `timeout_sec` was
+    documentation rather than behaviour.
+    """
+    requested = request.timeout_s
+    limit = policy.timeout_s
+    if requested is None:
+        return limit
+    if limit is None:
+        return requested
+    return min(requested, limit)
+
+
 class ToolClient:
     def __init__(
         self,
@@ -94,6 +111,7 @@ class ToolClient:
             # The descriptor owns the resource, not the caller: an arm command
             # must not be able to declare itself non-exclusive.
             request = replace(request, resource_key=policy.resource_key)
+        request = replace(request, timeout_s=_effective_timeout(request, policy))
         with self._lock:
             self._requests[request.command_id] = request
             self._policies[request.command_id] = policy

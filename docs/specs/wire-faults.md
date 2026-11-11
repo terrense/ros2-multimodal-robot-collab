@@ -106,7 +106,40 @@ So the verdict has three states, not two:
 | Netem rules and command construction | **implemented and tested** |
 | Ledger audit for WF-S1..S6, WF-L1 | **implemented and tested** |
 | Set-up probes WF-C1..C3 | **implemented and tested** against a fake probe |
-| A real run | **NOT RUN** — needs root, a live stack, and a person |
+| netem without root | **verified** — `unshare -Ur -n` grants CAP_NET_ADMIN over its own namespace |
+| A real run | **NOT RUN** — needs a live stack, and the commands move the robot |
 
 The one thing that cannot be faked is the last row: whether CycloneDDS itself
 survives a lossy interface is a fact about a running system.
+
+## 7. Running it without sudo
+
+`tc` needs CAP_NET_ADMIN over the interface. A **user namespace** grants that
+over the interfaces inside it, so the whole experiment can run unprivileged:
+
+```bash
+unshare -Ur -n bash -c '
+  ip link set lo up
+  tc qdisc add dev lo root netem loss 30%
+  # ... start the stack and run the check inside this namespace ...
+  tc qdisc del dev lo root
+'
+```
+
+Verified on this machine: inside `unshare -Ur -n`, `tc qdisc add` succeeds and
+the rule shows up in `tc qdisc show`. Outside it, `RTNETLINK answers:
+Operation not permitted`.
+
+The catch is that **everything must be inside the one namespace**: the nodes,
+the tool client and the injector. A stack started outside it has its own
+loopback and the fault never reaches it. So the runner is:
+
+```bash
+unshare -Ur -n bash -c 'scripts/run_gazebo_demo.sh --headless; \
+                        scripts/wire_fault_check.py bursty_loss'
+```
+
+A loopback-only interface also has no multicast route by default, which is how
+DDS finds peers. `ip link set lo up` is enough for the single-machine case —
+all the nodes are on the same host — but it is worth knowing if discovery
+behaves differently than it does on the normal interface.

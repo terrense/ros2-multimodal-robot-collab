@@ -68,6 +68,10 @@ class RosStack:
             command_id=new_command_id(),
             capability=capability,
             arguments=filtered,
+            # A short timeout is how the nav_timeout probe *produces* its fault.
+            # The client caps this at the capability's own limit, so asking for
+            # 1 s on a 120 s navigation is the caller asking for less, not for
+            # more than the capability allows.
             timeout_s=arguments.get("timeout_s"),
             resource_key=_resource_for(capability),
         )
@@ -104,6 +108,10 @@ def main() -> None:
     parser.add_argument("--family", action="append", default=None)
     parser.add_argument("--timeout-sec", type=float, default=120.0)
     parser.add_argument("--ledger", type=Path, default=None)
+    parser.add_argument("--tool-id", default="hex_key_3mm", help="the tool the stack is configured for")
+    parser.add_argument("--pickup-station", default="tool_shelf")
+    parser.add_argument("--delivery-station", default="station_a")
+    parser.add_argument("--operator-id", default="operator_001")
     parser.add_argument("--plan", action="store_true", help="print the programmes and dispatch nothing")
     args = parser.parse_args()
 
@@ -116,12 +124,22 @@ def main() -> None:
             if entry["scene_setup"]:
                 print("  scene setup: " + "; ".join(entry["scene_setup"]))
             print(f"  samples: {args.samples}")
+        print()
+        print(f"tool={args.tool_id} pickup={args.pickup_station} "
+              f"delivery={args.delivery_station} operator={args.operator_id}")
         return
 
     stack = RosStack(timeout_s=args.timeout_sec, ledger=args.ledger)
     try:
-        runner = CalibrationRunner(stack, min_samples=args.samples)
-        skipped = runner.skipped(families)
+        runner = CalibrationRunner(
+            stack,
+            min_samples=args.samples,
+            tool_id=args.tool_id,
+            pickup_station=args.pickup_station,
+            delivery_station=args.delivery_station,
+            operator_id=args.operator_id,
+        )
+        unmeasured = runner.reason_unmeasured(families)
         measurements = runner.run(families)
     finally:
         stack.close()
@@ -130,7 +148,10 @@ def main() -> None:
         "version": "l2_measurements_v1",
         "min_samples": args.samples,
         "families": measurements_to_rows(measurements),
-        "skipped": skipped,
+        # Three reasons are kept three: the world is not arranged, the stack is
+        # not answering, or the attempt came back clean. Collapsing them would
+        # hide which one to fix.
+        "unmeasured": unmeasured,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
@@ -138,7 +159,7 @@ def main() -> None:
     print("measured:")
     print(describe(measurements))
     print("\nnot measured:")
-    print(summarise_skipped(skipped))
+    print(summarise_skipped(unmeasured))
     print(f"\n-> {args.out}")
     print(
         "\nnext: python -m agent_env.scripts.calibrate_l2 "

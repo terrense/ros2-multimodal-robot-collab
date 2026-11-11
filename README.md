@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-**2026-11-10** · 主套件 416 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
+**2026-11-11** · 主套件 428 passed / 3 skipped，harness 套件 59 passed（另 3 个 ROS 测试在 CI 的 ROS 容器里跑），CI 与 Container 全绿。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -220,8 +220,8 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **导航** | Nav2 `NavigateToPose` 打通；SLAM 用 odometry 建图 | 仿真实测（scan matching 已关闭，见下） |
 | **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测，ROS 路径未跑** |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **rclpy 层已验（CI 里跑），全栈未跑** |
-| **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，11 条：安全/活性/设置）+ `tc netem` 五套场景 + 按判据判定 | **已构建，未运行** |
-| **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、清单写入 | **未上 L2**（九族全部 `not_measured`） |
+| **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，11 条：安全/活性/设置）+ `tc netem` 五套场景 + 按判据判定 | **已构建，未运行**（netem 免 sudo 已验证） |
+| **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、清单写入 | **首次对着真栈跑通**（3 样本，全部 `insufficient_samples`） |
 | **实验基线** | 规则基线 76.1% / 脚本专家 100%（400 条故障注入 benchmark） | **CPU 可复现**，产物入库 |
 | **后训练栈** | SFT / DPO / Step-Level PPO / OPD + 显存预检 + teacher 独立服务 | **未上 GPU**，六条臂 pending |
 
@@ -527,7 +527,7 @@ bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
 它跑的和 CI 完全一样，所以"本地绿"和"CI 绿"是一回事。分开跑也行：
 
 ```bash
-python -m pytest                 # 416 passed, 3 skipped（agent_env + training）
+python -m pytest                 # 428 passed, 3 skipped（agent_env + training）
 python -m pytest agent_harness/tests   # 59 passed（运行时：契约、调度、并发、线缆故障）
 python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
@@ -615,10 +615,15 @@ python -m agent_env.scripts.run_calibration --plan # 会在实时栈上跑什么
 |---|---|
 | L1 参考值（从 `default_params` 抽样推导，非手写） | 完成 |
 | 每族的测量方案与「什么算成功」 | 完成 |
-| L2 适配器（实时栈装进 `reset()/step()`） | 完成，**ROS 路径未跑** |
-| 校准执行器（五族可测，四族需场景） | 完成，**未跑** |
+| L2 适配器（实时栈装进 `reset()/step()`） | 完成；对真栈跑通 |
+| 校准执行器（五族可测，四族需场景） | 完成；**首次对真栈跑通 3 样本** |
 | 四个场景道具 + 布置脚本 | 完成，**未在 Gazebo 里试过** |
-| 实际测量 | **未做**——`benchmarks/calibration_v1.json` 九族全部 `not_measured` |
+| 实际测量 | **未完成**——`benchmarks/calibration_v1.json` 仍九族 `not_measured`，因为 3 样本 < 30 门槛 |
+
+第一次真栈运行抓到三个缺陷（`pick_and_place` 不在注册表里、能力超时从未生效、
+探针硬编码了工具名），细节见 [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md) 2026-11-11。
+其中第三个最值得记：**探针测了自己造不出来的故障，然后把结果报成 0%**——看起来
+像数据。
 
 场景道具由 `scripts/calibration_scene.py` 通过 Gazebo 服务动态 spawn/delete，
 **不派发任何机器人技能**，所以布置场景不会动机器人：
