@@ -108,6 +108,11 @@ jobs:
         run: pytest agent_harness/tests -q
 
   # ------------------------------------------------------------------ slow
+  # The ROS job ends with three things that need a running simulation:
+  # one real delivery through the runtime, one calibration probe, and one
+  # wire-fault run. Between them they cover the three ways a ROS-side
+  # regression shows up -- a capability that no longer dispatches, a probe
+  # that quietly stops measuring, and a fault that never reaches the wire.
   ros2-build:
     # The previous version of this job hand-rolled `apt install ros-humble-*`
     # without adding packages.ros.org, so it failed on every single run and
