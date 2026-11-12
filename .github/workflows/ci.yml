@@ -45,6 +45,10 @@ jobs:
               - 'scripts/**'
               - 'skills/**'
               - 'agent_harness/**'
+              # The ROS job ends with a calibration probe, and the probes live
+              # in agent_env/. A change there has to reach the job that runs
+              # them, or a broken probe stays green.
+              - 'agent_env/**'
               - 'Dockerfile'
               - '.github/workflows/**'
 
