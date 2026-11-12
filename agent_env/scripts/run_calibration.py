@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -49,7 +50,10 @@ class RosStack:
 
         repo_root = Path(__file__).resolve().parents[2]
         registry = SkillRegistry.load(repo_root / "skills")
-        self._executor = RosToolExecutor(timeout_sec=timeout_s)
+        # Concurrent: the cancel probe raises a stop while a motion is in
+        # flight, and a serial executor would have two threads spinning one
+        # node to do it.
+        self._executor = RosToolExecutor(timeout_sec=timeout_s, concurrent=True)
         self._ledger = ExecutionLedger(ledger) if ledger is not None else None
         self._client = ToolClient(
             RosBackend(self._executor, registry, concurrent=True),
@@ -85,6 +89,42 @@ class RosStack:
         status = getattr(receipt, "execution_status", "")
         return str(getattr(status, "value", status))
 
+    def read_detections(self, timeout_s: float = 3.0) -> list[dict[str, Any]]:
+        """What the perception nodes published.
+
+        A detection is a topic, not a capability: there is no "detect this
+        tool" to call, so a probe that has to know what the detector saw has
+        to read what it published.
+        """
+        from robot_collab_interfaces.msg import ToolDetection
+
+        node = self._executor.node
+        received: list[dict[str, Any]] = []
+
+        def on_detection(msg: Any) -> None:
+            received.append(
+                {
+                    "tool_id": str(msg.tool_id),
+                    "label": str(msg.label),
+                    "confidence": float(msg.confidence),
+                    "source_frame": str(msg.source_frame),
+                    "detector_id": str(msg.detector_id),
+                }
+            )
+
+        subscription = node.create_subscription(
+            ToolDetection, "/perception/tool_detections", on_detection, 10
+        )
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline and not received:
+            if self._executor.concurrent:
+                # The background executor is already spinning this node.
+                time.sleep(0.05)
+            else:
+                self._executor.rclpy.spin_once(node, timeout_sec=0.1)
+        node.destroy_subscription(subscription)
+        return received
+
     def close(self) -> None:
         self._client.shutdown(30.0)
         if self._ledger is not None:
@@ -93,9 +133,16 @@ class RosStack:
 
 
 def _resource_for(capability: str) -> str:
-    """The exclusive resource a capability competes for."""
+    """The exclusive resource a capability competes for.
+
+    The runtime overrides this with the descriptor's own resource key -- the
+    descriptor owns it, not the caller -- but it is kept here so the two do
+    not drift apart in the reader's head.
+    """
     if capability.startswith("navigation."):
         return "base"
+    if capability == "manipulation.publish_arm_control":
+        return "arm_control"
     if capability.startswith("manipulation."):
         return "arm"
     return "episode"
@@ -112,6 +159,11 @@ def main() -> None:
     parser.add_argument("--pickup-station", default="tool_shelf")
     parser.add_argument("--delivery-station", default="station_a")
     parser.add_argument("--operator-id", default="operator_001")
+    parser.add_argument(
+        "--no-scenes",
+        action="store_true",
+        help="do not arrange the world; the scene-dependent families cannot be measured",
+    )
     parser.add_argument("--plan", action="store_true", help="print the programmes and dispatch nothing")
     args = parser.parse_args()
 
@@ -129,6 +181,14 @@ def main() -> None:
               f"delivery={args.delivery_station} operator={args.operator_id}")
         return
 
+    scenes = None
+    if not args.no_scenes:
+        # The scene driver places static props and sets node parameters. It
+        # never dispatches a capability, so it cannot move the robot.
+        from agent_env.calibration_scene import CalibrationSceneDriver
+
+        scenes = CalibrationSceneDriver()
+
     stack = RosStack(timeout_s=args.timeout_sec, ledger=args.ledger)
     try:
         runner = CalibrationRunner(
@@ -138,11 +198,14 @@ def main() -> None:
             pickup_station=args.pickup_station,
             delivery_station=args.delivery_station,
             operator_id=args.operator_id,
+            scenes=scenes,
         )
-        unmeasured = runner.reason_unmeasured(families)
         measurements = runner.run(families)
+        unmeasured = runner.reason_unmeasured(families)
     finally:
         stack.close()
+        if scenes is not None:
+            scenes.close()
 
     payload = {
         "version": "l2_measurements_v1",

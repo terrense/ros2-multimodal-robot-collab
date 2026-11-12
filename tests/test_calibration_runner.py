@@ -22,10 +22,11 @@ Four failure modes matter more than the probes themselves.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from agent_env.calibration_runner import (
     PROBES,
+    SCENE_FAMILIES,
     CalibrationRunner,
     describe,
     measurements_to_rows,
@@ -38,6 +39,8 @@ from agent_env.l2_calibration import measurements_to_manifest
 @dataclass
 class _Receipt:
     execution_status: str
+    detail: str = ""
+    result: dict = field(default_factory=dict)
 
 
 class FakeStack:
@@ -48,23 +51,37 @@ class FakeStack:
     sample see the clean path and the probe would be measuring nothing.
     """
 
-    def __init__(self, script: dict[str, list[str]] | None = None) -> None:
+    def __init__(
+        self,
+        script: dict[str, list[str]] | None = None,
+        *,
+        text: dict[str, str] | None = None,
+        detections: list[dict] | None = None,
+    ) -> None:
         self.script = {name: list(statuses) for name, statuses in (script or {}).items()}
+        #: What each capability says, on top of its status.
+        self.text = dict(text or {})
+        #: What the perception nodes published.
+        self.detections = list(detections or [])
         self.calls: list[tuple[str, dict]] = []
         self._counts: dict[str, int] = {}
 
     def call(self, capability: str, arguments: dict):
         self.calls.append((capability, dict(arguments)))
         statuses = self.script.get(capability)
-        if not statuses:
-            return _Receipt("completed")
-        index = self._counts.get(capability, 0)
-        self._counts[capability] = index + 1
-        return _Receipt(statuses[index % len(statuses)])
+        status = "completed"
+        if statuses:
+            index = self._counts.get(capability, 0)
+            self._counts[capability] = index + 1
+            status = statuses[index % len(statuses)]
+        return _Receipt(status, detail=self.text.get(capability, ""))
 
     @staticmethod
     def receipt_status(receipt):
         return receipt.execution_status
+
+    def read_detections(self, timeout_s: float = 3.0):
+        return list(self.detections)
 
 
 def _runner(stack, samples: int = 3, **kwargs) -> CalibrationRunner:
@@ -175,37 +192,160 @@ def test_a_rejected_first_attempt_is_a_fault_not_a_clean_path() -> None:
 
 
 def test_only_two_families_can_produce_their_own_fault() -> None:
-    """The list is short on purpose: every other family needs the world arranged.
+    """Which families need the world arranged, and which do not.
 
-    `low_confidence` used to be here with a probe that asked `query_state`
-    twice. That measures liveness, and reporting it as a confidence-recovery
-    rate produced a calibration verdict that looked real and was not.
-
-    `grasp_failure` has a real probe rather than a scene stub, but that probe
-    refuses when its fault does not occur -- which on this stack is always,
-    because the simulated arm never fails a grasp.
+    A family whose fault is produced by the call itself needs nothing set up.
+    A family whose fault needs a marginal detector, an occluder, a dropped tool
+    or an occupied station needs the scene driver, and says so rather than
+    measuring the healthy path.
     """
-    from agent_env.calibration_runner import PROBES
-    from agent_env.faults import FaultType
-
-    self_producing = {
-        family
-        for family, probe in PROBES.items()
-        if getattr(probe, "scene_required", None) is None
+    assert SCENE_FAMILIES == {
+        FaultType.LOW_CONFIDENCE,
+        FaultType.VISUAL_OCCLUSION,
+        FaultType.TOOL_DROP,
+        FaultType.NO_PROGRESS,
     }
-    assert self_producing == {
-        FaultType.NAV_TIMEOUT,
-        FaultType.IDENTITY_MISMATCH,
-        FaultType.GRASP_FAILURE,
-    }
+    assert set(PROBES) == set(FaultType), "every family needs a probe"
 
 
 def test_a_scene_family_cannot_be_measured_without_a_scene_driver() -> None:
     runner = _runner(FakeStack())
-    for family in (FaultType.LOW_CONFIDENCE, FaultType.TOOL_MISSING):
+    for family in SCENE_FAMILIES:
         assert runner.measure(family) is None
         reason = runner.reason_unmeasured([family])[0]["reason"]
         assert reason.startswith("scene not arranged"), family
+
+
+# ------------------------------------------------- the families that are new
+
+
+def test_a_missing_tool_is_reported_as_missing() -> None:
+    """The mission is asked for a tool nobody publishes; it must say so."""
+    stack = FakeStack(
+        {"mission-control.deliver_tool": ["failed"]},
+        text={"mission-control.deliver_tool": "Could not find tool hex_key_3mm_absent."},
+    )
+    measurement = _runner(stack).measure(FaultType.TOOL_MISSING, samples=1)
+    assert measurement is not None
+    assert measurement.successes == 1
+    tools = {arguments["tool_id"] for _capability, arguments in stack.calls}
+    assert tools == {"hex_key_3mm_absent"}
+
+
+def test_a_mission_that_finds_the_tool_is_not_a_missing_tool_sample() -> None:
+    """If the tool was found, the fault never happened."""
+    stack = FakeStack(
+        {"mission-control.deliver_tool": ["completed"]},
+        text={"mission-control.deliver_tool": "Tool delivery completed."},
+    )
+    assert _runner(stack).measure(FaultType.TOOL_MISSING, samples=1) is None
+
+
+class FakeScenes:
+    """A scene driver that only records what it was asked to arrange."""
+
+    def __init__(self) -> None:
+        self.armed: list[str] = []
+        self.cleared: list[str] = []
+
+    def arm(self, family) -> None:
+        self.armed.append(getattr(family, "value", str(family)))
+
+    def clear(self, family) -> None:
+        self.cleared.append(getattr(family, "value", str(family)))
+
+
+def test_a_re_perceive_that_stays_marginal_is_measured_as_a_failure() -> None:
+    """The recovery rate is the question: L1 says half of them heal."""
+    marginal = [{"tool_id": "hex_key_3mm", "confidence": 0.4}]
+    stack = FakeStack(detections=marginal)
+    scenes = FakeScenes()
+    measurement = _runner(stack, scenes=scenes).measure(FaultType.LOW_CONFIDENCE, samples=1)
+    assert measurement is not None
+    assert measurement.successes == 0
+    assert scenes.armed == ["low_confidence"]
+    assert scenes.cleared == ["low_confidence"]
+
+
+def test_a_re_perceive_that_heals_is_measured_as_a_success() -> None:
+    stack = FakeStack(
+        detections=[{"tool_id": "hex_key_3mm", "confidence": 0.9}],
+    )
+    # The first detection is confident, so no marginal detection was produced.
+    runner = _runner(stack, scenes=FakeScenes())
+    assert runner.measure(FaultType.LOW_CONFIDENCE, samples=1) is None
+    assert "no fault produced" in runner.refusals["low_confidence"]
+
+
+def test_the_cancel_probe_measures_whether_the_motion_stopped() -> None:
+    """A stop that arrives while the arm is moving ends the motion."""
+    stack = FakeStack(
+        {"manipulation.pick_and_place": ["failed"]},
+        text={"manipulation.pick_and_place": "Manipulation stopped by operator gesture."},
+    )
+    runner = _runner(stack, cancel_delay_s=0.01)
+    measurement = runner.measure(FaultType.USER_CANCEL, samples=1)
+    assert measurement is not None
+    assert measurement.successes == 1
+    commands = [
+        arguments["command"]
+        for capability, arguments in stack.calls
+        if capability == "manipulation.publish_arm_control"
+    ]
+    assert "system_stop" in commands
+
+
+def test_a_motion_that_finished_before_the_cancel_is_not_a_success() -> None:
+    """The stop was published, and it stopped nothing. That is a failure."""
+    stack = FakeStack(
+        {"manipulation.pick_and_place": ["completed"]},
+        text={"manipulation.pick_and_place": "Pick and place complete."},
+    )
+    runner = _runner(stack, cancel_delay_s=0.01)
+    measurement = runner.measure(FaultType.USER_CANCEL, samples=1)
+    assert measurement is not None
+    assert measurement.successes == 0
+    assert "finished before the cancel" in measurement.detail["note"]
+
+
+def test_the_stack_is_left_running_after_a_cancel() -> None:
+    """A stop leaves the arm server stopped; the next sample would be a rejected
+    goal rather than a motion."""
+    stack = FakeStack(
+        {"manipulation.pick_and_place": ["failed"]},
+        text={"manipulation.pick_and_place": "Manipulation stopped by operator gesture."},
+    )
+    runner = _runner(stack, cancel_delay_s=0.01)
+    runner.measure(FaultType.USER_CANCEL, samples=1)
+    commands = [
+        arguments["command"]
+        for capability, arguments in stack.calls
+        if capability == "manipulation.publish_arm_control"
+    ]
+    assert commands[-1] == "arm_start"
+
+
+def test_a_drop_that_cannot_happen_is_not_a_sample() -> None:
+    """The arm puts the tool where it was told; nothing releases it."""
+    stack = FakeStack(
+        {"manipulation.pick_and_place": ["completed"]},
+        text={"manipulation.pick_and_place": "Moved hex_key_3mm into station_a."},
+    )
+    assert _runner(stack).measure(FaultType.TOOL_DROP, samples=1) is None
+
+
+def test_a_handover_that_cannot_be_blocked_is_not_a_sample() -> None:
+    stack = FakeStack(
+        {"mission-control.deliver_tool": ["completed"]},
+        text={"mission-control.deliver_tool": "Tool delivery completed."},
+    )
+    assert _runner(stack).measure(FaultType.NO_PROGRESS, samples=1) is None
+
+
+def test_an_occluder_that_changes_nothing_is_not_a_sample() -> None:
+    """The perception stub publishes a fixed detection: nothing occludes it."""
+    stack = FakeStack(detections=[{"tool_id": "hex_key_3mm", "confidence": 0.88}])
+    assert _runner(stack).measure(FaultType.VISUAL_OCCLUSION, samples=1) is None
 
 
 # ------------------------------------------------------------- the manifest

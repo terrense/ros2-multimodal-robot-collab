@@ -218,7 +218,10 @@ def test_cancel_does_not_touch_running_physical_work():
         client.submit(request)
         assert backend.gate_entered.wait(5)
         loop.cancel("operator asked")
-        assert client.is_running("arm") is True, "running work must not be relabelled"
+        # An arm *control* command has its own resource, so that a stop is not
+        # queued behind the motion it stops. See
+        # `agent_harness/tests/test_resources.py`.
+        assert client.is_running("arm_control") is True, "running work must not be relabelled"
         backend.gate.set()
         assert client.wait(request.command_id, timeout=5).execution_status.value == "completed"
     finally:

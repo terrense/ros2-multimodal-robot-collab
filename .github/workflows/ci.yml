@@ -127,18 +127,44 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install colcon and rosdep
         run: |
+          # Every apt-get in this job, including the ones rosdep runs, retries
+          # a flaky mirror instead of failing the job on a 502.
+          echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
           apt-get update
           apt-get install -y --no-install-recommends \
             python3-colcon-common-extensions python3-rosdep
       - name: Resolve package dependencies
+        # `rosdep init` and `rosdep update` both fetch from the network, and a
+        # runner that loses it for five seconds fails the job before a line of
+        # ROS code is compiled. Three attempts, and the failure written into
+        # the job summary: the CI log needs admin rights to download, and a
+        # failure nobody can read is a failure nobody can fix.
         run: |
-          [ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || rosdep init
-          rosdep update --rosdistro humble
-          # ament_python is a build type, not a dependency: rosdep has no rule
-          # for it (ament_cmake does), so every Python package fails resolution
-          # unless the key is skipped explicitly.
-          rosdep install --from-paths src --ignore-src -y --rosdistro humble \
-            --skip-keys ament_python
+          set -o pipefail
+          for attempt in 1 2 3; do
+            echo "rosdep attempt ${attempt}"
+            {
+              [ -f /etc/ros/rosdep/sources.list.d/20-default.list ] || rosdep init
+              rosdep update --rosdistro humble
+              # ament_python is a build type, not a dependency: rosdep has no
+              # rule for it (ament_cmake does), so every Python package fails
+              # resolution unless the key is skipped explicitly.
+              rosdep install --from-paths src --ignore-src -y --rosdistro humble \
+                --skip-keys ament_python
+            } 2>&1 | tee /tmp/rosdep.log && break
+            echo "rosdep attempt ${attempt} failed:"
+            tail -30 /tmp/rosdep.log
+            sleep 10
+          done
+          if ! grep -q "All required rosdeps installed successfully" /tmp/rosdep.log; then
+            {
+              echo "### rosdep failed"
+              echo '```'
+              tail -60 /tmp/rosdep.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
       - name: Build workspace
         # Only src/. third_party/ holds vendored source snapshots (Ultralytics,
         # VINS-Mono, OpenPose) that are not colcon packages of this workspace.
@@ -206,6 +232,12 @@ jobs:
           done
           if [ "$UP" != "1" ]; then
             echo "the stack never came up; the launch log follows"
+            {
+              echo "### the stack never came up"
+              echo '```'
+              tail -80 /tmp/gazebo_demo.log 2>/dev/null || echo "(no log)"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
             tail -80 /tmp/gazebo_demo.log || true
             exit 1
           fi
@@ -222,8 +254,20 @@ jobs:
         run: bash scripts/stop_gazebo_demo.sh || true
 
       - name: Simulation logs on failure
+        # The job log needs admin rights to download, so the diagnosis goes
+        # into the job summary instead: that page is readable by anyone who
+        # can open the run.
         if: failure()
         run: |
+          {
+            echo "### simulation logs"
+            echo '```'
+            echo "== launch log (last 120 lines) =="
+            tail -120 /tmp/gazebo_demo.log 2>/dev/null || echo "(no log)"
+            echo "== gzserver output =="
+            tail -40 /tmp/gzserver.log 2>/dev/null || echo "(no log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           echo "=== launch log (last 120 lines) ==="
           tail -120 /tmp/gazebo_demo.log 2>/dev/null || echo "(no log)"
           echo "=== gzserver output ==="

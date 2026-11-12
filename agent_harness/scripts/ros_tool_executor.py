@@ -458,7 +458,17 @@ class RosToolExecutor:
         assign_fields(message, result.payload)
         for _ in range(3):
             publisher.publish(message)
-            self.rclpy.spin_once(self.node, timeout_sec=0.1)
+            if self._executor is None:
+                # Serial mode: this thread is the only spinner on the node, so
+                # it has to pump it for the message to be processed.
+                #
+                # Concurrent mode: the background MultiThreadedExecutor is
+                # already spinning this node, and a second spinner on one node
+                # is exactly the mistake the concurrency work warns about. It
+                # is not theoretical -- publishing an arm control command while
+                # a motion was in flight starved the executor, and the motion's
+                # goal response did not come back until the call timed out.
+                self.rclpy.spin_once(self.node, timeout_sec=0.1)
         result.status = "succeeded"
         result.result = {"published": True}
         result.message = f"Topic message published: {result.endpoint}"

@@ -1,7 +1,7 @@
 """The calibration scenes: what gets placed, and where.
 
-The four scene-dependent families cannot be produced by a capability call, so
-they need the world arranged. These tests cover the arrangement logic, not the
+The scene-dependent families cannot be produced by a capability call, so they
+need the world arranged. These tests cover the arrangement logic, not the
 Gazebo side: which props a family needs, where they go, and that placing them
 cannot move the robot.
 
@@ -18,55 +18,65 @@ from pathlib import Path
 
 import pytest
 
+from agent_env import calibration_scene as scene_module
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "calibration_scene.py"
 
 
-def _load():
-    """Import the script by path; it is a CLI, not an installed module.
+def _load_cli():
+    """Import the command line by path; it is a script, not a package module.
 
     The module has to be registered in `sys.modules` before execution, or
     `@dataclass` cannot resolve its own annotations.
     """
     import sys
 
-    spec = importlib.util.spec_from_file_location("calibration_scene", SCRIPT)
+    spec = importlib.util.spec_from_file_location("calibration_scene_cli", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
-    sys.modules["calibration_scene"] = module
+    sys.modules["calibration_scene_cli"] = module
     try:
         spec.loader.exec_module(module)
     finally:
-        sys.modules.pop("calibration_scene", None)
+        sys.modules.pop("calibration_scene_cli", None)
     return module
 
 
-scene_module = _load()
+cli = _load_cli()
 
 
 def test_every_scene_dependent_family_has_a_scene() -> None:
-    from agent_env.calibration_runner import PROBES
-    from agent_env.faults import FaultType
+    from agent_env.calibration_runner import SCENE_FAMILIES
     from agent_env.l2_calibration import PROGRAMMES
 
-    needs_scene = {
-        family for family in PROBES if getattr(PROBES[family], "scene_required", None)
-    }
-    # Everything except the two families whose fault a probe can produce by
-    # calling the stack, and `grasp_failure`, which is dispatchable but cannot
-    # be made to fail.
-    assert needs_scene == set(FaultType) - {
-        FaultType.NAV_TIMEOUT,
-        FaultType.IDENTITY_MISMATCH,
-        FaultType.GRASP_FAILURE,
-    }
-    for family in needs_scene:
+    # The families whose fault needs the world arranged, and every one of them
+    # has a scene entry: props to place, a parameter to set, or a note about
+    # what a human has to do.
+    for family in SCENE_FAMILIES:
         assert family.value in scene_module.SCENES, f"{family.value} has no scene"
-        # A scene entry with no props is only acceptable when it explains what a
-        # human has to do instead.
         scene = scene_module.SCENES[family.value]
-        assert scene.props or scene.manual, f"{family.value} has neither props nor manual steps"
+        assert scene.props or scene.manual or scene.parameter, (
+            f"{family.value} has neither props, manual steps nor a parameter"
+        )
         assert PROGRAMMES[family].scene_setup, f"{family.value} has no scene_setup text"
+
+
+def test_the_marginal_detection_is_arranged_by_a_parameter() -> None:
+    """The perception stub publishes one fixed confidence.
+
+    A marginal detection cannot be called for, so the scene sets the detector's
+    confidence -- and the value has to be below the threshold the mission
+    state machine uses, or the arrangement would not produce the fault.
+    """
+    from agent_env.calibration_runner import DEFAULT_MIN_CONFIDENCE
+
+    scene = scene_module.SCENES["low_confidence"]
+    assert scene.parameter is not None
+    node, parameter, value = scene.parameter
+    assert node == "tool_detector_node"
+    assert parameter == "confidence"
+    assert value < DEFAULT_MIN_CONFIDENCE
 
 
 def test_every_prop_file_exists_and_is_valid_sdf() -> None:
@@ -132,6 +142,7 @@ def test_an_unknown_station_is_refused() -> None:
 
 def test_show_never_touches_gazebo() -> None:
     """`show` and `list` must work with no simulation running at all."""
-    assert scene_module.main(["list"]) == 0
-    assert scene_module.main(["show", "visual_occlusion"]) == 0
-    assert scene_module.main(["show", "user_cancel"]) == 0
+    assert cli.main(["list"]) == 0
+    assert cli.main(["show", "visual_occlusion"]) == 0
+    assert cli.main(["show", "user_cancel"]) == 0
+    assert cli.main(["show", "low_confidence"]) == 0

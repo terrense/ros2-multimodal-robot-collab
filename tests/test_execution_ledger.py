@@ -464,7 +464,10 @@ def test_concurrent_commands_in_different_resources_are_recorded_independently(l
         client.submit(base)
         client.wait(arm.command_id, timeout=5)
         client.wait(base.command_id, timeout=5)
-        assert ledger.get(arm.command_id).resource_key == "arm"
+        # An arm *control* command has its own resource: it must not queue
+        # behind the motion it is meant to stop. See
+        # `agent_harness/tests/test_resources.py`.
+        assert ledger.get(arm.command_id).resource_key == "arm_control"
         assert ledger.get(base.command_id).resource_key == "base"
     finally:
         client.shutdown(1.0)

@@ -102,9 +102,23 @@ def resource_key_for_risk(risk: str | None) -> str:
 
     Base and arm are separate physical resources: they may move independently
     but each is exclusive with itself. Everything else shares the episode.
+
+    **A control command is not a motion.** `arm_control` -- start, pause, stop
+    -- gets its own resource rather than the arm's, and that is a safety
+    decision rather than a tidiness one. On the same resource, an emergency
+    stop queues behind the motion it is meant to stop: the runtime delivers it
+    when the arm has already finished, and a stop that arrives after the
+    motion has stopped nothing. The arm server checks the stop between the
+    steps of a running goal, so it can act on one that arrives mid-motion --
+    if the runtime lets it arrive at all.
+
+    Control commands still serialise with each other, on their own resource:
+    they are state changes to one thing, and their order matters.
     """
     if risk == "base_motion":
         return "base"
-    if risk in {"arm_control", "arm_motion"}:
+    if risk == "arm_motion":
         return "arm"
+    if risk == "arm_control":
+        return "arm_control"
     return "episode"
