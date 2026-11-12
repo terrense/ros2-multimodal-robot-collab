@@ -67,7 +67,7 @@ two configuration problems that would have caused an OOM are in
 | Per-resource concurrency | **verified with ROS 2** | `test_concurrency_ros.py` in the CI ROS job |
 | L2 adapter over the live stack | **verified** | runtime smoke test: 2 commands, goal uuids correlated |
 | The seven named baselines | **built** | `agent_harness/agent/conditions.py`, `run_conditions.py` |
-| Receipt metrics on both paths | L1 **measured**, L2 **not run** | L1: 4205 calls over the frozen benchmark, published in `docs/results.md` |
+| Receipt metrics on both paths | **measured on both** | L1: 4205 calls over the frozen benchmark. L2: ten real missions — 0% uncertain outcomes, p50 latency 9.76 s, 0% duplicate effects. Both in `docs/results.md` |
 | Calibration contract + runner + scenes | complete | `agent_env/l2_calibration.py` |
 | Calibration measurements | **2 of 9 measured, both falsify L1** | see below |
 | Wire faults | built + criteria written, **never run** | `specs/wire-faults.md` |

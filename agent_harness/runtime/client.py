@@ -17,6 +17,7 @@ Rules encoded here:
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import replace
 from typing import Protocol
 
@@ -175,9 +176,23 @@ class ToolClient:
         return None
 
     def _execute(self, request: ActionRequest) -> ExecutionReceipt:
+        started = time.time()
         if self._ledger is not None:
             self._ledger.record_started(request.command_id)
         receipt = self._backend.execute(request)
+        # Stamp the receipt with when the command actually ran.
+        #
+        # The contract has carried `started_at` and `finished_at` since the
+        # beginning, and nothing ever filled them in -- which is why the
+        # receipt metrics could never report a latency on any path. The
+        # backend knows how long the call took, not when it started and
+        # ended; the client knows both.
+        if receipt.started_at is None or receipt.finished_at is None:
+            receipt = replace(
+                receipt,
+                started_at=receipt.started_at if receipt.started_at is not None else started,
+                finished_at=time.time(),
+            )
         with self._lock:
             self._receipts[request.command_id] = receipt
         if self._ledger is not None:

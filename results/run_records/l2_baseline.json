@@ -1,0 +1,24 @@
+{
+  "kind": "eval",
+  "name": "l2_baseline",
+  "provenance": {
+    "schema_version": 2,
+    "model_id": "l2_ros2_stack",
+    "prompt_hash": "e3b0c44298fc1c14",
+    "schema_hash": "c0c3e7fa261f3268",
+    "benchmark": {
+      "name": "fault_injection_v1",
+      "sha256": "c703a6fc1b37a5fa4df4e2656953404d21fa334c1364da47b800a1100a5d0fdd"
+    }
+  },
+  "seeds": [],
+  "budgets": {
+    "max_turns": 30,
+    "episodes": 10
+  },
+  "artifacts": [
+    "results/eval/l2_baseline.json"
+  ],
+  "policy": "mission-control.deliver_tool",
+  "created_at": 1794473531.2441444
+}

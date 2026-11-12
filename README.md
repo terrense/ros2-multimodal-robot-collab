@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-主套件 **518 passed / 3 skipped**，harness 套件 **86 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
+主套件 **520 passed / 3 skipped**，harness 套件 **86 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -218,8 +218,8 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **仿真车间** | 见上节 | Gazebo 实测 |
 | **传感器** | D435（RGB-D）、VLP-16、16 线激光、2D 雷达、IMU | 话题实测 |
 | **导航** | Nav2 `NavigateToPose` 打通；SLAM 用 odometry 建图 | 仿真实测（scan matching 已关闭，见下） |
-| **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测，ROS 路径未跑** |
-| **回执指标** | L1 与 L2 两条路径用同一套契约映射算回执指标，并发进 `docs/results.md`；L1 路径测不出的两项（时延、重复效应）写「不适用 + 原因」，不写 0 | L1 已测（4205 次调用，0% 不确定结果）；L2 路径 **未跑** |
+| **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测；ROS 路径已跑过一次十任务的评估** |
+| **回执指标** | L1 与 L2 两条路径用同一套契约映射算回执指标，并发进 `docs/results.md`；L1 路径测不出的两项（时延、重复效应）写「不适用 + 原因」，不写 0 | 两条路径都测了：L1 4205 次调用（0% 不确定结果），L2 十次真实任务（0% 不确定、p50 时延 9.76s、0% 重复效应） |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **rclpy 层已验（CI 里跑），全栈未跑** |
 | **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，12 条：安全/活性/设置）+ `tc netem` 六套场景 + 按判据判定 | **已构建，六套场景都在真栈上跑过、12 条全过**：整个实验在 user+network 命名空间里；95% 丢包下命令以 `unknown` 收场，账本挡住后续派发直到人工认领 |
 | **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、场景驱动、清单写入 | **5/9 已测**：`nav_timeout` 100%（L1 说 66.5%）、`identity_mismatch` 0%（L1 说 34.6%）、`low_confidence` 0%（L1 说 50%）、`user_cancel` 0%（L1 说 100%）、`tool_missing` 100%（一致）；另 4 族这栈造不出故障，探针写清了缺的是哪个机制 |
@@ -532,7 +532,7 @@ bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
 它跑的和 CI 完全一样，所以"本地绿"和"CI 绿"是一回事。分开跑也行：
 
 ```bash
-python -m pytest                 # 518 passed, 3 skipped（agent_env + training）
+python -m pytest                 # 520 passed, 3 skipped（agent_env + training）
 python -m pytest agent_harness/tests   # 86 passed（运行时：契约、调度、并发、中断、线缆故障）
 python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
