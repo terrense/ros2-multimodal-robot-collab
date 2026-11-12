@@ -62,6 +62,19 @@ class RosStack:
             max_workers=4,
             ledger=self._ledger,
         )
+        #: Buffers for the topics the probes read. The subscriptions live for
+        #: as long as the stack does.
+        #:
+        #: They used to be created and destroyed per read, and destroying a
+        #: subscription the background executor was about to take from its wait
+        #: list raised `InvalidHandle` *inside the executor's thread*. That
+        #: killed the spin loop, and every action dispatched after it never
+        #: came back. One subscription per topic, created once, is both safer
+        #: and cheaper.
+        self._detections: list[dict[str, Any]] = []
+        self._events: list[dict[str, Any]] = []
+        self._detection_subscription: Any = None
+        self._event_subscription: Any = None
 
     def call(self, capability: str, arguments: dict[str, Any]) -> Any:
         from agent_harness.contracts import ActionRequest, new_command_id
@@ -99,31 +112,87 @@ class RosStack:
         from robot_collab_interfaces.msg import ToolDetection
 
         node = self._executor.node
-        received: list[dict[str, Any]] = []
+        if self._detection_subscription is None:
+            def on_detection(msg: Any) -> None:
+                self._detections.append(
+                    {
+                        "tool_id": str(msg.tool_id),
+                        "label": str(msg.label),
+                        "confidence": float(msg.confidence),
+                        "source_frame": str(msg.source_frame),
+                        "detector_id": str(msg.detector_id),
+                    }
+                )
 
-        def on_detection(msg: Any) -> None:
-            received.append(
-                {
-                    "tool_id": str(msg.tool_id),
-                    "label": str(msg.label),
-                    "confidence": float(msg.confidence),
-                    "source_frame": str(msg.source_frame),
-                    "detector_id": str(msg.detector_id),
-                }
+            self._detection_subscription = node.create_subscription(
+                ToolDetection, "/perception/tool_detections", on_detection, 10
             )
-
-        subscription = node.create_subscription(
-            ToolDetection, "/perception/tool_detections", on_detection, 10
-        )
         deadline = time.monotonic() + timeout_s
-        while time.monotonic() < deadline and not received:
-            if self._executor.concurrent:
-                # The background executor is already spinning this node.
-                time.sleep(0.05)
-            else:
-                self._executor.rclpy.spin_once(node, timeout_sec=0.1)
-        node.destroy_subscription(subscription)
+        while time.monotonic() < deadline and not self._detections:
+            self._wait_for_the_executor()
+        received = list(self._detections)
+        self._detections.clear()
         return received
+
+    def read_mission_events(
+        self, timeout_s: float = 5.0, until_state: str | None = None
+    ) -> list[dict[str, Any]]:
+        """The mission's published progress events.
+
+        The mission announces its phases on `/mission/events`, which is how a
+        probe knows when the arm is actually moving -- a cancel raised before
+        the arm has started has nothing to stop.
+        """
+        from robot_collab_interfaces.msg import MissionEvent
+
+        node = self._executor.node
+        if self._event_subscription is None:
+            def on_event(msg: Any) -> None:
+                self._events.append(
+                    {
+                        "state": str(msg.state),
+                        "detail": str(msg.detail),
+                        "progress": float(msg.progress),
+                    }
+                )
+
+            self._event_subscription = node.create_subscription(
+                MissionEvent, "/mission/events", on_event, 20
+            )
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if until_state and any(event["state"] == until_state for event in self._events):
+                break
+            self._wait_for_the_executor()
+        received = list(self._events)
+        self._events.clear()
+        return received
+
+    def _wait_for_the_executor(self) -> None:
+        """Give the background executor a chance to deliver a message."""
+        if self._executor.concurrent:
+            # The background executor is already spinning this node.
+            time.sleep(0.05)
+        else:
+            self._executor.rclpy.spin_once(self._executor.node, timeout_sec=0.1)
+
+    def reconcile(self, command_id: str, note: str) -> None:
+        """Accept an outcome the runtime could not establish.
+
+        The ledger blocks every later side effect while a command is
+        unresolved, because a timeout means the effect is not known and on a
+        robot somebody has to look. The nav_timeout probe produces that
+        timeout on purpose, so it acknowledges it -- with a note that says
+        which probe did it and why.
+        """
+        if self._ledger is None or not command_id:
+            return
+        try:
+            self._ledger.acknowledge_unknown(
+                command_id, operator="calibration", note=note
+            )
+        except Exception as error:  # noqa: BLE001 - nothing was unresolved
+            print(f"reconcile {command_id}: {error}")
 
     def close(self) -> None:
         self._client.shutdown(30.0)

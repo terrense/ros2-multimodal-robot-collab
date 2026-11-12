@@ -57,13 +57,18 @@ class FakeStack:
         *,
         text: dict[str, str] | None = None,
         detections: list[dict] | None = None,
+        events: list[dict] | None = None,
     ) -> None:
         self.script = {name: list(statuses) for name, statuses in (script or {}).items()}
         #: What each capability says, on top of its status.
         self.text = dict(text or {})
         #: What the perception nodes published.
         self.detections = list(detections or [])
+        #: The mission's progress events.
+        self.events = list(events or [{"state": "PICK_TOOL", "detail": "", "progress": 0.64}])
         self.calls: list[tuple[str, dict]] = []
+        #: The outcomes the probes acknowledged.
+        self.reconciled: list[tuple[str, str]] = []
         self._counts: dict[str, int] = {}
 
     def call(self, capability: str, arguments: dict):
@@ -83,6 +88,12 @@ class FakeStack:
     def read_detections(self, timeout_s: float = 3.0):
         return list(self.detections)
 
+    def reconcile(self, command_id: str, note: str) -> None:
+        self.reconciled.append((command_id, note))
+
+    def read_mission_events(self, timeout_s: float = 5.0, until_state: str | None = None):
+        return list(self.events)
+
 
 def _runner(stack, samples: int = 3, **kwargs) -> CalibrationRunner:
     return CalibrationRunner(stack, min_samples=samples, **kwargs)
@@ -98,6 +109,21 @@ def test_a_navigation_timeout_is_measured_by_retrying_the_same_station() -> None
     assert measurement.successes == 1
     stations = [arguments["station_id"] for _capability, arguments in stack.calls]
     assert len(set(stations)) == 1, "both attempts must target the same station"
+
+
+def test_a_timeout_the_probe_produced_on_purpose_is_acknowledged() -> None:
+    """The ledger blocks side effects while an outcome is unestablished.
+
+    On a robot somebody has to look. A measurement run has nobody to look, and
+    the probe that produced the timeout knows it did so on purpose -- so it
+    acknowledges it, and says which probe did it.
+    """
+    stack = FakeStack({"navigation.navigate_to_station": ["unknown", "completed"]})
+    _runner(stack).measure(FaultType.NAV_TIMEOUT, samples=1)
+    assert len(stack.reconciled) == 1
+    _command_id, note = stack.reconciled[0]
+    assert "nav_timeout" in note
+    assert "on purpose" in note
 
 
 def test_a_navigation_that_never_times_out_is_not_a_measurement() -> None:
@@ -280,13 +306,21 @@ def test_a_re_perceive_that_heals_is_measured_as_a_success() -> None:
 def test_the_cancel_probe_measures_whether_the_motion_stopped() -> None:
     """A stop that arrives while the arm is moving ends the motion."""
     stack = FakeStack(
-        {"manipulation.pick_and_place": ["failed"]},
-        text={"manipulation.pick_and_place": "Manipulation stopped by operator gesture."},
+        {
+            "manipulation.pick_and_place": ["failed"],
+            "mission-control.deliver_tool": ["failed"],
+        },
+        text={
+            "manipulation.pick_and_place": "Manipulation stopped by operator gesture.",
+            "mission-control.deliver_tool": "Mission canceled by operator.",
+        },
     )
     runner = _runner(stack, cancel_delay_s=0.01)
     measurement = runner.measure(FaultType.USER_CANCEL, samples=1)
     assert measurement is not None
     assert measurement.successes == 1
+    assert measurement.detail["motion"]["stopped"] is True
+    assert measurement.detail["mission"]["cancelled"] is True
     commands = [
         arguments["command"]
         for capability, arguments in stack.calls
@@ -298,14 +332,45 @@ def test_the_cancel_probe_measures_whether_the_motion_stopped() -> None:
 def test_a_motion_that_finished_before_the_cancel_is_not_a_success() -> None:
     """The stop was published, and it stopped nothing. That is a failure."""
     stack = FakeStack(
-        {"manipulation.pick_and_place": ["completed"]},
-        text={"manipulation.pick_and_place": "Pick and place complete."},
+        {
+            "manipulation.pick_and_place": ["completed"],
+            "mission-control.deliver_tool": ["failed"],
+        },
+        text={
+            "manipulation.pick_and_place": "Pick and place complete.",
+            "mission-control.deliver_tool": "Mission canceled by operator.",
+        },
     )
     runner = _runner(stack, cancel_delay_s=0.01)
     measurement = runner.measure(FaultType.USER_CANCEL, samples=1)
     assert measurement is not None
     assert measurement.successes == 0
-    assert "finished before the cancel" in measurement.detail["note"]
+    assert "finished before the cancel" in measurement.detail["motion"]["note"]
+
+
+def test_a_mission_that_fails_rather_than_cancels_is_not_a_success() -> None:
+    """The motion stopped, and the mission called it a failure.
+
+    L1 ends a cancelled episode as a cancellation. The live stack's stop is a
+    signal to the arm, and the mission sees a failed pick -- so the two
+    halves do not agree, and the sample must say so.
+    """
+    stack = FakeStack(
+        {
+            "manipulation.pick_and_place": ["failed"],
+            "mission-control.deliver_tool": ["failed"],
+        },
+        text={
+            "manipulation.pick_and_place": "Manipulation stopped by operator gesture.",
+            "mission-control.deliver_tool": "Manipulation failed for hex_key_3mm.",
+        },
+    )
+    runner = _runner(stack, cancel_delay_s=0.01)
+    measurement = runner.measure(FaultType.USER_CANCEL, samples=1)
+    assert measurement is not None
+    assert measurement.successes == 0
+    assert measurement.detail["motion"]["stopped"] is True
+    assert measurement.detail["mission"]["cancelled"] is False
 
 
 def test_the_stack_is_left_running_after_a_cancel() -> None:

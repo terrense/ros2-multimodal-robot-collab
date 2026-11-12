@@ -96,6 +96,27 @@ class Stack(Protocol):
         read what it published.
         """
 
+    def reconcile(self, command_id: str, note: str) -> None:
+        """Accept an outcome the runtime could not establish.
+
+        A timeout leaves the effect unknown, and the ledger blocks every
+        later side effect while that is true: on a robot, somebody has to
+        look before the machine is told to do something else. A measurement
+        run in a simulation has nobody to look, and the probe that produced
+        the timeout knows it did so on purpose -- so it acknowledges it, with
+        a note that says which probe and why.
+        """
+
+    def read_mission_events(
+        self, timeout_s: float = 5.0, until_state: str | None = None
+    ) -> list[dict[str, Any]]:
+        """The mission's published progress events.
+
+        A probe that has to interrupt a mission needs to know when the
+        mission is actually moving: a cancel raised before the arm has
+        started has nothing to stop.
+        """
+
 
 def _status(stack: Stack, receipt: Any) -> str:
     return str(stack.receipt_status(receipt))
@@ -173,6 +194,8 @@ class CalibrationRunner:
     motion_timeout_s: float = 60.0
     #: How long to let an arm resume take effect before sending a goal.
     resume_delay_s: float = 0.5
+    #: How long to wait for a mission to reach the phase that moves the arm.
+    mission_phase_timeout_s: float = 20.0
     #: Why each family refused to be measured, keyed by family name. The
     #: reason is recorded by the attempt, so it is never asked twice.
     refusals: dict[str, str] = field(default_factory=dict)
@@ -326,6 +349,14 @@ def probe_nav_timeout(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
             f"the first navigation did not time out (it was {first_status!r}); "
             "the probe produced no fault to recover from"
         )
+    # The timeout leaves the outcome unestablished, and the ledger blocks side
+    # effects while that is true. There is nobody to look at the robot here,
+    # and this probe knows it produced the timeout on purpose.
+    stack.reconcile(
+        str(getattr(first, "command_id", "")),
+        "the nav_timeout probe produced this timeout on purpose; the retry to "
+        "the same station is what the sample measures",
+    )
     second = stack.call(
         "navigation.navigate_to_station",
         {"station_id": station, "reason": "calibration: retry"},
@@ -556,17 +587,40 @@ def probe_no_progress(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
 
 
 def probe_user_cancel(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
-    """Does a cancel stop a motion that is already running?
+    """Does a cancel stop the motion, and end the mission as cancelled?
+
+    L1's question has two halves, and both are checked:
+
+        the motion stops          the arm's goal is aborted, not completed
+        the mission is cancelled  the mission ends as a cancellation, not as a
+                                  failure
+
+    The second half is the one that is easy to miss. The live stack's
+    emergency stop is a signal *to the arm*, not a request *to the mission*:
+    the arm aborts, and the mission -- which asked for the pick -- sees a
+    failed pick and fails. L1 ends the episode as a cancellation. A cancel
+    that stopped the machine but was reported as a failure is not the same
+    event, and the difference is exactly what a policy has to cope with.
+
+    Two dispatches, because the two halves are seen from two places: the arm
+    reports its own goal, and the mission reports its own outcome.
+    """
+    motion = _motion_cancelled_by_a_cancel(stack, scene)
+    mission = _mission_cancelled_by_a_cancel(stack, scene)
+    return ProbeResult(
+        success=bool(motion.get("stopped")) and bool(mission.get("cancelled")),
+        detail={"motion": motion, "mission": mission},
+    )
+
+
+def _motion_cancelled_by_a_cancel(stack: Stack, scene: CalibrationRunner) -> dict[str, Any]:
+    """The arm's half: does the motion stop when the cancel arrives?
 
     The motion runs in a thread and the cancel is raised while it is in
     flight. What is measured is not "a cancel was published" but "the motion
-    stopped": a stop that is delivered after the motion has already finished
-    has stopped nothing, and counting it as a success would be measuring the
+    stopped": a stop delivered after the motion has already finished has
+    stopped nothing, and counting it as a success would be measuring the
     publish rather than the effect.
-
-    The arm is left running afterwards. A stop that arrives leaves the arm
-    server in its stopped state, and the next sample would be measuring a
-    rejected goal instead of a motion.
     """
     arguments = {
         "tool_id": scene.tool_id,
@@ -595,7 +649,7 @@ def probe_user_cancel(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     worker.join(timeout=scene.motion_timeout_s)
 
     receipt = box.get("receipt")
-    detail = {
+    detail: dict[str, Any] = {
         "stop": _receipt_text(stop),
         "motion": _receipt_text(receipt) if receipt is not None else str(box.get("error", "")),
         "motion_status": _status(stack, receipt) if receipt is not None else "none",
@@ -606,11 +660,60 @@ def probe_user_cancel(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     if receipt is None:
         raise ProbeUnavailable(f"the motion never reported back: {detail['motion']}")
     if detail["motion_status"] == "completed":
-        return ProbeResult(
-            success=False,
-            detail=detail | {"note": "the motion finished before the cancel reached it"},
-        )
-    return ProbeResult(success=_says(receipt, "stopped"), detail=detail)
+        detail["stopped"] = False
+        detail["note"] = "the motion finished before the cancel reached it"
+        return detail
+    detail["stopped"] = _says(receipt, "stopped")
+    return detail
+
+
+def _mission_cancelled_by_a_cancel(stack: Stack, scene: CalibrationRunner) -> dict[str, Any]:
+    """The mission's half: does the mission end as a cancellation?
+
+    The mission is dispatched and the cancel is raised while its arm phase is
+    running. A cancel raised before the arm has started has nothing to stop,
+    so the probe waits for the mission to say it is picking.
+    """
+    reader = getattr(stack, "read_mission_events", None)
+    if reader is None:
+        raise StackUnavailable("the stack cannot read the mission's events")
+    arguments = {
+        "tool_id": scene.tool_id,
+        "target_station": scene.delivery_station,
+        "operator_id": scene.operator_id,
+    }
+    box: dict[str, Any] = {}
+
+    def mission() -> None:
+        try:
+            box["receipt"] = stack.call("mission-control.deliver_tool", dict(arguments))
+        except Exception as error:  # noqa: BLE001 - reported in the detail
+            box["error"] = f"{type(error).__name__}: {error}"
+
+    # The arm has to be running before the mission asks it to pick: a mission
+    # whose pick is rejected reports a failure, and the probe would be
+    # measuring the rejection rather than the cancel.
+    stack.call("manipulation.publish_arm_control", _arm_control("arm_start", scene.operator_id))
+    time.sleep(scene.resume_delay_s)
+    worker = threading.Thread(target=mission, name="calibration-mission", daemon=True)
+    worker.start()
+    events = reader(scene.mission_phase_timeout_s, until_state="PICK_TOOL")
+    stop = stack.call("manipulation.publish_arm_control", _arm_control("system_stop", scene.operator_id))
+    worker.join(timeout=scene.motion_timeout_s)
+
+    receipt = box.get("receipt")
+    detail: dict[str, Any] = {
+        "stop": _receipt_text(stop),
+        "mission": _receipt_text(receipt) if receipt is not None else str(box.get("error", "")),
+        "mission_status": _status(stack, receipt) if receipt is not None else "none",
+        "phases": [event.get("state") for event in events][-4:],
+    }
+    stack.call("manipulation.publish_arm_control", _arm_control("arm_start", scene.operator_id))
+
+    if receipt is None:
+        raise ProbeUnavailable(f"the mission never reported back: {detail['mission']}")
+    detail["cancelled"] = _says(receipt, "cancel")
+    return detail
 
 
 def _arm_control(command: str, operator_id: str) -> dict[str, Any]:
