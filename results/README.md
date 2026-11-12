@@ -7,6 +7,14 @@ Everything in here is **evidence**, not scratch. It is what makes a number in
 |---|---|
 | `eval/<arm>.json` | The evaluation artifact `training.evaluate` wrote for that arm. |
 | `run_records/<arm>.json` | The run record for it: model, prompt hash, action-schema hash, benchmark hash, seeds, budgets, artifacts. |
+| `wire/wire_<scenario>.json` | One transport-fault run: the scenario, the criteria and their verdicts, and the numbers the run saw (how long the command took healthy and under the fault, and how many packets the link says it dropped). |
+| `conditions.json` | The four closed-loop configurations of Phase 6, scored on the same thirty L1 episodes. |
+
+The wire reports are the evidence for six PASS verdicts: without them, the
+twelve criteria had passed but nothing in the repository said so. The figures
+in [`docs/figures/`](../docs/figures/) are drawn from these files and the
+calibration manifest, and `tests/test_figures.py` checks that the numbers they
+plot still match the artifacts.
 
 ## Why these are in the repository
 

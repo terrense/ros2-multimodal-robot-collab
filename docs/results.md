@@ -150,6 +150,11 @@ timed a command in it, and it has no ledger to mine. Those two would be zero by
 definition, so they are reported as not applicable *with the reason* -- a "0.0
 ms latency" column would read as a measurement of an action that took no time.
 
+The same numbers, drawn, are in
+[`docs/figures/`](../docs/figures/) -- and the figures are checked against
+these files by `tests/test_figures.py`, so a picture cannot claim something
+the artifacts do not.
+
 The live path is where both become measurable: a mission against the stack
 returns real receipts with timestamps and writes a ledger, so
 `python -m training.evaluate_l2` can report latency and a duplicate-effect rate
