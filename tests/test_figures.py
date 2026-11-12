@@ -86,7 +86,19 @@ def test_the_figures_exist() -> None:
         "calibration-dark.svg",
         "wire_faults.svg",
         "wire_faults-dark.svg",
+        "conditions.svg",
+        "conditions-dark.svg",
     ):
         path = FIGURE_DIR / name
         assert path.exists(), f"{path} is missing"
         assert path.stat().st_size > 2000, f"{path} looks empty"
+
+
+def test_the_conditions_figure_carries_every_configuration() -> None:
+    """A configuration that was measured has to be in the figure."""
+    data = _sidecar()
+    artifact = REPO_ROOT / "results" / "conditions.json"
+    assert artifact.exists(), "the conditions have to be committed as an artifact"
+    measured = set(json.loads(artifact.read_text(encoding="utf-8"))["conditions"])
+    plotted = {row["condition"] for row in data["conditions"]}
+    assert plotted == measured

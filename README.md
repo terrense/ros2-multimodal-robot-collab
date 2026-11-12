@@ -307,6 +307,26 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 L1 路径测不出时延和重复效应，是因为它根本没有：一条轨迹没人给它计时，也没有账本可挖。
 那两项写「不适用 + 原因」，不写 0 —— 写 0 就是假装测过。
 
+### 回执给闭环带来八十个百分点
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/conditions-dark.svg">
+  <img alt="The receipt is worth eighty points to the closed loop" src="docs/figures/conditions.svg" width="900">
+</picture>
+
+同一个规则策略、30 条 L1 轨迹、四种闭环配置，**只差一个变量**：
+
+| 配置 | 隔离的变量 | 任务成功率 | 平均轮数 | 失败原因 |
+|---|---|---|---|---|
+| `loop_no_receipts` | （什么都不给） | **3.3%** | 31.1 | 96.7% 撞轮数预算 |
+| `loop_receipts` | 回执 | **83.3%** | 10.7 | — |
+| `loop_receipts_fresh` | + 快照新鲜度门 | 83.3% | 10.7 | — |
+| `loop_receipts_recovery` | + 显式恢复 | 83.3% | 10.7 | — |
+
+后三行一模一样，这是**诚实的结论而不是 bug**：规则策略根本不看快照新鲜度，也不写恢复动作，
+所以这两道门对它没有价值。**要让它们显出价值，得有一个会看快照、会自己恢复的策略** —— 也就是
+那六条还没训的臂。
+
 ### 真栈截图
 
 <img alt="the robot's camera in the lab workcell" src="docs/figures/stack_camera.png" width="480">

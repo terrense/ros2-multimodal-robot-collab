@@ -61,6 +61,46 @@
       ]
     }
   ],
+  "conditions": [
+    {
+      "condition": "loop_no_receipts",
+      "episodes": 30,
+      "failure_rate": 0.9667,
+      "failures": [
+        "budget_turns"
+      ],
+      "isolates": "the value of observing the result",
+      "mean_turns": 31.07,
+      "task_success": 0.0333
+    },
+    {
+      "condition": "loop_receipts",
+      "episodes": 30,
+      "failure_rate": 0.0,
+      "failures": [],
+      "isolates": "the receipt",
+      "mean_turns": 10.67,
+      "task_success": 0.8333
+    },
+    {
+      "condition": "loop_receipts_fresh",
+      "episodes": 30,
+      "failure_rate": 0.0,
+      "failures": [],
+      "isolates": "the snapshot freshness gate",
+      "mean_turns": 10.67,
+      "task_success": 0.8333
+    },
+    {
+      "condition": "loop_receipts_recovery",
+      "episodes": 30,
+      "failure_rate": 0.0,
+      "failures": [],
+      "isolates": "explicit recovery decisions",
+      "mean_turns": 10.67,
+      "task_success": 0.8333
+    }
+  ],
   "receipts": [
     {
       "calls": 4691,

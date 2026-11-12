@@ -28,6 +28,7 @@ SIDECAR = FIGURE_DIR / "figures.json"
 CALIBRATION = REPO_ROOT / "benchmarks" / "calibration_v1.json"
 WIRE_DIR = REPO_ROOT / "results" / "wire"
 EVAL_DIR = REPO_ROOT / "results" / "eval"
+CONDITIONS = REPO_ROOT / "results" / "conditions.json"
 
 # ---------------------------------------------------------------------------
 # The palette. One hue, two shades, because every figure here is a
@@ -162,12 +163,35 @@ def receipt_rows() -> list[dict[str, Any]]:
     return rows
 
 
+def condition_rows() -> list[dict[str, Any]]:
+    """What each closed-loop configuration bought, on the L1 environment."""
+    path = CONDITIONS
+    if not path.exists():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    rows = []
+    for name, condition in (data.get("conditions") or {}).items():
+        rows.append(
+            {
+                "condition": name,
+                "task_success": float(condition.get("task_success", 0.0)),
+                "failure_rate": float(condition.get("failure_rate", 0.0)),
+                "mean_turns": float(condition.get("mean_turns", 0.0)),
+                "failures": list(condition.get("failures") or []),
+                "isolates": str(condition.get("isolates", "")),
+                "episodes": int(condition.get("episodes", 0)),
+            }
+        )
+    return rows
+
+
 def sidecar() -> dict[str, Any]:
     """The numbers the figures plot, in one place."""
     return {
         "calibration": calibration_rows(),
         "wire_faults": wire_rows(),
         "receipts": receipt_rows(),
+        "conditions": condition_rows(),
     }
 
 
@@ -360,6 +384,67 @@ def draw_wire_faults(rows: list[dict[str, Any]], theme: dict[str, str], path: Pa
     plt.close(figure)
 
 
+def draw_conditions(rows: list[dict[str, Any]], theme: dict[str, str], path: Path) -> None:
+    """What the receipt buys the closed loop, on the L1 environment.
+
+    One bar is the point and the rest are context, so this is an emphasis
+    chart: the configuration without receipts in the accent, the others in the
+    de-emphasis gray.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    order = (
+        "loop_no_receipts",
+        "loop_receipts",
+        "loop_receipts_fresh",
+        "loop_receipts_recovery",
+    )
+    by_name = {row["condition"]: row for row in rows}
+    rows = [by_name[name] for name in order if name in by_name]
+    if not rows:
+        return
+    labels = [row["condition"].replace("loop_", "") for row in rows]
+    values = [row["task_success"] for row in rows]
+    colors = [
+        theme["focus"] if row["condition"] == "loop_no_receipts" else theme["context"]
+        for row in rows
+    ]
+    height = 0.5
+    y = list(range(len(rows)))
+
+    figure, ax = plt.subplots(figsize=(9.6, 3.4), dpi=170)
+    figure.patch.set_facecolor(theme["surface"])
+    _style(ax, theme)
+
+    ax.barh(y, values, height=height, color=colors, zorder=2)
+    for index, row in enumerate(rows):
+        ax.text(row["task_success"] + 0.015, index, f"{row['task_success']:.1%}",
+                va="center", ha="left", color=theme["ink"], fontsize=9.5,
+                fontweight="bold" if row["condition"] == "loop_no_receipts" else "normal")
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, color=theme["ink"], fontsize=9.5)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 1.0)
+    ax.set_xticks([0.0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_xticklabels(["0", "25%", "50%", "75%", "100%"])
+    ax.set_xlabel("task success", color=theme["ink_2"], fontsize=9.5, labelpad=8)
+    figure.subplots_adjust(top=0.78, left=0.20, right=0.97, bottom=0.22)
+    figure.text(0.02, 0.93, "The receipt is worth eighty points to the closed loop",
+                color=theme["ink"], fontsize=13, fontweight="bold", va="bottom")
+    figure.text(
+        0.02, 0.865,
+        "the same rule policy, thirty L1 episodes, four closed-loop configurations; "
+        "the freshness gate and recovery add nothing to a rule policy",
+        color=theme["ink_2"], fontsize=9.5, va="bottom",
+    )
+    _save(figure, path, theme)
+    plt.close(figure)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="fail if the sidecar is stale")
@@ -396,6 +481,8 @@ def main(argv: list[str] | None = None) -> int:
     draw_calibration(data["calibration"], DARK, FIGURE_DIR / "calibration-dark.svg")
     draw_wire_faults(data["wire_faults"], LIGHT, FIGURE_DIR / "wire_faults.svg")
     draw_wire_faults(data["wire_faults"], DARK, FIGURE_DIR / "wire_faults-dark.svg")
+    draw_conditions(data["conditions"], LIGHT, FIGURE_DIR / "conditions.svg")
+    draw_conditions(data["conditions"], DARK, FIGURE_DIR / "conditions-dark.svg")
     SIDECAR.write_text(
         json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",

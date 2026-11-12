@@ -1,0 +1,50 @@
+{
+  "version": "conditions_v1",
+  "episodes": 30,
+  "split": "train",
+  "seed": 20260724,
+  "conditions": {
+    "loop_no_receipts": {
+      "condition": "loop_no_receipts: no receipts, no freshness gate, no recovery",
+      "isolates": "the value of observing the result",
+      "episodes": 30,
+      "task_success": 0.0333,
+      "not_failed": 1.0,
+      "failure_rate": 0.9667,
+      "mean_turns": 31.07,
+      "failures": [
+        "budget_turns"
+      ]
+    },
+    "loop_receipts": {
+      "condition": "loop_receipts: receipts, no freshness gate, no recovery",
+      "isolates": "the receipt",
+      "episodes": 30,
+      "task_success": 0.8333,
+      "not_failed": 0.8333,
+      "failure_rate": 0.0,
+      "mean_turns": 10.67,
+      "failures": []
+    },
+    "loop_receipts_fresh": {
+      "condition": "loop_receipts_fresh: receipts, fresh, no recovery",
+      "isolates": "the snapshot freshness gate",
+      "episodes": 30,
+      "task_success": 0.8333,
+      "not_failed": 0.8333,
+      "failure_rate": 0.0,
+      "mean_turns": 10.67,
+      "failures": []
+    },
+    "loop_receipts_recovery": {
+      "condition": "loop_receipts_recovery: receipts, fresh, recovery",
+      "isolates": "explicit recovery decisions",
+      "episodes": 30,
+      "task_success": 0.8333,
+      "not_failed": 0.8333,
+      "failure_rate": 0.0,
+      "mean_turns": 10.67,
+      "failures": []
+    }
+  }
+}
