@@ -381,6 +381,27 @@ def test_the_probe_reads_the_queueing_discipline_back() -> None:
     assert probe_netem("lo", runner=lambda command: "qdisc noqueue 0: ") is False
 
 
+def test_the_probe_looks_at_the_whole_queueing_discipline() -> None:
+    """The netem rule is a child of a prio qdisc, not the root itself.
+
+    `tc qdisc show dev lo root` prints the prio band and nothing else, so the
+    probe cannot see the rule it is supposed to confirm -- and a run that
+    really did inject the fault comes back VOID. The first real run came back
+    exactly that way.
+    """
+    seen: dict[str, list[str]] = {}
+
+    def runner(command):
+        seen["command"] = list(command)
+        return (
+            "qdisc prio 1: root refcnt 2\n"
+            "qdisc netem 30: parent 1:3 limit 1000 loss 30% 25%"
+        )
+
+    assert probe_netem("lo", runner=runner) is True
+    assert "root" not in seen["command"], "the whole tree has to be read"
+
+
 def test_the_probe_reports_failure_rather_than_raising() -> None:
     def explode(command):
         raise OSError("no such file")

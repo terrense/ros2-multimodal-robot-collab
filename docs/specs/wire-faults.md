@@ -143,3 +143,46 @@ A loopback-only interface also has no multicast route by default, which is how
 DDS finds peers. `ip link set lo up` is enough for the single-machine case —
 all the nodes are on the same host — but it is worth knowing if discovery
 behaves differently than it does on the normal interface.
+
+### Two things that bite inside the namespace
+
+Both were found by running it, and both stop the stack from coming up at all.
+
+**The loopback needs its MULTICAST flag.** A namespace's `lo` has no MULTICAST
+flag by default. CycloneDDS reports it as *"selected interface lo is not
+multicast-capable: disabling multicast"*, and then cannot find a free
+participant index for the domain — every node dies at creation with
+`failed to find a free participant index for domain N`. `ip link set lo
+multicast on` fixes it, and the whole stack comes up.
+
+**The stack needs a domain of its own.** The DDS participant index is booked
+per domain, and the machine's own stack already holds the indices for domain
+0. A different `ROS_DOMAIN_ID` uses different ports and different locks.
+
+```bash
+unshare -Ur -n bash -c '
+  ip link set lo up
+  ip link set lo multicast on
+  ip addr add 127.0.0.1/8 dev lo
+  ip route add 224.0.0.0/4 dev lo
+  export ROS_DOMAIN_ID=42
+  # ... start the stack and run the check here ...
+'
+```
+
+Cross-process discovery inside the namespace was verified before the stack was
+started: two separate processes, one publishing and one subscribing, over the
+namespace's loopback.
+
+### The probe has to read the whole tree
+
+The rule is installed as a `prio` root qdisc with the netem on band `1:3`.
+`tc qdisc show dev lo root` prints the prio band and nothing else, so a probe
+that asks for the root cannot see the rule it is supposed to confirm.
+
+The first real run of this experiment came back **VOID** for exactly that
+reason: the fault had been injected, the faulted dispatch had gone out, and the
+probe reported "no netem rule was observed before the faulted dispatch". The
+run was correctly refused — the verdict was void, not pass — but the void was
+the *measurement's* fault, not the system's. The probe reads the whole tree
+now (`tc qdisc show dev lo`), and there is a test that pins it.

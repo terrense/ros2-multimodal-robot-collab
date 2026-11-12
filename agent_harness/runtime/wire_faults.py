@@ -363,10 +363,17 @@ def probe_netem(
     This is what makes WF-C1 and WF-C2 more than an assumption: the tool reads
     the queueing discipline back rather than trusting that its own `tc` call
     worked.
+
+    The whole tree is read, not just the root. The rule is installed as a
+    `prio` root qdisc with the netem on band `1:3`, so `tc qdisc show dev lo
+    root` prints the prio band and nothing else -- and the probe cannot see
+    the rule it is meant to confirm. The first real run came back VOID for
+    exactly that reason: the fault had been injected, and the probe said it
+    was not there.
     """
     run = runner or _run_capture
     try:
-        output = run([binary, "qdisc", "show", "dev", interface, "root"])
+        output = run([binary, "qdisc", "show", "dev", interface])
     except OSError:
         return False
     return "netem" in output
