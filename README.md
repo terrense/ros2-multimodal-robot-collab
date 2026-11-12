@@ -210,7 +210,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
-| **CI/CD** | lint · pytest · harness pytest · ROS 2 容器构建 · GHCR 镜像 | CI 全绿 |
+| **CI/CD** | lint · pytest · harness pytest · ROS 2 容器构建 · **真栈三连：真实递送 + 校准探针 + 线缆故障** · GHCR 镜像 | CI 全绿 |
 | **契约 v1.2** | 命令身份、执行状态（含 `unknown`）、回执、快照新鲜度、能力注册表 | 单测 |
 | **工具运行时** | 每资源 FIFO、只撤销排队、SQLite 账本、失败关闭、按资源加锁；**控制指令独占自己的资源**，急停不会被排在它要停的那个动作后面 | 15 项故障注入（进程内）+ 真栈实测：急停前 0/5 停不住，改完 5/5 停得住 |
 | **Agent 闭环** | observe → 决定**一个**动作 → 校验 → 提交 → 等回执；轮数/字符/墙钟预算 | 单测 |
@@ -221,7 +221,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测；ROS 路径已跑过一次十任务的评估** |
 | **回执指标** | L1 与 L2 两条路径用同一套契约映射算回执指标，并发进 `docs/results.md`；L1 路径测不出的两项（时延、重复效应）写「不适用 + 原因」，不写 0 | 两条路径都测了：L1 4205 次调用（0% 不确定结果），L2 十次真实任务（0% 不确定、p50 时延 9.76s、0% 重复效应） |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **rclpy 层已验（CI 里跑），全栈未跑** |
-| **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，12 条：安全/活性/设置）+ `tc netem` 六套场景 + 按判据判定 | **已构建，六套场景都在真栈上跑过、12 条全过**：整个实验在 user+network 命名空间里；95% 丢包下命令以 `unknown` 收场，账本挡住后续派发直到人工认领 |
+| **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，12 条：安全/活性/设置）+ `tc netem` 六套场景 + 按判据判定 | **已构建，六套场景都在真栈上跑过、12 条全过**；整个实验在 user+network 命名空间里，95% 丢包下命令以 `unknown` 收场，账本挡住后续派发直到人工认领。**CI 里也跑一套** |
 | **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、场景驱动、清单写入 | **5/9 已测**：`nav_timeout` 100%（L1 说 66.5%）、`identity_mismatch` 0%（L1 说 34.6%）、`low_confidence` 0%（L1 说 50%）、`user_cancel` 0%（L1 说 100%）、`tool_missing` 100%（一致）；另 4 族这栈造不出故障，探针写清了缺的是哪个机制 |
 | **实验基线** | 规则基线 76.1% / 脚本专家 100%（400 条故障注入 benchmark） | **CPU 可复现**，产物入库 |
 | **后训练栈** | SFT / DPO / Step-Level PPO / OPD + 显存预检 + teacher 独立服务 | **未上 GPU**，六条臂 pending |
