@@ -25,6 +25,7 @@
 
 - [快速开始](#快速开始) · [仿真车间](#仿真车间workshop)
 - [项目状态](#项目状态) · [**全项目现状与卡点**](docs/status.md) · [三条工作线](#三条工作线)
+- [**图与表：现在到底测出了什么**](#图与表现在到底测出了什么)
 - [总体架构](#总体架构) · [分层职责](#分层职责)
 - [移动小车](#移动小车负责什么) · [机械臂](#机械臂负责什么) · [感知](#感知系统怎么配合) · [Agent](#agent-和-multi-agent-设计)
 - [完整任务流程](#完整任务怎么跑) · [ROS 2 接口速查](#ros2-接口速查)
@@ -206,7 +207,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-主套件 **520 passed / 3 skipped**，harness 套件 **86 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
+主套件 **525 passed / 3 skipped**，harness 套件 **86 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -236,6 +237,81 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 > 上表是模块清单。**哪条线卡在哪、下一步该动什么**，见
 > [`docs/status.md`](docs/status.md) —— 全项目现状页。一句话版本：
 > **机器人和运行时都通了，但一个模型都还没训**，因为那要 GPU。
+
+---
+
+## 图与表：现在到底测出了什么
+
+下面的每一张图都由**已入库的产物**生成（`scripts/make_figures.py` 读
+`benchmarks/calibration_v1.json`、`results/eval/*.json`、`results/wire/*.json`），
+图里写的数和一个 JSON 旁边的 `docs/figures/figures.json` 一一对应 ——
+`tests/test_figures.py` 会核对，**图不可能和数据脱节**。
+
+### 校准：L1 假设的自愈，实时栈没有
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/calibration-dark.svg">
+  <img alt="L1 assumes a self-healing the live stack does not have" src="docs/figures/calibration.svg" width="900">
+</picture>
+
+浅点是 **L1 的假设**，深点是**真栈实测**（横线是实测值的 95% Wilson 区间）：
+
+| 故障族 | L1 假设 | 真栈实测 | 判定 |
+|---|---|---|---|
+| `nav_timeout` | 0.665 | **1.000** | 排除 L1 |
+| `identity_mismatch` | 0.346 | **0.000** | 排除 L1 |
+| `low_confidence` | 0.500 | **0.000** | 排除 L1 |
+| `user_cancel` | 1.000 | **0.000** | 排除 L1 |
+| `tool_missing` | 1.000 | **1.000** | 一致 |
+
+**四个方向一致：L1 假设了真栈没有的自愈能力。** 人脸不匹配在 L1 里三次有一次会好，
+真栈上一次都没有；边缘检测在 L1 里重拍一次有一半概率修好，真栈拍一百次还是那样；
+取消在 L1 里会以「取消」收场，真栈**确实停住了运动**，但把它记成「抓取失败」。
+照 L1 训出来的策略会等一个永远不来的重试。
+
+另外四族（`visual_occlusion` / `tool_drop` / `no_progress` / `grasp_failure`）
+**这栈造不出故障** —— 感知桩不观察世界、没有东西会放下手里的工具、没人查交接区、
+仿真臂不会抓空。探针会说明缺的是哪个机制，而不是报一句「场景没布置」。
+
+### 线缆故障：丢包要么让命令变慢，要么把它拿走
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/wire_faults-dark.svg">
+  <img alt="A lossy link either costs time or takes the command away" src="docs/figures/wire_faults.svg" width="900">
+</picture>
+
+同一条导航命令，健康链路上跑一次、故障链路上跑一次（`tc netem` 真的注进去，
+实验整个跑在 user+network 命名空间里，所以丢包影响不到机器上别的东西）：
+
+| 场景 | 故障 | 健康 | 带故障 | 链路自己说 |
+|---|---|---|---|---|
+| `duplicated_packets` | 20% 重复 | 2.15s | 2.07s | 丢 0 个包 |
+| `slow_ack` | 400±120ms 延迟 | 2.25s | 3.67s | 丢 0 个包 |
+| `dropped_result` | 30% 丢包 | 2.17s | 2.17s | **丢 230 个包** |
+| `bursty_loss` | 30% 丢包 / 50% 相关 | 2.15s | 2.06s | **丢 74 个包** |
+| `severe` | 60% 丢包 / 50% 相关 / 200ms | 2.20s | **42.80s** | **丢 10092 个包** |
+| `blackout` | 95% 丢包 / 50% 相关 | 2.24s | **没回来（30s 超时）** | **丢 1303 个包** |
+
+六套场景 × 十二条判据全过。最要紧的两条：60% 丢包时命令**仍然完成**，只是慢了
+将近二十倍（DDS 把丢的包重传掉了）；95% 丢包时命令**以 `unknown` 收场**，不是
+`failed`，账本挡住后面所有派发直到人工认领 —— **fail-closed 那条契约第一次被真正走到**。
+
+### 回执指标：两条路径同一套定义
+
+| 路径 | 调用次数 | 不确定结果 | 时延 p50 | 重复效应 |
+|---|---|---|---|---|
+| L1（轨迹） | 4205 | 0.0% | 不适用 | 不适用 |
+| L1（脚本专家） | 4691 | 0.0% | 不适用 | 不适用 |
+| **L2（真栈十次任务）** | **10** | **0.0%** | **9760 ms** | **0.0%** |
+
+L1 路径测不出时延和重复效应，是因为它根本没有：一条轨迹没人给它计时，也没有账本可挖。
+那两项写「不适用 + 原因」，不写 0 —— 写 0 就是假装测过。
+
+### 真栈截图
+
+<img alt="the robot's camera in the lab workcell" src="docs/figures/stack_camera.png" width="480">
+
+机器人的 D435 在工位里看到的样子（真栈截图，`scripts/snapshot_camera.py`）。
 
 ---
 
@@ -532,7 +608,7 @@ bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
 它跑的和 CI 完全一样，所以"本地绿"和"CI 绿"是一回事。分开跑也行：
 
 ```bash
-python -m pytest                 # 520 passed, 3 skipped（agent_env + training）
+python -m pytest                 # 525 passed, 3 skipped（agent_env + training）
 python -m pytest agent_harness/tests   # 86 passed（运行时：契约、调度、并发、中断、线缆故障）
 python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试

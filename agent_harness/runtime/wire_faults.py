@@ -513,6 +513,8 @@ class RunFacts:
     uncertain: set[str] = field(default_factory=set)
     #: Status of the clean baseline dispatch.
     baseline_status: str | None = None
+    #: Status of the dispatch that ran while the fault was in place.
+    faulted_status: str | None = None
     #: Status of the dispatch after the fault was cleared.
     recovery_status: str | None = None
     #: Whether the netem rule was observed before the faulted dispatch.

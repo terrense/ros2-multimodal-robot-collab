@@ -1,0 +1,103 @@
+{
+  "scenario": "blackout",
+  "fault": "loss 95% 50%",
+  "expectation": "the command must end `unknown` and not `failed`; the next command must be refused until an operator acknowledges it",
+  "capability": "navigation.navigate_to_station",
+  "verdict": "pass",
+  "criteria": [
+    {
+      "id": "WF-S1",
+      "kind": "safety",
+      "statement": "no command id is dispatched more than once (no duplicate effect)",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-S2",
+      "kind": "safety",
+      "statement": "a command whose outcome was uncertain is recorded unknown, and only an operator's acknowledgement may move it on -- to failed, never to completed",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-S3",
+      "kind": "safety",
+      "statement": "no command is dispatched while an unresolved command is unacknowledged",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-S4",
+      "kind": "safety",
+      "statement": "every submitted command has a ledger row ending terminal or unknown",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-S5",
+      "kind": "safety",
+      "statement": "no receipt claims a completed call that did not complete",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-S6",
+      "kind": "safety",
+      "statement": "the harness never submits the same command id twice",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-L1",
+      "kind": "liveness",
+      "statement": "under moderate loss, at least one command reaches a terminal state other than unknown",
+      "held": true,
+      "detail": "not applicable: 95% loss is beyond the 20% where progress is expected"
+    },
+    {
+      "id": "WF-L2",
+      "kind": "liveness",
+      "statement": "after the fault is cleared, a fresh command completes",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-C1",
+      "kind": "setup",
+      "statement": "the netem rule was in place before the first faulted dispatch",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-C2",
+      "kind": "setup",
+      "statement": "the netem rule is gone at the end of the run",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-C3",
+      "kind": "setup",
+      "statement": "a clean baseline run completed before the faulted one",
+      "held": true,
+      "detail": ""
+    },
+    {
+      "id": "WF-C4",
+      "kind": "setup",
+      "statement": "the faulted dispatch was measurably slower than the baseline, so the fault actually reached the transport",
+      "held": true,
+      "detail": "the link reported 1303 dropped packet(s) and 0 sent; a fault that dropped nothing never reached the transport"
+    }
+  ],
+  "measurements": {
+    "baseline_seconds": 2.2403870330017526,
+    "faulted_seconds": 30.034537397994427,
+    "recovery_seconds": 7.2910257219919,
+    "link_sent_packets": 0,
+    "link_dropped_packets": 1303,
+    "baseline_status": "completed",
+    "faulted_status": "unknown",
+    "recovery_status": "completed"
+  }
+}

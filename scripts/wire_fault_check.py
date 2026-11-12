@@ -196,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         facts.submitted.append(command_id)
         facts.faulted_seconds = elapsed
+        facts.faulted_status = status
         if status == "unknown":
             facts.uncertain.add(command_id)
         print(f"   observed: {status} ({elapsed:.2f}s)")
@@ -275,6 +276,18 @@ def main(argv: list[str] | None = None) -> int:
                     "capability": capability,
                     "verdict": report.verdict.value,
                     "criteria": report.to_dict()["results"],
+                    # The numbers the run actually saw. A verdict says the
+                    # criteria held; these say what the run was.
+                    "measurements": {
+                        "baseline_seconds": facts.baseline_seconds,
+                        "faulted_seconds": facts.faulted_seconds,
+                        "recovery_seconds": facts.recovery_seconds,
+                        "link_sent_packets": facts.fault_sent_packets,
+                        "link_dropped_packets": facts.fault_dropped_packets,
+                        "baseline_status": facts.baseline_status,
+                        "faulted_status": facts.faulted_status,
+                        "recovery_status": facts.recovery_status,
+                    },
                 },
                 indent=2,
                 ensure_ascii=False,

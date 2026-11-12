@@ -1,0 +1,152 @@
+{
+  "calibration": [
+    {
+      "family": "nav_timeout",
+      "l1_rate": 0.6653,
+      "l2_rate": 1.0,
+      "label": "nav_timeout",
+      "samples": 30,
+      "verdict": "interval_excludes_l1_rate",
+      "wilson": [
+        0.8865,
+        1.0
+      ]
+    },
+    {
+      "family": "identity_mismatch",
+      "l1_rate": 0.3462,
+      "l2_rate": 0.0,
+      "label": "identity_mismatch",
+      "samples": 30,
+      "verdict": "interval_excludes_l1_rate",
+      "wilson": [
+        0.0,
+        0.1135
+      ]
+    },
+    {
+      "family": "low_confidence",
+      "l1_rate": 0.5,
+      "l2_rate": 0.0,
+      "label": "low_confidence",
+      "samples": 30,
+      "verdict": "interval_excludes_l1_rate",
+      "wilson": [
+        0.0,
+        0.1135
+      ]
+    },
+    {
+      "family": "user_cancel",
+      "l1_rate": 1.0,
+      "l2_rate": 0.0,
+      "label": "user_cancel",
+      "samples": 30,
+      "verdict": "interval_excludes_l1_rate",
+      "wilson": [
+        0.0,
+        0.1135
+      ]
+    },
+    {
+      "family": "tool_missing",
+      "l1_rate": 1.0,
+      "l2_rate": 1.0,
+      "label": "tool_missing",
+      "samples": 30,
+      "verdict": "ok",
+      "wilson": [
+        0.8865,
+        1.0
+      ]
+    }
+  ],
+  "receipts": [
+    {
+      "calls": 4691,
+      "duplicate_effect_rate": null,
+      "evaluation": "expert_oracle",
+      "latency_p50_ms": null,
+      "source": "l1_trajectory",
+      "uncertain_outcome_rate": 0.0
+    },
+    {
+      "calls": 10,
+      "duplicate_effect_rate": 0.0,
+      "evaluation": "l2_baseline",
+      "latency_p50_ms": 9760.377,
+      "source": "l2_receipts",
+      "uncertain_outcome_rate": 0.0
+    },
+    {
+      "calls": 4205,
+      "duplicate_effect_rate": null,
+      "evaluation": "rule_baseline",
+      "latency_p50_ms": null,
+      "source": "l1_trajectory",
+      "uncertain_outcome_rate": 0.0
+    }
+  ],
+  "wire_faults": [
+    {
+      "baseline_seconds": 2.1499880099872826,
+      "faulted_seconds": 2.065807403996587,
+      "faulted_status": "completed",
+      "label": "duplicated_packets",
+      "link_dropped_packets": 0,
+      "link_sent_packets": 625,
+      "scenario": "duplicated_packets",
+      "verdict": "pass"
+    },
+    {
+      "baseline_seconds": 2.246068149994244,
+      "faulted_seconds": 3.6668136950029293,
+      "faulted_status": "completed",
+      "label": "slow_ack",
+      "link_dropped_packets": 0,
+      "link_sent_packets": 1992,
+      "scenario": "slow_ack",
+      "verdict": "pass"
+    },
+    {
+      "baseline_seconds": 2.168356723996112,
+      "faulted_seconds": 2.167068859009305,
+      "faulted_status": "completed",
+      "label": "dropped_result",
+      "link_dropped_packets": 230,
+      "link_sent_packets": 792,
+      "scenario": "dropped_result",
+      "verdict": "pass"
+    },
+    {
+      "baseline_seconds": 2.1497552109940443,
+      "faulted_seconds": 2.05751723900903,
+      "faulted_status": "completed",
+      "label": "bursty_loss",
+      "link_dropped_packets": 74,
+      "link_sent_packets": 529,
+      "scenario": "bursty_loss",
+      "verdict": "pass"
+    },
+    {
+      "baseline_seconds": 2.198936283995863,
+      "faulted_seconds": 42.8017133789981,
+      "faulted_status": "completed",
+      "label": "severe",
+      "link_dropped_packets": 10092,
+      "link_sent_packets": 4262,
+      "scenario": "severe",
+      "verdict": "pass"
+    },
+    {
+      "baseline_seconds": 2.2403870330017526,
+      "faulted_seconds": 30.034537397994427,
+      "faulted_status": "unknown",
+      "label": "blackout",
+      "link_dropped_packets": 1303,
+      "link_sent_packets": 0,
+      "scenario": "blackout",
+      "verdict": "pass"
+    }
+  ]
+}

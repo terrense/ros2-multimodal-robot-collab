@@ -17,6 +17,11 @@ repos:
       - id: check-merge-conflict   # catches a committed <<<<<<< before CI does
       - id: end-of-file-fixer
       - id: trailing-whitespace
+        # The figures are generated artifacts. Matplotlib writes path data with
+        # trailing spaces, and "fixing" them would make the committed file
+        # differ from what `scripts/make_figures.py` regenerates -- which is
+        # the property the figures' check depends on.
+        exclude: ^docs/figures/.*\.svg$
       - id: check-added-large-files
         # Vendor mesh files for the simulated arms are legitimate assets
         # (Dobot base_link.STL is 1.1 MB). Anything bigger should be fetched.
