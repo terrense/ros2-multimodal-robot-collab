@@ -249,6 +249,38 @@ jobs:
           EXEC_TIMEOUT_SEC=60 RUN_TIMEOUT_SEC=240 \
             SMOKE_USE_RUNNING=1 bash scripts/smoke_ros2_runtime.sh /tmp/ci_smoke.db
 
+      - name: Calibration probe against the live stack
+        # The calibration machinery is what says whether L1's fault model
+        # holds. Running one family here means a broken probe fails the build
+        # instead of quietly reporting "not measured" for months -- which is
+        # exactly how two families sat unmeasured for a long time.
+        #
+        # The check is that a measurement came out, not that the rate matches:
+        # the rate is a measurement, and a measurement that changes is not a
+        # build failure.
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+          export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+          timeout 300 python3 -m agent_env.scripts.run_calibration \
+            --family identity_mismatch --samples 10 --out /tmp/ci_calibration.json
+          python3 - <<'PY'
+          import json
+          import sys
+
+          data = json.load(open("/tmp/ci_calibration.json", encoding="utf-8"))
+          measured = [row for row in data.get("families", []) if row.get("samples")]
+          if not measured:
+              print("the calibration probe produced no measurement")
+              print(json.dumps(data.get("unmeasured", []), indent=2))
+              sys.exit(1)
+          for row in measured:
+              print(f"{row['family']}: {row['successes']}/{row['samples']}")
+          PY
+
       - name: Stop the simulation
         if: always()
         run: bash scripts/stop_gazebo_demo.sh || true

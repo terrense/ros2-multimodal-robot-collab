@@ -719,7 +719,7 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
 - [ ] **让剩下四族能测**：要一个会观察世界的真检测器（遮挡）、一个会释放工具的机械臂（掉件）、一个会查交接区占用的任务状态机（无进展）、一个会抓空的机械臂（抓取失败）。这四条要换软件，不是换场景
 - [ ] **把线缆故障实验搬进 CI**：现在每次跑都要手动起命名空间里的栈，判据本身是纯 Python，可以进 ROS job
-- [ ] CI 里再往前一步：驱动 Nav2、跑一次校准探针（现在只到"图起来 + 一条计划派发"）
+- [ ] CI 里再往前一步：驱动 Nav2（现在只到"图起来 + 一条计划派发 + 一次校准探针"）
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定
 - [ ] 录制 rosbag 数据集做感知/调度回归测试
