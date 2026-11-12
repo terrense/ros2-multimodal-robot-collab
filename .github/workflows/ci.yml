@@ -118,6 +118,11 @@ jobs:
     runs-on: ubuntu-22.04
     container:
       image: ros:humble-ros-base
+      # `tc` needs CAP_NET_ADMIN, and Docker drops it by default. The
+      # container's network is its own namespace, so the capability is scoped
+      # to the job's traffic -- which is exactly what the wire-fault
+      # experiment needs and no more.
+      options: --cap-add=NET_ADMIN
     defaults:
       run:
         shell: bash
@@ -132,7 +137,7 @@ jobs:
           echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
           apt-get update
           apt-get install -y --no-install-recommends \
-            python3-colcon-common-extensions python3-rosdep
+            python3-colcon-common-extensions python3-rosdep iproute2
       - name: Resolve package dependencies
         # `rosdep init` and `rosdep update` both fetch from the network, and a
         # runner that loses it for five seconds fails the job before a line of
@@ -279,6 +284,59 @@ jobs:
               sys.exit(1)
           for row in measured:
               print(f"{row['family']}: {row['successes']}/{row['samples']}")
+          PY
+
+      - name: Wire-fault experiment against the live stack
+        # The transport-safety criteria are twelve assertions about what the
+        # ledger has to show. Running one scenario here means a regression in
+        # the fail-closed path is caught by the build.
+        #
+        # The gate is the *safety* criteria plus a run that was not void. A
+        # void run says nothing about the robot -- that is what a
+        # misconfigured injection looks like, and it is the failure mode the
+        # criteria were written to catch. The liveness criteria are left out:
+        # under loss they depend on how fast the runner is, and a flaky gate
+        # is worse than no gate.
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+          export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+          IFACE=$(ip route show default | awk '{print $5; exit}')
+          echo "interface: ${IFACE}"
+          timeout 300 python3 scripts/wire_fault_check.py dropped_result \
+            --interface "${IFACE}" --ledger /tmp/wire.db --report /tmp/wire.json \
+            || echo "the run reported a verdict other than pass (see below)"
+          {
+            echo "### wire-fault run"
+            echo '```'
+            cat /tmp/wire.json 2>/dev/null || echo "(no report)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY'
+          import json
+          import sys
+
+          report = json.load(open("/tmp/wire.json", encoding="utf-8"))
+          print(f"verdict: {report.get('verdict')}")
+          broken = [
+              criterion
+              for criterion in report.get("criteria", [])
+              if criterion["kind"] == "safety" and not criterion["held"]
+          ]
+          for criterion in broken:
+              print(f"  {criterion['id']}: {criterion['detail']}")
+          if report.get("verdict") == "void":
+              print("a void run says nothing about the robot")
+              for criterion in report.get("criteria", []):
+                  if not criterion["held"]:
+                      print(f"  {criterion['id']}: {criterion['detail']}")
+              sys.exit(1)
+          if broken:
+              print("a safety criterion did not hold")
+              sys.exit(1)
           PY
 
       - name: Stop the simulation
