@@ -257,6 +257,20 @@ loss, nothing ended `unknown`, so "an uncertain outcome stays unknown" and
 nothing to check. `severe` and `blackout` exist to give them something to
 check.
 
+### It runs in CI too
+
+The ROS job now runs one scenario against its own stack. The gate is the
+**safety** criteria plus a run that was not void: a void run says nothing
+about the robot, and the liveness criteria depend on how fast the runner is,
+so a flaky gate would be worse than no gate.
+
+`tc` needs `CAP_NET_ADMIN`, and Docker drops it by default, so the job's
+container gets it back — scoped to the job's own network namespace, which is
+the container's. (The namespace approach above is for a machine where the
+experiment has to run against a stack you did not start in the container; the
+container cannot `unshare` a network namespace, because Docker's seccomp
+profile blocks it.)
+
 ### The two things these runs found in the harness
 
 **The probe could not see the fault it was confirming.** The rule is a `prio`
