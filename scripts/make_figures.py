@@ -385,6 +385,11 @@ def main(argv: list[str] | None = None) -> int:
 
     plt.rcParams["font.family"] = _fonts()
     plt.rcParams["svg.fonttype"] = "none"
+    # Matplotlib gives every marker a random id, so two runs of the same
+    # figure produce different files. The salt makes the ids a function of the
+    # content, and an unchanged figure then regenerates byte for byte -- which
+    # is what lets a diff on the SVG mean "the data moved".
+    plt.rcParams["svg.hashsalt"] = "robot-collab-figures"
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     draw_calibration(data["calibration"], LIGHT, FIGURE_DIR / "calibration.svg")
