@@ -262,6 +262,58 @@ calibration and a working stop path first.
 
 ---
 
+## Two decisions waiting for you
+
+Both came out of the calibration, and neither is a task I should decide on my
+own.
+
+### 1. Should L1's fault model be corrected to match the stack?
+
+The calibration says L1's fault model is wrong in four places. Correcting it is
+the project's own completion criterion ("the L1 number corrected and the arms
+re-run against the corrected model"), so the change is *expected* — but it is
+not free, and the cost is the point of asking:
+
+| Family | L1 says | The stack does | The parameter that would change |
+|---|---|---|---|
+| `identity_mismatch` | 0.346 | 0.000 | `default_params.sensor_glitch` → never heals |
+| `low_confidence` | 0.500 | 0.000 | `default_params.reperceive_fix_prob` → never heals |
+| `nav_timeout` | 0.665 | 1.000 | `default_params.timeouts_before_success` → `[1]` only |
+| `user_cancel` | 1.000 | 0.000 | L1 ends a cancelled episode as a success; the stack ends it as a failure |
+
+**What it costs.** The fault rates are sampled at run time from
+`default_params`, so changing them changes what the **frozen benchmark**
+produces: the 76.1% rule baseline, the 100% oracle, and every published
+number move. The benchmark has to be regenerated, the arms have to be re-run
+against the corrected model, and the comparison between "before" and "after"
+becomes part of the result rather than a footnote.
+
+**The counter-argument, which is not weak.** What was measured is the
+*stubs*: the face-auth stub has no glitch because it is an allow-list, the
+detector stub is deterministic, the nav stub always succeeds. Correcting L1 to
+match them makes the simulator as simple-minded as the stub it stands for.
+The other reading is that the live stack is the target, the simulator should
+match the target, and when the stubs get more faithful the calibration will
+measure again and L1 follows.
+
+I have not changed `default_params`, because either reading is defensible and
+the choice changes every published number.
+
+### 2. Four fault families need simulation features, not scenes
+
+`visual_occlusion`, `tool_drop`, `no_progress` and `grasp_failure` cannot be
+produced by the stack as it stands: the perception stub does not observe the
+world, nothing releases a held tool, nothing consults the handover zone, and
+the simulated arm never fails a grasp.
+
+Making them producible means **changing the robot's own nodes** — a detector
+that looks at the world, an arm that can slip, a mission that checks whether
+the station is occupied. That is robot control logic, which is off-limits
+without your say-so, so I have written the probes to *refuse with the reason*
+instead of pretending.
+
+---
+
 ## What would make this a finished piece of work
 
 The research question is *which source of supervision fixes which failure
@@ -270,6 +322,8 @@ mode*. To answer it:
 1. **Six arms trained and scored** — the comparison itself.
 2. **A trusted fault model** — calibration either passing or, where it fails,
    the L1 number corrected and the arms re-run against the corrected model.
+   The first half is done: five families measured, four of them falsifying L1.
+   The second half is the decision above.
 3. **The failure decomposition reported per arm** — which is already what the
    report generates; it needs numbers.
 
