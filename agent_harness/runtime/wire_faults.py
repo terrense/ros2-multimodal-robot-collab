@@ -28,6 +28,7 @@ system that survived a fault it never saw.
 
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 from collections import Counter
@@ -60,7 +61,8 @@ CRITERIA: tuple[Criterion, ...] = (
     Criterion(
         "WF-S2",
         SAFETY,
-        "a command whose outcome was uncertain is recorded unknown, never failed",
+        "a command whose outcome was uncertain is recorded unknown, and only an "
+        "operator's acknowledgement may move it on -- to failed, never to completed",
     ),
     Criterion(
         "WF-S3",
@@ -304,10 +306,25 @@ SCENARIOS: dict[str, FaultScenario] = {
     ),
     "bursty_loss": FaultScenario(
         name="bursty_loss",
-        rule=NetemRule(loss_percent=15.0, correlation_percent=75.0),
+        # 15% loss at 75% correlation drops *nothing*: measured over 2000
+        # packets, the link reported 0 dropped. The rule in the thresholds
+        # table said 15% and did not mean it. 30% at 50% correlation drops
+        # 16% of packets, and it is the bursty one.
+        rule=NetemRule(loss_percent=30.0, correlation_percent=50.0),
         expectation=(
             "loss in bursts is the realistic case; the fail-closed path must hold "
             "and stay blocked until an operator acknowledges"
+        ),
+    ),
+    "blackout": FaultScenario(
+        name="blackout",
+        # Loss high enough that retransmission cannot cover it: the command has
+        # to time out, the outcome has to stay `unknown`, and the next command
+        # has to be refused until an operator acknowledges the first.
+        rule=NetemRule(loss_percent=95.0, correlation_percent=50.0),
+        expectation=(
+            "the command must end `unknown` and not `failed`; the next command must be "
+            "refused until an operator acknowledges it"
         ),
     ),
     "severe": FaultScenario(
@@ -407,6 +424,45 @@ def _run_capture(command: list[str]) -> str:
     return result.stdout or ""
 
 
+def probe_netem_stats(
+    interface: str = "lo",
+    *,
+    binary: str = "tc",
+    runner: Callable[[list[str]], str] | None = None,
+) -> dict[str, int]:
+    """What the link's own counters say about the fault.
+
+    `tc -s qdisc show` prints the netem qdisc's statistics, and the count of
+    dropped packets is the fault's own account of itself. That is a far better
+    evidence than a proxy: a run can be slow for a hundred reasons, but a
+    packet that the link says it dropped was dropped.
+
+    Returns `{"sent": n, "dropped": n}`, with `dropped` at 0 when the link
+    reports nothing.
+    """
+    run = runner or _run_capture
+    try:
+        output = run([binary, "-s", "qdisc", "show", "dev", interface])
+    except OSError:
+        return {"sent": 0, "dropped": 0}
+    stats = {"sent": 0, "dropped": 0}
+    in_netem = False
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("qdisc "):
+            in_netem = " netem " in f" {stripped} "
+            continue
+        if not in_netem or not stripped.startswith("Sent "):
+            continue
+        sent = re.search(r"(\d+)\s+pkt", stripped)
+        dropped = re.search(r"dropped\s+(\d+)", stripped)
+        if sent:
+            stats["sent"] = int(sent.group(1))
+        if dropped:
+            stats["dropped"] = int(dropped.group(1))
+    return stats
+
+
 # ---------------------------------------------------------------- the audit
 
 
@@ -471,6 +527,14 @@ class RunFacts:
     faulted_seconds: float | None = None
     #: How long the dispatch after the fault was cleared took, in seconds.
     recovery_seconds: float | None = None
+    #: What the link's own counters say: packets sent and packets dropped while
+    #: the fault was in place.
+    fault_sent_packets: int = 0
+    fault_dropped_packets: int = 0
+    #: The fault's own parameters, so the criterion can ask the right question
+    #: of them.
+    delay_ms: float = 0.0
+    duplicate_percent: float = 0.0
 
 
 def evaluate_wire_fault(view: LedgerView, facts: RunFacts) -> WireFaultReport:
@@ -486,11 +550,18 @@ def evaluate_wire_fault(view: LedgerView, facts: RunFacts) -> WireFaultReport:
         )
     )
 
-    wrong = [
-        f"{cid} is {view.statuses.get(cid)!r}"
-        for cid in sorted(facts.uncertain)
-        if view.statuses.get(cid) not in (None, "unknown")
-    ]
+    wrong = []
+    for cid in sorted(facts.uncertain):
+        final = view.statuses.get(cid)
+        if final in (None, "unknown"):
+            continue
+        # The status may only have moved on because an operator acknowledged
+        # it -- and then only to `failed`, never to `completed`. The receipt
+        # the ledger stored still says what was known at the time.
+        recorded = str((view.receipts.get(cid) or {}).get("execution_status", ""))
+        if final == "failed" and cid in view.acknowledged and recorded == "unknown":
+            continue
+        wrong.append(f"{cid} is {final!r} (recorded {recorded!r})")
     missing = [cid for cid in sorted(facts.uncertain) if cid not in view.statuses]
     detail = "; ".join(wrong + [f"{cid} is absent from the ledger" for cid in missing])
     results.append(CriterionResult(CRITERIA_BY_ID["WF-S2"], held=not wrong and not missing, detail=detail))
@@ -612,31 +683,44 @@ def evaluate_wire_fault(view: LedgerView, facts: RunFacts) -> WireFaultReport:
     # packet passes every criterion: nothing was uncertain, nothing was
     # duplicated, and the recovery worked -- because the link was healthy.
     # The first two real runs did exactly that, at 30% and at 60% loss, and
-    # both came back PASS. A loss that costs the transport time has to show
-    # up as time.
-    slowdown = None
-    needed = None
-    if facts.baseline_seconds and facts.faulted_seconds:
-        slowdown = facts.faulted_seconds / facts.baseline_seconds
-        needed = _fault_cost_needed(facts.baseline_seconds)
+    # both came back PASS.
+    #
+    # The evidence is the link's own account of itself, not a proxy. A link
+    # that dropped packets says how many; a link that delayed them says so in
+    # the round trip. A fault that only *duplicates* packets costs no time
+    # and drops none -- there is nothing for the counters to show -- so for
+    # that fault the evidence is the ledger: a duplicated frame must not
+    # become a duplicated command.
+    if facts.loss_percent > 0:
+        held = facts.fault_dropped_packets > 0
+        detail = (
+            f"the link reported {facts.fault_dropped_packets} dropped packet(s) "
+            f"and {facts.fault_sent_packets} sent; a fault that dropped nothing "
+            "never reached the transport"
+        )
+    elif facts.delay_ms > 0:
+        needed = _fault_cost_needed(facts.baseline_seconds or 0.0)
+        held = bool(
+            facts.baseline_seconds
+            and facts.faulted_seconds
+            and facts.faulted_seconds >= facts.baseline_seconds + needed
+        )
+        detail = (
+            f"the faulted dispatch took {facts.faulted_seconds:.2f}s against "
+            f"{facts.baseline_seconds:.2f}s for the baseline; a delay that costs "
+            f"less than {needed:.2f}s did not reach the transport"
+        )
+    else:
+        held = True
+        detail = (
+            f"not applicable: a {facts.duplicate_percent:g}% duplication drops "
+            "nothing and costs no time, so the ledger audit is the evidence"
+        )
     results.append(
         CriterionResult(
             CRITERIA_BY_ID["WF-C4"],
-            held=bool(
-                facts.baseline_seconds
-                and facts.faulted_seconds
-                and facts.faulted_seconds >= facts.baseline_seconds + needed
-            ),
-            detail=(
-                ""
-                if slowdown is None
-                else (
-                    f"the faulted dispatch took {facts.faulted_seconds:.2f}s against "
-                    f"{facts.baseline_seconds:.2f}s for the baseline "
-                    f"({slowdown:.2f}x); a fault that does not cost at least "
-                    f"{needed:.2f}s did not reach the transport"
-                )
-            ),
+            held=held,
+            detail=detail,
         )
     )
 

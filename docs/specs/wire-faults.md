@@ -33,7 +33,7 @@ bursts, never completing a mission is a bug.
 | ID | Criterion | What it asserts | The failure it prevents |
 |---|---|---|---|
 | **WF-S1** | `no_duplicate_effect` | No `command_id` has more than one `started` event | A command whose result was lost gets retried and the robot moves twice |
-| **WF-S2** | `uncertain_stays_unknown` | Every command whose outcome was uncertain is recorded `unknown` | Recording a timeout as `failed` is a claim that it did not happen; that claim is exactly what invites the retry |
+| **WF-S2** | `uncertain_stays_unknown` | Every command whose outcome was uncertain was recorded `unknown`; only an operator's acknowledgement may move it on, and then only to `failed`, never to `completed` | Recording a timeout as `failed` is a claim that it did not happen; that claim is exactly what invites the retry |
 | **WF-S3** | `blocked_until_ack` | Between an unacknowledged `unknown` and its acknowledgement, no other command is dispatched | Fail-closed is the whole point: an unresolved physical effect blocks further side effects until a human decides |
 | **WF-S4** | `ledger_complete` | Every submitted command has a ledger row (terminal or `unknown`) | A command that vanished from the ledger is a command whose evidence was lost — and a lost command is indistinguishable from one that never ran |
 | **WF-S5** | `no_false_success` | No receipt claims `completed` while `call_ok` is false or the effect is unverified beyond the action server's own word | Under loss, "the result arrived" and "the robot did it" are different facts; conflating them manufactures success |
@@ -55,7 +55,7 @@ These do not test the robot; they test whether the measurement is real.
 | **WF-C1** | `fault_was_applied` | `tc qdisc show` reports the netem rule before the first dispatch | Measuring the clean path and reporting it as the faulted path |
 | **WF-C2** | `fault_was_cleared` | `tc qdisc show` reports no netem rule at the end | A leftover rule poisons every later experiment on the machine, and nobody attributes it to this tool |
 | **WF-C3** | `baseline_recorded` | A clean run completed before the faulted one | Without a comparison the faulted result has no meaning: 30% success is good or bad only relative to something |
-| **WF-C4** | `fault_reached_the_transport` | The faulted dispatch took measurably longer than the baseline — at least 0.25 s, or a tenth of the baseline, whichever is more | A run in which the loss never reached a packet passes every other criterion: nothing was uncertain, nothing was duplicated, and the recovery worked — because the link was healthy. The first two real runs came back PASS exactly that way |
+| **WF-C4** | `fault_reached_the_transport` | The link's own counters show the fault was in play: packets dropped, for a loss; measurably more time, for a delay. A fault that only duplicates packets drops none and costs no time — there the ledger is the evidence | A run in which the loss never reached a packet passes every other criterion: nothing was uncertain, nothing was duplicated, and the recovery worked — because the link was healthy. The first two real runs came back PASS exactly that way |
 
 ## 3. Thresholds, and why these numbers
 
@@ -64,20 +64,42 @@ These do not test the robot; they test whether the measurement is real.
 | `dropped_result` | 30% | 25% | Frequent enough that losing a *result* is likely within a few runs, not so frequent that nothing completes |
 | `slow_ack` | 0% | — | Delay only: 400 ms ± 120 ms sits near the default action timeout, so some commands time out without any packet being lost |
 | `duplicated_packets` | 0% | — | 20% duplication with no loss: the transport duplicates, the application must not |
-| `bursty_loss` | 15% | 75% | The realistic case. Independent loss is easier than what a real link does |
+| `bursty_loss` | 30% | 50% | The realistic case. Independent loss is easier than what a real link does |
 | `severe` | 60% | 50% | Most commands must end `unknown`; nothing may end `failed` for a timeout |
+| `blackout` | 95% | 50% | Loss high enough that retransmission cannot cover it: the command times out, the outcome stays `unknown`, and the next command is refused until an operator acknowledges |
 
-Correlation matters more than the rate. Independent loss at 15% is survivable by
-retrying a single packet; 15% correlated loss removes a whole exchange.
+**These numbers were measured, not assumed.** The first version of the table
+said `bursty_loss` was 15% at 75% correlation, and it was: the link reported
+**0 packets dropped out of 2000**. A high correlation argument does not make
+the loss burstier, it makes it disappear. The rule now reads 30% at 50%, which
+drops 16% of packets, and the criterion caught the difference — the first run
+of the mis-specified scenario came back VOID rather than a false PASS.
 
-**A fault has to cost time.** DDS retransmits a lost packet, so a reliable
-transport survives loss by taking longer, not by failing: the faulted dispatch
-has to be measurably slower than the healthy one for the run to mean anything
-(WF-C4). The bar is 0.25 s or a tenth of the baseline, whichever is more — the
-healthy navigation on this stack measures 1.99 s to 2.23 s from run to run, so a
-quarter of a second is the least a real fault can cost and still be told apart
-from a quiet moment. This is the criterion that catches the failure the first
-real runs made — see below.
+| Rule | Dropped |
+|---|---|
+| `loss 15% 75%` | 0 of 2000 |
+| `loss 20% 75%` | 1 of 1999 |
+| `loss 25% 75%` | 27 of 1973 |
+| `loss 30% 25%` | 476 of 1524 (31%) |
+| `loss 30% 50%` | 276 of 1724 (16%) |
+| `loss 40% 25%` | 728 of 1272 (57%) |
+
+**A fault has to show up in the link's own numbers.** DDS retransmits a lost
+packet, so a reliable transport survives loss by taking longer, not by failing.
+The direct evidence is better than a proxy: `tc -s qdisc show` prints how many
+packets the link dropped, and a packet the link says it dropped was dropped.
+
+So the question each scenario asks is different, and the criterion asks the
+right one:
+
+| Fault | What the criterion asks |
+|---|---|
+| loss | did the link report dropping packets? |
+| delay | did the dispatch cost measurably more time — 0.25 s or a tenth of the baseline, whichever is more? |
+| duplication | nothing: duplication drops none and costs no time. The ledger is the evidence — a duplicated frame must not become a duplicated command |
+
+This is the criterion that catches the failure the first real runs made — see
+below.
 
 ## 4. What counts as a failure of the experiment, not of the system
 
@@ -203,28 +225,57 @@ The stack, the injector and the audit all run inside one user+network
 namespace, so the whole experiment is unprivileged and the fault cannot reach
 anything outside it.
 
-| Scenario | Fault | Baseline | Faulted | Recovery | Verdict |
+| Scenario | Fault | Baseline | Faulted | Link counters | Verdict |
 |---|---|---|---|---|---|
-| `dropped_result` | 30% loss, 25% correlation | 2.20 s | 2.45 s (+0.25 s) | 1.98 s | **PASS**, all 12 criteria |
-| `severe` | 60% loss, 50% correlation, 200 ms delay | 2.23 s | **17.48 s (7.85×)** | 2.13 s | **PASS**, all 12 criteria |
+| `dropped_result` | 30% loss, 25% correlation | 2.24 s | 2.63 s | 804 sent, **250 dropped** | **PASS** |
+| `slow_ack` | 400 ms ± 120 ms delay | 2.22 s | 3.96 s | 2090 sent, 0 dropped | **PASS** |
+| `duplicated_packets` | 20% duplication | 2.20 s | 2.08 s | 488 sent, 0 dropped | **PASS** |
+| `bursty_loss` | 30% loss, 50% correlation | 2.14 s | 2.11 s | 717 sent, **87 dropped** | **PASS** |
+| `severe` | 60% loss, 50% correlation, 200 ms | 2.21 s | **`unknown` after 30.05 s** | 3264 sent, **7699 dropped** | **PASS** |
+| `blackout` | 95% loss, 50% correlation | 2.17 s | **`unknown` after 30.04 s** | 0 sent, **1221 dropped** | **PASS** |
 
-The `severe` run is the interesting one. Under 60% loss with half of it
-correlated, the dispatch still came back `completed` — it took **almost eight
-times as long**, because DDS retransmits what the link drops. The ledger
-recorded the command once, nothing replayed it, and the command after the
-fault was cleared took 2.13 s, which is the healthy time.
+All six pass all twelve criteria. Three of them are worth reading closely.
 
-Two of the criteria were therefore **vacuous rather than satisfied**: nothing
-ended `unknown`, so "an uncertain outcome stays unknown" and "nothing is
-dispatched while an unresolved command is unacknowledged" had nothing to
-check. The scenarios expected most commands to end `unknown`; the transport
-did better than the scenarios assumed. To exercise the fail-closed path the
-loss has to exceed what retransmission can cover — and that is a bigger
-experiment, not a bigger claim.
+**`severe` is the transport doing its job — right up to the edge.** Under 60%
+loss with half of it correlated, the dispatch came back `unknown`: the
+command timed out, because the link dropped 7699 packets while sending 3264.
+An earlier run of the same scenario *completed*, in 17.5 s against a healthy
+2.2 s — eight times slower, because DDS retransmits what the link drops. So
+60% loss sits right where the transport stops absorbing it, and which side of
+that line a run lands on is not decided by the rule alone.
 
-**The timing criterion is what makes these runs evidence.** Before WF-C4
-existed, a run in which the loss never reached a single packet passed every
-other criterion: nothing uncertain, nothing duplicated, recovery fine —
-because the link was healthy. The first two real runs came back PASS exactly
-that way, at 30% and at 60% loss. A fault that costs no time did not reach the
-transport, and the run said nothing about the robot.
+**`blackout` is the fail-closed path.** At 95% loss nothing survives: the
+command timed out, and its outcome was **`unknown`** — not `failed`. The
+ledger blocked every later side effect until an operator acknowledged it, and
+only then did the recovery dispatch go out. That is the whole contract in one
+run: an unestablished effect is not a failure, it is an open question, and a
+person has to close it.
+
+**The milder scenarios say nothing was uncertain.** In the four runs above 60%
+loss, nothing ended `unknown`, so "an uncertain outcome stays unknown" and
+"nothing is dispatched while an unresolved command is unacknowledged" had
+nothing to check. `severe` and `blackout` exist to give them something to
+check.
+
+### The two things these runs found in the harness
+
+**The probe could not see the fault it was confirming.** The rule is a `prio`
+root qdisc with the netem on band `1:3`, and the probe asked `tc qdisc show
+dev lo root` — the prio band and nothing else. The first real run came back
+VOID for that reason.
+
+**The criteria could not tell "survived the fault" from "the fault never
+arrived".** A run in which the loss never reached a packet passes every
+criterion: nothing uncertain, nothing duplicated, the recovery fine — because
+the link was healthy. The first two real runs came back PASS exactly that
+way, at 30% and at 60% loss. Hence WF-C4, and hence the link's own counters:
+the fault is now confirmed by the number of packets the link says it dropped.
+
+**And the criteria disagreed with the ledger.** `blackout` came back FAIL at
+first, because the ledger records an acknowledged orphan as `failed` — by
+design — while WF-S2 said a command whose outcome was uncertain must never be
+recorded `failed`. Both were right about different moments: the ledger's
+`failed` is the operator's decision *after* the fact, and the receipt it
+stored still says `unknown`. The criterion now reads what was recorded while
+the command was uncertain, and allows an acknowledgement to move it on — to
+`failed`, never to `completed`.

@@ -206,7 +206,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-主套件 **518 passed / 3 skipped**，harness 套件 **79 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
+主套件 **518 passed / 3 skipped**，harness 套件 **86 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -221,7 +221,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测，ROS 路径未跑** |
 | **回执指标** | L1 与 L2 两条路径用同一套契约映射算回执指标，并发进 `docs/results.md`；L1 路径测不出的两项（时延、重复效应）写「不适用 + 原因」，不写 0 | L1 已测（4205 次调用，0% 不确定结果）；L2 路径 **未跑** |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **rclpy 层已验（CI 里跑），全栈未跑** |
-| **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，12 条：安全/活性/设置）+ `tc netem` 五套场景 + 按判据判定 | **已构建，已在真栈上跑过**：整个实验在 user+network 命名空间里，60% 丢包下命令慢 7.85 倍仍完成，12 条判据全过 |
+| **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，12 条：安全/活性/设置）+ `tc netem` 六套场景 + 按判据判定 | **已构建，六套场景都在真栈上跑过、12 条全过**：整个实验在 user+network 命名空间里；95% 丢包下命令以 `unknown` 收场，账本挡住后续派发直到人工认领 |
 | **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、场景驱动、清单写入 | **5/9 已测**：`nav_timeout` 100%（L1 说 66.5%）、`identity_mismatch` 0%（L1 说 34.6%）、`low_confidence` 0%（L1 说 50%）、`user_cancel` 0%（L1 说 100%）、`tool_missing` 100%（一致）；另 4 族这栈造不出故障，探针写清了缺的是哪个机制 |
 | **实验基线** | 规则基线 76.1% / 脚本专家 100%（400 条故障注入 benchmark） | **CPU 可复现**，产物入库 |
 | **后训练栈** | SFT / DPO / Step-Level PPO / OPD + 显存预检 + teacher 独立服务 | **未上 GPU**，六条臂 pending |
@@ -533,7 +533,7 @@ bash scripts/check_all.sh --ros    # 再加上需要 ROS 2 的那部分
 
 ```bash
 python -m pytest                 # 518 passed, 3 skipped（agent_env + training）
-python -m pytest agent_harness/tests   # 79 passed（运行时：契约、调度、并发、中断、线缆故障）
+python -m pytest agent_harness/tests   # 86 passed（运行时：契约、调度、并发、中断、线缆故障）
 python -m pytest agent_harness/tests/test_concurrency_ros.py  # 需要 ROS 2
 colcon build --base-paths src && colcon test   # ROS 2 包的自身测试
 ```
@@ -712,14 +712,13 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] 依赖声明检查：`$(find X)` / `FindPackageShare` / ROS import 引用的包必须在 `package.xml` 里（抓到两个没声明的传感器包）
 - [x] **七个具名基线**（Phase 6 要求）：`rules` / `expert` / `planner_once` + 四个只差一项的闭环配置。实测：回执给闭环带来 **+80 个百分点**的任务成功率（3.3% → 83.3%）
 - [x] **模型被中断**（Phase 5 最后一条验收）：中断是一等结果——episode 结束为 `interrupted`、成功性**未知而非失败**、**物理作业不被取消**、报告写明还有多少命令在跑。等回执改成可中断，否则一条 30 秒的命令会把已死的 episode 拖住 30 秒
-- [x] **线缆故障注入真跑**（判据 12 条）：整个实验在 user+network 命名空间里跑，免 sudo。60% 丢包下命令慢 7.85 倍仍完成、账本只记一次、清掉故障后立刻恢复 —— 12 条全过
+- [x] **线缆故障注入真跑**（判据 12 条，六套场景）：整个实验在 user+network 命名空间里跑，免 sudo。95% 丢包下命令以 `unknown` 收场（不是 `failed`）、账本挡住后续派发直到人工认领 —— 12 条全过
 
 待做：
 
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
 - [ ] **让剩下四族能测**：要一个会观察世界的真检测器（遮挡）、一个会释放工具的机械臂（掉件）、一个会查交接区占用的任务状态机（无进展）、一个会抓空的机械臂（抓取失败）。这四条要换软件，不是换场景
-- [ ] **跑完剩下三套线缆故障场景**：`slow_ack` / `duplicated_packets` / `bursty_loss`（判据在 `docs/specs/wire-faults.md`）
-- [ ] **让 fail-closed 那条路真的被走到**：丢包率要高到重传盖不住，才会有命令以 `unknown` 收场
+- [ ] **把线缆故障实验搬进 CI**：现在每次跑都要手动起命名空间里的栈，判据本身是纯 Python，可以进 ROS job
 - [ ] CI 里再往前一步：驱动 Nav2、跑一次校准探针（现在只到"图起来 + 一条计划派发"）
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定

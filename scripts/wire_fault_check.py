@@ -56,6 +56,7 @@ from agent_harness.runtime.wire_faults import (  # noqa: E402
     build_commands,
     evaluate_wire_fault,
     probe_netem,
+    probe_netem_stats,
     render,
 )
 
@@ -165,7 +166,11 @@ def main(argv: list[str] | None = None) -> int:
         ledger=ledger,
     )
 
-    facts = RunFacts(loss_percent=scenario.rule.loss_percent)
+    facts = RunFacts(
+        loss_percent=scenario.rule.loss_percent,
+        delay_ms=scenario.rule.delay_ms,
+        duplicate_percent=scenario.rule.duplicate_percent,
+    )
     try:
         # 1. baseline: what does the stack do with no fault at all?
         print("1. baseline dispatch (no fault) ...")
@@ -194,6 +199,12 @@ def main(argv: list[str] | None = None) -> int:
         if status == "unknown":
             facts.uncertain.add(command_id)
         print(f"   observed: {status} ({elapsed:.2f}s)")
+        # What the link says it did. This is the fault's own account of itself,
+        # which is better evidence than anything the harness can infer.
+        stats = probe_netem_stats(args.interface)
+        facts.fault_sent_packets = stats["sent"]
+        facts.fault_dropped_packets = stats["dropped"]
+        print(f"   link counters: {stats['sent']} sent, {stats['dropped']} dropped")
     finally:
         # Before anything else: a fault left on the interface would poison
         # every later experiment on this machine.
@@ -201,6 +212,29 @@ def main(argv: list[str] | None = None) -> int:
         _run(commands["clear"], dry_run=False)
         facts.fault_cleared = not probe_netem(args.interface, binary=binary)
         print(f"   netem observed after clear: {facts.fault_cleared}")
+
+        # 4b. acknowledge whatever the fault left unresolved.
+        #
+        # A command whose outcome was never established blocks every later
+        # side effect -- that is the fail-closed rule, and it is the point of
+        # the `blackout` scenario. The acknowledgement is an operator's
+        # decision, so the run makes it explicitly, with a note that says what
+        # happened.
+        if facts.uncertain and ledger is not None:
+            for command_id in sorted(facts.uncertain):
+                try:
+                    ledger.acknowledge_unknown(
+                        command_id,
+                        operator="wire_fault_check",
+                        note=(
+                            "the outcome was never established: the link was lossy and "
+                            "the command did not report back. Acknowledged so the run "
+                            "can continue."
+                        ),
+                    )
+                    print(f"   acknowledged {command_id} as unresolved")
+                except Exception as error:  # noqa: BLE001 - reported, not raised
+                    print(f"   acknowledge {command_id}: {error}")
 
         try:
             # 5. recovery: with the link healthy again, does it work?

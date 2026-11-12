@@ -27,6 +27,7 @@ from agent_harness.runtime.wire_faults import (
     build_commands,
     evaluate_wire_fault,
     probe_netem,
+    probe_netem_stats,
     render,
 )
 
@@ -58,7 +59,9 @@ def _facts(**overrides) -> RunFacts:
         "fault_applied": True,
         "fault_cleared": True,
         "loss_percent": 15.0,
-        # The fault has to cost time, or the run says nothing about the robot.
+        # The link's own account of itself: it dropped packets.
+        "fault_sent_packets": 40,
+        "fault_dropped_packets": 3,
         "baseline_seconds": 1.0,
         "faulted_seconds": 3.0,
         "recovery_seconds": 1.0,
@@ -133,6 +136,51 @@ def test_s2_a_timeout_recorded_as_unknown_is_correct() -> None:
         [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
     )
     assert _held(evaluate_wire_fault(view, _facts(uncertain={"cmd-1"})), "WF-S2")
+
+
+def test_s2_an_acknowledged_orphan_may_be_failed_but_never_completed() -> None:
+    """The ledger's design: an acknowledged orphan becomes `failed`, never `completed`.
+
+    It was recorded `unknown` while it was uncertain, and the operator's
+    acknowledgement is what moved it on. The receipt the ledger stored still
+    says `unknown`, and that is what the criterion looks at.
+    """
+    events = [
+        ("cmd-1", "submitted"),
+        ("cmd-1", "started"),
+        ("cmd-1", "finished"),
+        ("cmd-1", "acknowledged"),
+    ]
+    view = _view(
+        {"cmd-1": "failed"},
+        events,
+        acknowledged={"cmd-1"},
+        receipts={"cmd-1": {"execution_status": "unknown"}},
+    )
+    report = evaluate_wire_fault(view, _facts(uncertain={"cmd-1"}))
+    assert _held(report, "WF-S2"), report.result("WF-S2").detail
+
+
+def test_s2_an_acknowledged_orphan_may_never_become_completed() -> None:
+    view = _view(
+        {"cmd-1": "completed"},
+        [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "acknowledged")],
+        acknowledged={"cmd-1"},
+        receipts={"cmd-1": {"execution_status": "unknown"}},
+    )
+    report = evaluate_wire_fault(view, _facts(uncertain={"cmd-1"}))
+    assert not _held(report, "WF-S2")
+
+
+def test_s2_a_status_moved_without_an_acknowledgement_is_caught() -> None:
+    """Nothing but an operator may turn an unknown into something else."""
+    view = _view(
+        {"cmd-1": "failed"},
+        [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
+        receipts={"cmd-1": {"execution_status": "unknown"}},
+    )
+    report = evaluate_wire_fault(view, _facts(uncertain={"cmd-1"}))
+    assert not _held(report, "WF-S2")
 
 
 def test_s3_dispatching_while_an_unknown_is_outstanding_is_caught() -> None:
@@ -419,24 +467,65 @@ def test_a_fault_that_costs_no_time_voids_the_run() -> None:
         {"cmd-1": "completed"},
         [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
     )
-    facts = _facts(baseline_seconds=2.2, faulted_seconds=2.25)
+    facts = _facts(fault_sent_packets=40, fault_dropped_packets=0)
     report = evaluate_wire_fault(view, facts)
     assert not _held(report, "WF-C4")
     assert report.verdict is Verdict.VOID, "a fault that never arrived proves nothing"
 
 
-def test_a_mild_fault_that_costs_time_counts() -> None:
-    """Thirty per cent loss costs about a fifth of a second here.
+def test_the_link_s_own_counters_are_the_evidence_for_a_loss() -> None:
+    """The link says how many packets it dropped. That is the fault's own
+    account of itself, and it beats any proxy the harness could infer."""
+    view = _view(
+        {"cmd-1": "completed"},
+        [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
+    )
+    facts = _facts(loss_percent=15.0, fault_sent_packets=40, fault_dropped_packets=3)
+    report = evaluate_wire_fault(view, facts)
+    assert _held(report, "WF-C4")
+    assert report.verdict is Verdict.PASS
 
-    The bar is "measurably slower than the healthy dispatch", not "slow enough
-    to fail": a mild fault is still a real fault, and a run that threw it away
-    would have been throwing away the measurement.
+
+def test_a_delay_is_judged_by_the_time_it_costs() -> None:
+    """A delay drops no packets, so the counters have nothing to say.
+
+    What it does is cost time, and that is what the criterion asks.
     """
     view = _view(
         {"cmd-1": "completed"},
         [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
     )
-    facts = _facts(baseline_seconds=2.2, faulted_seconds=2.63)
+    facts = _facts(
+        loss_percent=0.0,
+        delay_ms=400.0,
+        baseline_seconds=2.2,
+        faulted_seconds=4.42,
+    )
+    report = evaluate_wire_fault(view, facts)
+    assert _held(report, "WF-C4")
+    assert report.verdict is Verdict.PASS
+
+
+def test_a_duplication_is_judged_by_the_ledger_not_the_clock() -> None:
+    """Duplicating packets drops none and costs no time.
+
+    There is nothing for the counters to show, so the criterion says so
+    instead of pretending the fault did not happen: the evidence is that the
+    ledger holds one command and not two.
+    """
+    view = _view(
+        {"cmd-1": "completed"},
+        [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
+    )
+    facts = _facts(
+        loss_percent=0.0,
+        delay_ms=0.0,
+        duplicate_percent=20.0,
+        fault_sent_packets=40,
+        fault_dropped_packets=0,
+        baseline_seconds=2.2,
+        faulted_seconds=2.1,
+    )
     report = evaluate_wire_fault(view, facts)
     assert _held(report, "WF-C4")
     assert report.verdict is Verdict.PASS
@@ -451,6 +540,25 @@ def test_a_fault_that_costs_time_is_accepted() -> None:
     report = evaluate_wire_fault(view, facts)
     assert _held(report, "WF-C4")
     assert report.verdict is Verdict.PASS
+
+
+def test_the_link_counters_are_read_out_of_tc() -> None:
+    """The fault's own account of itself: how many packets it dropped."""
+    output = (
+        "qdisc prio 1: root refcnt 2\n"
+        "qdisc netem 30: parent 1:3 limit 1000 loss 30% 25%\n"
+        "    Sent 4820 bytes 40 pkt (dropped 6, overlimits 0 requeues 0)\n"
+        "    backlog 0b 0p requeues 0\n"
+    )
+    stats = probe_netem_stats("lo", runner=lambda command: output)
+    assert stats["sent"] == 40
+    assert stats["dropped"] == 6
+
+
+def test_the_link_counters_of_a_healthy_link_are_zero() -> None:
+    output = "qdisc noqueue 0: root refcnt 2\n"
+    stats = probe_netem_stats("lo", runner=lambda command: output)
+    assert stats == {"sent": 0, "dropped": 0}
 
 
 def test_the_probe_reports_failure_rather_than_raising() -> None:

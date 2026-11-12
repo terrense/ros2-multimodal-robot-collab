@@ -216,22 +216,27 @@ The whole experiment runs unprivileged: the stack, the injector and the audit
 all live inside one user+network namespace, so the injected loss cannot reach
 anything outside it.
 
-Under `severe` (60% loss, 50% correlated, 200 ms delay) the dispatch still came
-back `completed` — it took **7.85× as long** (17.48 s against 2.23 s), the
-ledger recorded the command once, nothing replayed it, and the command after
-the fault was cleared took 2.13 s. All twelve criteria hold.
+**All six scenarios pass all twelve criteria.** Two are worth reading closely.
+Under 60% loss the dispatch still came back — it took **almost eight times as
+long**, because DDS retransmits what the link drops, and the ledger recorded
+the command once with nothing replayed. At 95% loss nothing survives: the
+command timed out, its outcome stayed **`unknown`** rather than `failed`, and
+the ledger blocked every later side effect until an operator acknowledged it.
 
-Two of them were vacuous rather than satisfied: nothing ended `unknown`, so the
-uncertainty and fail-closed criteria had nothing to check. The transport
-retransmitted what the link dropped. Exercising the fail-closed path needs a
-loss beyond what retransmission can cover.
+The runs also found two things in the harness. The probe was asking `tc` for
+the root qdisc while the netem rule hangs off a `prio` band, so it could not
+see the fault it was meant to confirm. And **no criterion could tell
+"survived the fault" from "the fault never arrived"** — a run in which the
+loss never reached a packet passed everything, because the link was healthy.
+There is now a criterion for that: the fault has to show up in the link's own
+counters, or cost measurable time, or (for duplication, which does neither) be
+judged by the ledger instead.
 
-The first run came back **VOID**, and it was right to: the probe asked `tc` for
-the root qdisc, and the netem rule is a child of a `prio` band, so the probe
-could not see the fault it was meant to confirm. The second run came back
-**PASS**, and it was hollow: the fault had not reached the transport at all,
-and nothing in the criteria could tell. There is now a criterion for that too
-(WF-C4): a fault that costs no time did not happen.
+The thresholds table also turned out to be wrong where nobody had measured it:
+`bursty_loss` was specified as 15% loss at 75% correlation, and the link drops
+**nothing** under that rule — 0 of 2000 packets. It is now a rule that drops
+16%, and the mis-specification was caught by the criterion rather than by
+anyone's memory.
 
 ### 6. The headless CI simulation job
 
