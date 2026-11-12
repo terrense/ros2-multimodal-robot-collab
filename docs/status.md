@@ -117,11 +117,13 @@ exists to change that. Five families have been measured at 30 samples each, and
 | `tool_drop` | 1.000 | **not producible** | — | nothing on the stack releases a held tool |
 | `no_progress` | 1.000 | **not producible** | — | nothing consults the handover zone, so it cannot be blocked |
 
-The four rows that disagree point the same way: **L1 assumes a self-healing
-the stack does not have.** A face mismatch that heals, a marginal detection
-that clears on a second look, a cancel that is recorded as a cancel — the
-simulator has all three, the live stack has none. A policy trained on L1 waits
-for retries that never come.
+The four rows that disagree point the same way: **L1 assumes a self-healing the
+stack does not have.** A face mismatch that heals, a marginal detection that
+clears on a second look — the simulator has both, the live stack has neither.
+And a cancel: the live stack *does* stop the motion, but it files the outcome
+as a failed pick rather than as a cancellation, so the episode is counted as a
+failure. A policy trained on L1 waits for retries that never come, and looks
+for a `cancelled` outcome the stack never produces.
 
 Measuring `user_cancel` also found a defect in the runtime itself: an
 emergency stop was queued behind the motion it was meant to stop, because a
