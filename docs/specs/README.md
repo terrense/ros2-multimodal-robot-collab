@@ -41,7 +41,7 @@ Audit: [`docs/openrua_audit/`](../openrua_audit/).
 
 | Item | Phase it belongs to | Why it is still open |
 |---|---|---|
-| The Gazebo scenes for the four scene-dependent calibration families | O6 | The props and the driver exist (`scripts/calibration_scene.py`), but no prop has been spawned in Gazebo and no probe has run. |
+| The four families the live stack cannot produce | O6 | The props are spawned and every family has a probe, so the gap is no longer the harness: `visual_occlusion` needs a detector that observes the world, `tool_drop` needs something that releases a held tool, `no_progress` needs something that consults the handover zone, and `grasp_failure` needs an arm that can fail a grasp. Each probe tries and names the mechanism that is missing. |
 | Running the wire faults | O3.1 | The injection tool, five scenarios and the three invariants are built and tested; running them needs root, a live stack and a person. |
 | The receipt metrics from a live run | O6 | The L1 side is measured and published (`docs/results.md`). The L2 side needs a live stack and a ledger behind it; that run has not happened. |
 

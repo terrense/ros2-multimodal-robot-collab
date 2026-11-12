@@ -1,7 +1,7 @@
 {
   "version": "calibration_v1",
-  "seed": 20261111,
-  "generated_at": 1794378564.5252247,
+  "seed": 20261110,
+  "generated_at": 1794448805.1319768,
   "min_samples": 30,
   "families": [
     {
@@ -35,14 +35,14 @@
     {
       "name": "low_confidence",
       "l1_rate": 0.5,
-      "l2_rate": null,
+      "l2_rate": 0.0,
       "wilson_95": [
         0.0,
-        1.0
+        0.1135
       ],
-      "samples": 0,
+      "samples": 30,
       "calibrated": false,
-      "reason": "not_measured",
+      "reason": "interval_excludes_l1_rate",
       "question": "a re-perceive of a low-confidence detection returns a confident one",
       "l1_source": "default_params.reperceive_fix_prob"
     },
@@ -91,28 +91,28 @@
     {
       "name": "tool_missing",
       "l1_rate": 1.0,
-      "l2_rate": null,
+      "l2_rate": 1.0,
       "wilson_95": [
-        0.0,
+        0.8865,
         1.0
       ],
-      "samples": 0,
-      "calibrated": false,
-      "reason": "not_measured",
+      "samples": 30,
+      "calibrated": true,
+      "reason": "ok",
       "question": "a missing tool is reported as missing, never re-detected",
       "l1_source": "l1_sim: _detection_confidence returns None while the fault holds"
     },
     {
       "name": "user_cancel",
       "l1_rate": 1.0,
-      "l2_rate": null,
+      "l2_rate": 0.0,
       "wilson_95": [
         0.0,
-        1.0
+        0.1135
       ],
-      "samples": 0,
+      "samples": 30,
       "calibrated": false,
-      "reason": "not_measured",
+      "reason": "interval_excludes_l1_rate",
       "question": "a cancel stops the motion and terminates the mission",
       "l1_source": "l1_sim: user_cancel raises a safety event"
     },

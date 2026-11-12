@@ -5,7 +5,7 @@ Primary metric: `recovery_success` -- share of fault-injected episodes that end 
 
 <!-- BEGIN GENERATED: summary -->
 Runs completed: 1/7. Pending: sft, sft_dpo, ppo_terminal, ppo_progress, opd_pure, opd_warmup_ppo.
-L2 status: 0/9 fault families calibrated against the live stack; not calibrated: grasp_failure (not_measured), identity_mismatch (interval_excludes_l1_rate), low_confidence (not_measured), nav_timeout (interval_excludes_l1_rate), no_progress (not_measured), tool_drop (not_measured), tool_missing (not_measured), user_cancel (not_measured), visual_occlusion (not_measured). Every result below is L1 only.
+L2 status: 1/9 fault families calibrated against the live stack; not calibrated: grasp_failure (not_measured), identity_mismatch (interval_excludes_l1_rate), low_confidence (interval_excludes_l1_rate), nav_timeout (interval_excludes_l1_rate), no_progress (not_measured), tool_drop (not_measured), user_cancel (interval_excludes_l1_rate), visual_occlusion (not_measured). Every result below is L1 only.
 <!-- END GENERATED: summary -->
 
 Targets are pre-registered acceptance criteria, not results. Measured columns
@@ -182,15 +182,19 @@ record renders as `unverified`; a regeneration that would drop a measurement
 that is already published is refused rather than applied; and an arm that has
 not run stays `pending` in the table instead of disappearing from it.
 
-## Two L1 assumptions the live stack rejected
+## Five L1 assumptions the live stack answered
 
-Two families have now been measured against the real Gazebo stack, 30 samples
-each, and **both disagree with L1**:
+Five of the nine fault families have now been measured against the real Gazebo
+stack, 30 samples each. **Four of the five disagree with L1**, and the one
+that agrees is worth reading too:
 
 | Family | L1 assumes | Measured | Wilson 95% | Verdict |
 |---|---|---|---|---|
 | `identity_mismatch` | 0.346 | 0.000 (0/30) | `[0.000, 0.114]` | `interval_excludes_l1_rate` |
-| `nav_timeout` | 0.665 | 1.000 (30/30) | `[0.886, 1.000]` | `interval_excludes_l1_rate` |
+| `nav_timeout` | 0.665 | 1.000 (30/30) | `[0.887, 1.000]` | `interval_excludes_l1_rate` |
+| `low_confidence` | 0.500 | 0.000 (0/30) | `[0.000, 0.114]` | `interval_excludes_l1_rate` |
+| `user_cancel` | 1.000 | 0.000 (0/30) | `[0.000, 0.114]` | `interval_excludes_l1_rate` |
+| `tool_missing` | 1.000 | 1.000 (30/30) | `[0.887, 1.000]` | `ok` |
 
 Read together, they say something specific rather than "L1 is off":
 
@@ -202,9 +206,38 @@ Read together, they say something specific rather than "L1 is off":
   `timeouts_before_success` from `[1, 1, 2]`, so a third of its episodes need
   two timeouts before one succeeds. The stack recovered 30 out of 30 on the
   first retry.
+- **L1 assumes perception heals itself.** It gives a re-perceive a 50% chance
+  of turning a marginal detection into a confident one. The detector publishes
+  what it publishes: a marginal detection is still marginal on the next look,
+  30 times out of 30.
+- **L1 assumes a cancel is a cancellation.** On the live stack the motion
+  stops -- the arm's goal is aborted, not completed -- and the mission that
+  asked for the pick then reports a *failed pick*. The machine stopped and the
+  episode is still counted as a failure. A policy trained on L1 would be
+  looking for a `cancelled` outcome the stack never produces.
+- **A missing tool is a missing tool.** Here L1 and the stack agree, and the
+  mission says so twice: "Could not find tool hex_key_3mm_absent."
 
-That is the calibration mechanism working. Neither number is a bug in the probe:
-each probe refuses to count a sample unless it actually produced the fault.
+That is the calibration mechanism working. None of these numbers is a bug in a
+probe: each probe refuses to count a sample unless it actually produced the
+fault.
+
+### The four that the stack cannot produce
+
+The other four families are not measured, and the reason is a property of the
+software rather than of the harness -- which is the first time that is true of
+all of them:
+
+| Family | Why the fault cannot happen |
+|---|---|
+| `visual_occlusion` | The perception stub publishes a fixed detection and does not observe the world. An occluder changes nothing, and there is no viewpoint-change capability to clear one with. |
+| `tool_drop` | Nothing on the stack releases a held tool: the only grasp puts the tool in the frame it was asked for. |
+| `no_progress` | Nothing consults the handover zone, so an occupied station is not a blocked handover. |
+| `grasp_failure` | The simulated arm never fails a grasp. |
+
+Each of those probes tries anyway, and refuses with the mechanism that is
+missing. "Scene not arranged" was the old answer, and it blamed the operator
+for a limitation of the software.
 
 ### The measurement that had to be thrown away
 

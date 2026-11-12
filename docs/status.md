@@ -4,7 +4,7 @@ Three lines of work, one status page. The per-phase detail is in
 [`specs/README.md`](specs/README.md); this is the answer to "what is actually
 true right now, and what is in the way".
 
-Updated 2026-11-11.
+Updated 2026-11-12.
 
 ---
 
@@ -102,21 +102,32 @@ advanced a single step.
 ### Calibration: the state of the fault model
 
 L1's fault behaviour is configured, not measured, and the calibration machinery
-exists to change that. Two families have been measured at 30 samples each, and
-**both disagree with L1**:
+exists to change that. Five families have been measured at 30 samples each, and
+**four of the five disagree with L1**:
 
 | Family | L1 says | Live stack (n=30) | Wilson 95% | Verdict |
 |---|---|---|---|---|
+| `nav_timeout` | 0.665 | 1.000 | `[0.887, 1.000]` | `interval_excludes_l1_rate` — L1 says a third of its episodes need two timeouts; the stack recovered first time, 30/30 |
 | `identity_mismatch` | 0.346 | 0.000 | `[0.000, 0.114]` | `interval_excludes_l1_rate` — L1 says a face mismatch heals a third of the time; the stack says never |
-| `nav_timeout` | 0.665 | 1.000 | `[0.886, 1.000]` | `interval_excludes_l1_rate` — L1 says a third of its episodes need two timeouts; the stack recovered first time, 30/30 |
-| `grasp_failure` | 0.659 | **not producible** | — | the simulated arm never fails a grasp, so the probe refuses with that reason |
-| `low_confidence`, `tool_missing` | 0.500 / 1.000 | **scene not arranged** | — | a marginal detection and an absent tool have to be arranged, not called for |
-| `visual_occlusion`, `tool_drop`, `no_progress`, `user_cancel` | 1.000 | **scene not arranged** | — | props exist; nobody has placed them |
+| `low_confidence` | 0.500 | 0.000 | `[0.000, 0.114]` | `interval_excludes_l1_rate` — L1 gives a re-perceive half a chance; the detector publishes the same confidence every time |
+| `user_cancel` | 1.000 | 0.000 | `[0.000, 0.114]` | `interval_excludes_l1_rate` — the motion stops, and the mission reports it as a failed pick rather than as a cancellation |
+| `tool_missing` | 1.000 | 1.000 | `[0.887, 1.000]` | `ok` — the mission says "Could not find tool …", and keeps saying so |
+| `grasp_failure` | 0.659 | **not producible** | — | the simulated arm never fails a grasp |
+| `visual_occlusion` | 1.000 | **not producible** | — | the perception stub publishes a fixed detection and does not observe the world |
+| `tool_drop` | 1.000 | **not producible** | — | nothing on the stack releases a held tool |
+| `no_progress` | 1.000 | **not producible** | — | nothing consults the handover zone, so it cannot be blocked |
 
-The two measured rows are the result that matters: **L1 errs in both
-directions.** It over-estimates self-healing for identity mismatches and
-under-estimates reliability for navigation retries. A policy trained on L1 would
-wait for a retry that never comes in one case and give up too early in the other.
+The four rows that disagree point the same way: **L1 assumes a self-healing
+the stack does not have.** A face mismatch that heals, a marginal detection
+that clears on a second look, a cancel that is recorded as a cancel — the
+simulator has all three, the live stack has none. A policy trained on L1 waits
+for retries that never come.
+
+Measuring `user_cancel` also found a defect in the runtime itself: an
+emergency stop was queued behind the motion it was meant to stop, because a
+control command and a motion shared one exclusive resource. A control command
+is not a motion — it has its own resource now, and the same probe that
+measured 0/5 before the change measures 5/5 after it.
 
 An earlier run reported `tool_missing: CALIBRATED`. That verdict was discarded:
 the probe was only asking `query_state` twice, which measures that the stack
@@ -164,10 +175,20 @@ manual.
 
 ### 3. Four scenes and one unproducible fault
 
-Blocks: the remaining calibration families, and therefore any statement that the
-L1 fault model has been validated. The props exist and the driver exists; nobody
-has placed them. `grasp_failure` additionally needs a tool that slips, which the
-simulated arm cannot produce at all.
+~~Blocks: the remaining calibration families.~~ **The scenes are arranged and
+every family has a probe** (2026-11-12). What is left is a limitation of the
+stack rather than of the harness, and it is now a stated reason instead of a
+silent gap:
+
+- `visual_occlusion` — the perception stub publishes a fixed detection and does
+  not observe the world, so an occluder changes nothing. A real detector is
+  needed before this family can mean anything.
+- `tool_drop` — nothing on the stack releases a held tool.
+- `no_progress` — nothing consults the handover zone, so it cannot be blocked.
+- `grasp_failure` — the simulated arm never fails a grasp.
+
+Each of those probes tries, and refuses with the mechanism that is missing. The
+other five families are measured.
 
 ### 4. The interrupted model
 
@@ -196,12 +217,15 @@ work unprivileged inside `unshare -Ur -n`.
 
 ### 6. The headless CI simulation job
 
-~~Blocks nothing, but it was red.~~ The job that starts `gzserver` with no
-window and drives a real delivery through the runtime failed on its first run.
-The container has no GL driver, so the fix is mesa plus
-`LIBGL_ALWAYS_SOFTWARE=1`; the step now also prints the launch log inline when
-the stack does not come up, so the next failure is diagnosable without admin
-rights on the log download.
+~~Blocks nothing, but it was red.~~ **Green since 2026-11-12.** Two failures
+had to be fixed before it could pass, and neither was in the code it tests:
+the container has no GL driver (mesa plus `LIBGL_ALWAYS_SOFTWARE=1`), and
+`rosdep` had to fetch through a mirror that occasionally returns a 502 (three
+attempts, and `Acquire::Retries` for every apt-get in the job).
+
+The step now writes its diagnosis into the job summary rather than only into
+the log, because the log needs admin rights to download and a failure nobody
+can read is a failure nobody can fix.
 
 ### 7. MoveIt2 or a vendor SDK
 

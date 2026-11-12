@@ -26,7 +26,7 @@ happened; it does not mean the phase delivered everything the plan asked for.
 
 | Item | Why it is still open |
 |---|---|
-| Calibration for 7 of 9 families | Four have props nobody has placed; `grasp_failure` needs a slipping tool the simulated arm cannot produce; `low_confidence` and `tool_missing` need a marginal detection and an absent tool. |
+| Calibration for 4 of 9 families | The other five are measured (30 samples each) against the live stack, and four of those disagree with L1. The four that are not measured are not waiting for an operator: the stack cannot produce those faults at all — the perception stub does not observe the world, nothing releases a held tool, nothing consults the handover zone, and the simulated arm never fails a grasp. Each probe tries anyway and names the mechanism that is missing. |
 | The wire-fault run | The criteria, the injector and the audit are built; the run needs a live stack and moving commands. `tc netem` works unprivileged inside `unshare -Ur -n`. |
 | The L2 adapter against a live stack | The code path is verified; the ROS path is **NOT RUN** for the calibration specifically. |
 

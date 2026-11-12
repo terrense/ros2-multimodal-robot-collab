@@ -42,6 +42,9 @@ class _FakePublisher:
     def publish(self, message: object) -> None:
         self.published.append(message)
 
+    def get_subscription_count(self) -> int:
+        return 1
+
 
 class _FakeNode:
     def __init__(self) -> None:
@@ -64,6 +67,7 @@ def _fake_executor(concurrent: bool) -> types.SimpleNamespace:
         node=_FakeNode(),
         rclpy=_FakeRclpy(),
         _executor=object() if concurrent else None,
+        _publishers={},
     )
 
 
@@ -95,6 +99,21 @@ class TopicTransportTests(unittest.TestCase):
         fake = _fake_executor(concurrent=False)
         executor_module.RosToolExecutor._execute_topic(fake, _result())
         self.assertTrue(fake.rclpy.spins)
+
+    def test_the_publisher_is_kept_so_the_second_publish_is_matched(self) -> None:
+        """A message published before the endpoints match is lost.
+
+        A publisher that is created per dispatch has not matched its
+        subscriber yet, and everything published in that window is dropped --
+        three copies in a tight loop are dropped together. On the live stack
+        that meant an emergency stop could vanish without a trace.
+        """
+        fake = _fake_executor(concurrent=True)
+        executor_module.RosToolExecutor._execute_topic(fake, _result())
+        publisher = fake._publishers["/arm/control_command"]
+        executor_module.RosToolExecutor._execute_topic(fake, _result())
+        self.assertIs(fake._publishers["/arm/control_command"], publisher)
+        self.assertEqual(len(fake.node.publisher.published), 6)
 
 
 if __name__ == "__main__":

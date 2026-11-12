@@ -22,7 +22,7 @@ every phase reference below carries the prefix of its line. The full map is in
 │  tool runtime, and evidence for every side effecting command               │
 │  O0 audit · O1 contract · O2 tool runtime · O3 ledger · O4 snapshots ·      │
 │  O5 agent loop · O6 evaluation alignment · O7 training integration         │
-│  ▸ open: O3.1 wire faults (built, not run), O6 calibration run            │
+│  ▸ open: O3.1 wire faults (built, not run)                                │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -133,7 +133,8 @@ See [`specs/README.md`](specs/README.md) for the phase-by-phase table.
 | Fault injection on the wire (DDS-level drops) | O3.1 | **Built, NOT RUN.** `scripts/wire_fault_check.py` applies `tc netem`, dispatches one command, restores the interface in a `finally`, and audits the ledger against three invariants (no duplicate effect, timeout stays `unknown`, blocked until acknowledged). Running it needs root, a live stack and a person — the command moves the robot. |
 | `agent_env/l2_gazebo.py` — the L2 adapter | O6 | **Done.** One `reset()`/`step()` interface over the live stack, with the action mapping written out and the unsupported actions refused with a reason. |
 | Receipt metrics wired into the evaluator | O6 | **Done.** `training/evaluate_l2.py` scores the live stack with the L1 evaluator and computes the receipt metrics, which only a live mission can produce. |
-| The L2 calibration runner and its scenes | O6 | **Runner and props done, nothing run.** `agent_env/calibration_runner.py` executes the programmes: five families have probes that call the stack, four need the world arranged first (`scripts/calibration_scene.py` spawns the props) and are reported as unmeasured with the reason. No probe has executed against a live stack. |
+| The L2 calibration runner and its scenes | O6 | **Run against the live stack.** `agent_env/calibration_runner.py` executes the programmes: every family has a probe, the scene driver (`agent_env/calibration_scene.py`) places the props and makes the detector marginal, and the five families the stack can produce are measured at 30 samples each. Four of the five disagree with L1. The other four cannot be produced by this stack at all, and each probe says which mechanism is missing. |
+| The emergency stop's path through the runtime | O3.1 | **Found by measurement and fixed.** A control command shared a resource with the motion it was meant to stop, so the stop was queued behind the motion and arrived after it: 0/5 samples stopped. A control command is not a motion — it has its own resource now, and the same probe measures 5/5. The measurement is in `docs/results.md`. |
 
 ### The rule that governs all of it
 

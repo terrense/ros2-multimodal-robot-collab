@@ -300,6 +300,15 @@ class RosToolExecutor:
         self._executor = None
         self._executor_thread = None
         self._callback_groups: dict[str, Any] = {}
+        #: One publisher per topic endpoint, created once and kept.
+        #:
+        #: A publisher that has just been created has not matched its
+        #: subscriber yet, and a message published in that window is simply
+        #: lost. Publishing three copies in a tight loop does not help: all
+        #: three are lost the same way. On the live stack that meant an
+        #: emergency stop could vanish without a trace -- the arm was still
+        #: stopped by the previous command, or never stopped at all.
+        self._publishers: dict[str, Any] = {}
         if concurrent:
             self._start_concurrent_executor()
 
@@ -453,7 +462,21 @@ class RosToolExecutor:
 
     def _execute_topic(self, result: ToolCallResult) -> None:
         message_type = import_ros_type(result.ros_type)
-        publisher = self.node.create_publisher(message_type, result.endpoint, 10)
+        publisher = self._publishers.get(result.endpoint)
+        if publisher is None:
+            publisher = self.node.create_publisher(message_type, result.endpoint, 10)
+            self._publishers[result.endpoint] = publisher
+            # Wait for the endpoints to match before publishing anything. A
+            # message published before the match is dropped, and three copies
+            # in a tight loop are dropped together.
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                try:
+                    if publisher.get_subscription_count() > 0:
+                        break
+                except Exception:  # noqa: BLE001 - an old rclpy without the accessor
+                    break
+                time.sleep(0.02)
         message = message_type()
         assign_fields(message, result.payload)
         for _ in range(3):

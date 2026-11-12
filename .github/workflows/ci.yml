@@ -3,7 +3,7 @@ name: CI
 # The gate. If this is green on a branch, the branch is mergeable.
 #
 #   lint           ~20s   ruff + conflict markers        (every push)
-#   python-tests   ~40s   505 tests, benchmark, results table, acceptance run
+#   python-tests   ~40s   520 tests, benchmark, results table, acceptance run
 #   harness-tests  ~25s   agent_harness suite (pytest.ini testpaths hides it)
 #   ros2-build     ~7min  10 colcon packages inside ros:humble-ros-base, the
 #                         ROS-only runtime tests, and a headless simulation
