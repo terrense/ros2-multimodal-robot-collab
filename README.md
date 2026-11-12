@@ -242,10 +242,19 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 图与表：现在到底测出了什么
 
+| 测了什么 | 结果 |
+|---|---|
+| **5 / 9** 族故障在真栈上实测 | 每族 30 样本 |
+| **4** 族推翻了 L1 的假设 | 方向一致：L1 假设了真栈没有的自愈 |
+| **6** 套线缆故障场景 × **12** 条判据 | 全过；95% 丢包下命令以 `unknown` 收场 |
+| **+80** 个百分点的任务成功率 | 回执给闭环带来的，同一策略只差一个变量 |
+| **0** 条模型臂跑过 | 缺 GPU，其余都通了 |
+
 下面的每一张图都由**已入库的产物**生成（`scripts/make_figures.py` 读
-`benchmarks/calibration_v1.json`、`results/eval/*.json`、`results/wire/*.json`），
-图里写的数和一个 JSON 旁边的 `docs/figures/figures.json` 一一对应 ——
-`tests/test_figures.py` 会核对，**图不可能和数据脱节**。
+`benchmarks/calibration_v1.json`、`results/eval/*.json`、`results/wire/*.json`、
+`results/conditions.json`），图里写的数和一个 JSON 旁边的
+`docs/figures/figures.json` 一一对应 —— `tests/test_figures.py` 会核对，
+**图不可能和数据脱节**。
 
 ### 校准：L1 假设的自愈，实时栈没有
 
