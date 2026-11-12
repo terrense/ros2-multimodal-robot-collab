@@ -60,10 +60,11 @@ Done since the line was first planned, and worth knowing about:
 | The seven named baselines, as declarative conditions: `rules`, `expert`, `planner_once`, and four loop configurations that switch on receipts, the freshness gate and recovery in turn | O6 | `agent_harness/agent/conditions.py`, `agent_harness/scripts/run_conditions.py` |
 | Receipt metrics on the L1 path, from the contract's own mapping, published in the results table | O6 | `training/evaluate.py`, `training/report.py`, `docs/results.md` |
 
-Three of those are **code complete but NOT RUN against a live stack**: the
-concurrent executor needs a node and an action server, the wire faults need
-root and a moving robot, and the L2 adapter needs Gazebo. All three have their
-pure logic covered by tests that need no ROS 2.
+All three of those have since run against a live stack: the concurrent executor
+in a real `MultiThreadedExecutor`, the wire faults with real packet loss, and
+the L2 adapter against ten real missions. The wire faults need no root and no
+person — `unshare -Ur -n` grants the capability over its own namespace, and the
+whole experiment lives inside it.
 
 The concurrency one has since gone further: `test_concurrency_ros.py` runs a
 real `MultiThreadedExecutor`, real callback groups and a real action server,

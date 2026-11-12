@@ -110,8 +110,8 @@ What that means in practice:
 - [x] Verify command ↔ goal uuid correlation on real goals:
       `e86c3cdbb3854988b1cedffa2c1075f5`, `1714300f840748358266073ecb6bd079`
 - [x] Reproducible script: `scripts/smoke_ros2_runtime.sh`
-- [x] MultiThreadedExecutor + per-resource callback groups — `agent_harness/runtime/concurrency.py` (`ResourceLocks`, `wait_for_future`), `RosBackend` keyed by resource, `RosToolExecutor(concurrent=True)` with one `ReentrantCallbackGroup` per resource and `--concurrent` on the CLI. The logic is tested without ROS; the live MultiThreadedExecutor path is **NOT RUN**.
-- [x] Fault injection on the wire (DDS-level drops) — `agent_harness/runtime/wire_faults.py` (netem rules + the three invariants) and `scripts/wire_fault_check.py` (apply, dispatch, restore in a `finally`, audit the ledger). **NOT RUN**: needs root, a live stack and a person.
+- [x] MultiThreadedExecutor + per-resource callback groups — `agent_harness/runtime/concurrency.py` (`ResourceLocks`, `wait_for_future`), `RosBackend` keyed by resource, `RosToolExecutor(concurrent=True)` with one `ReentrantCallbackGroup` per resource and `--concurrent` on the CLI. The logic is tested without ROS; **the live path is run** in the ROS container job of CI (`test_concurrency_ros.py`).
+- [x] Fault injection on the wire (DDS-level drops) — `agent_harness/runtime/wire_faults.py` (netem rules + the criteria) and `scripts/wire_fault_check.py` (apply, dispatch, restore in a `finally`, audit the ledger). **Run on the live stack (2026-11-12)**: six scenarios, twelve criteria, all pass; the reports are in `results/wire/`.
 - [x] `--engine legacy` removed — the pre-runtime loop dispatched straight to the executor: no ledger, no reconciliation, no resource scheduling. Keeping it as a retreat hatch meant keeping the one way to move the robot and leave no evidence. There is now one execute path, and `execute_plan` is gone rather than merely unreachable.
 
 ## What is done on concurrency, and what is not
@@ -168,11 +168,14 @@ Two ideas in there are worth stating here:
 The tool (`agent_harness/runtime/wire_faults.py`,
 `scripts/wire_fault_check.py`) runs a fixed shape — baseline, apply and probe,
 faulted dispatch, clear and probe, recovery dispatch, ledger audit — and decides
-all eleven criteria from the ledger.
+all twelve criteria from the ledger.
 
-**NOT RUN.** It needs root for `tc`, a live stack, and a person — the commands
-move the robot. `--dry-run` prints exactly what would be executed, which is how
-the commands were reviewed without a machine to run them on.
+**Run on the live stack (2026-11-12).** Six scenarios, twelve criteria each,
+all pass; the reports are in `results/wire/`. It needs neither root nor a
+person: `unshare -Ur -n` grants `CAP_NET_ADMIN` over the namespace's own
+network stack, and the whole experiment — the stack, the injector and the
+audit — lives inside it, so the injected loss cannot reach anything else on the
+machine. `--dry-run` still prints exactly what would be executed.
 
 Two limitations stated rather than hidden:
 

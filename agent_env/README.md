@@ -85,8 +85,10 @@ python -m agent_env.scripts.calibrate_l2 --l1        # what L1 predicts, and why
 python -m agent_env.scripts.run_calibration --plan   # what would run on the live stack
 ```
 
-The committed manifest reports `not_measured` for all nine families: the live
-stack has not been measured yet, and `docs/results.md` says so in its header.
+The committed manifest reports measurements for five of the nine families:
+the live stack has been measured, and four of the five disagree with L1.
+`docs/results.md` says so in its header, and
+[`docs/figures/calibration.svg`](../docs/figures/calibration.svg) shows the gap.
 
 ## What is still open
 

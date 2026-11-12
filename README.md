@@ -684,7 +684,7 @@ python -m training.evaluate --policy expert --label expert_oracle
 
 | 文档 | 内容 |
 | --- | --- |
-| [docs/results.md](docs/results.md) | 实验矩阵、实测值、**L2 校准状态声明**（当前九族全部 `not_measured`，所以结果一律标注 "仅 L1"） |
+| [docs/results.md](docs/results.md) | 实验矩阵、实测值、**L2 校准状态声明**（当前 5/9 族有真栈测量，其中 4 族推翻 L1；所以表里的数字一律标注 "仅 L1"） |
 | [training/README.md](training/README.md) | 训练栈工程说明：模块、命令、奖励预设、评测口径 |
 | [docs/post_training.md](docs/post_training.md) | 设计取舍（为什么 Skill-level、为什么 process reward ≠ credit assignment、为什么 OPD → PPO）+ **显存预算** |
 | [agent_env/README.md](agent_env/README.md) | 闭环环境层：协议、故障注入、L1 模拟器、脚本专家 |

@@ -139,7 +139,7 @@ So the verdict has three states, not two:
 | Ledger audit for WF-S1..S6, WF-L1 | **implemented and tested** |
 | Set-up probes WF-C1..C3 | **implemented and tested** against a fake probe |
 | netem without root | **verified** — `unshare -Ur -n` grants CAP_NET_ADMIN over its own namespace |
-| A real run | **NOT RUN** — needs a live stack, and the commands move the robot |
+| A real run | **done** — six scenarios against the live stack, twelve criteria each, all pass. The reports are in `results/wire/` |
 
 The one thing that cannot be faked is the last row: whether CycloneDDS itself
 survives a lossy interface is a fact about a running system.

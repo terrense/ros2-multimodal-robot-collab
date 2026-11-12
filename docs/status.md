@@ -69,8 +69,8 @@ two configuration problems that would have caused an OOM are in
 | The seven named baselines | **built** | `agent_harness/agent/conditions.py`, `run_conditions.py` |
 | Receipt metrics on both paths | **measured on both** | L1: 4205 calls over the frozen benchmark. L2: ten real missions — 0% uncertain outcomes, p50 latency 9.76 s, 0% duplicate effects. Both in `docs/results.md` |
 | Calibration contract + runner + scenes | complete | `agent_env/l2_calibration.py` |
-| Calibration measurements | **2 of 9 measured, both falsify L1** | see below |
-| Wire faults | built + criteria written, **never run** | `specs/wire-faults.md` |
+| Calibration measurements | **5 of 9 measured, 4 of them falsify L1** | see below |
+| Wire faults | **run against the live stack** | six scenarios, twelve criteria, all pass — `specs/wire-faults.md` |
 
 ### What the named conditions measured
 
