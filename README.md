@@ -21,9 +21,24 @@
 
 > **当前全部运行在 Gazebo 仿真上，没有真机验证。** 机械臂执行、人脸识别、语音、手势都是仿真或桩节点；YOLOv8 默认用桩，可切真推理。所有「实测」字样都指仿真或 CPU 上的可复现测量，不指物理机器人。
 
+**这个仓库在回答一个问题**：*哪种监督信号能修好哪种失败模式*。仿真不是为了「看起来像
+机器人」，是为了让故障**可控、可重复、可量化** —— 同一批场景里注入导航超时、遮挡、抓取
+滑脱、掉件、操作者不在位，然后比较 SFT / DPO / PPO / OPD 训出来的策略各修好了哪一类。
+
+| 层 | 在哪 | 干什么 |
+|---|---|---|
+| 仿真 | `src/robot_collab_*` | 产生故障、产生证据（Gazebo + 传感器 + Nav2） |
+| 运行时 | `agent_harness/` | 从 OpenRUA 吸收的工程纪律：契约、可靠执行、每个副作用都有回执和账本 |
+| 训练栈 | `agent_env/` + `training/` | 在仿真里学：SFT → DPO → Step-Level PPO → OPD |
+
+**先读这三页**：[`docs/overview.md`](docs/overview.md)（这是什么、仿真干什么、OpenRUA 融合到哪了） ·
+[`docs/status.md`](docs/status.md)（现在测出了什么、还差什么） ·
+[`docs/specs/README.md`](docs/specs/README.md)（八条工作线的阶段地图）
+
 ## 目录
 
 - [快速开始](#快速开始) · [仿真车间](#仿真车间workshop)
+- [**这是什么 / 仿真干什么 / OpenRUA 融合到哪了**](docs/overview.md)
 - [项目状态](#项目状态) · [**全项目现状与卡点**](docs/status.md) · [三条工作线](#三条工作线)
 - [**图与表：现在到底测出了什么**](#图与表现在到底测出了什么)
 - [总体架构](#总体架构) · [分层职责](#分层职责)
@@ -202,6 +217,25 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 场景由脚本生成，不手改 world 文件：`scripts/generate_workshop_world.py`（几何）+
 `scripts/generate_workshop_textures.py`（贴图）。
+
+> **三台机械臂要先下载**：KUKA 和 Dobot 的官方描述带网格，几百 MB，放在
+> `third_party/robot_descriptions/`（不入库）；FANUC 走 apt 包。
+> `bash scripts/fetch_robot_descriptions.sh` 拉下来，车间场景才起得来。
+
+### 车间 vs 实验室：同一个仿真，两个 world
+
+| World | 内容 | 谁在用 |
+|---|---|---|
+| `collab_lab.world` | 地面、站点标记、工具架、箱子和墙（障碍物） | **默认**。导航、回执、校准、CI 都跑它 |
+| `workshop.world` | 墙、工作台、棋盘标定板 | `--workshop` 时加载，三台官方机械臂随后 spawn 进来 |
+
+**不是两套仿真**：同一个 launch、同一套 ROS 节点、同一张图、同一套运行时。
+移动小车在两个 world 里都在 —— `gazebo_world.launch.py` 负责把它 spawn 进去。
+区别只有「加载哪个 world 文件」和「要不要把三台机械臂放进来」。
+
+<img alt="the workshop workcell from the overhead camera" src="docs/figures/workshop_overhead.png" width="720">
+
+车间全景（真栈截图，`/workshop/overhead/image_raw` 拍的）。
 
 ---
 

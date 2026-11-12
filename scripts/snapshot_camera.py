@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""One-shot grab of a single frame from the simulated camera topic."""
+"""One-shot grab of a single frame from a simulated camera topic.
+
+    python3 scripts/snapshot_camera.py out.png                     # the robot's camera
+    python3 scripts/snapshot_camera.py out.png /workshop/overhead/image_raw
+"""
 
 from __future__ import annotations
 
@@ -11,9 +15,12 @@ from PIL import Image as PILImage
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 
+DEFAULT_TOPIC = "/camera/color/image_raw"
+
 
 def main() -> None:
     output_path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/camera_snapshot.png"
+    topic = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_TOPIC
     rclpy.init()
     node = Node("camera_snapshot")
     captured: list[Image] = []
@@ -21,14 +28,14 @@ def main() -> None:
     def _on_image(msg: Image) -> None:
         captured.append(msg)
 
-    node.create_subscription(Image, "/camera/color/image_raw", _on_image, 10)
+    node.create_subscription(Image, topic, _on_image, 10)
 
     deadline = node.get_clock().now().nanoseconds + 15_000_000_000
     while not captured and node.get_clock().now().nanoseconds < deadline:
         rclpy.spin_once(node, timeout_sec=0.2)
 
     if not captured:
-        print("TIMEOUT: no image received on /camera/color/image_raw")
+        print(f"TIMEOUT: no image received on {topic}")
         node.destroy_node()
         rclpy.shutdown()
         sys.exit(1)
