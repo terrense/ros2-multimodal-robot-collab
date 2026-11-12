@@ -108,6 +108,12 @@ CRITERIA: tuple[Criterion, ...] = (
         SETUP,
         "a clean baseline run completed before the faulted one",
     ),
+    Criterion(
+        "WF-C4",
+        SETUP,
+        "the faulted dispatch was measurably slower than the baseline, so the "
+        "fault actually reached the transport",
+    ),
 )
 
 CRITERIA_BY_ID: dict[str, Criterion] = {criterion.id: criterion for criterion in CRITERIA}
@@ -115,6 +121,23 @@ CRITERIA_BY_ID: dict[str, Criterion] = {criterion.id: criterion for criterion in
 #: At or below this loss, the stack is expected to make progress. Above it,
 #: refusing to complete is the correct behaviour and liveness does not apply.
 MODERATE_LOSS_PERCENT = 20.0
+
+#: How much slower the faulted dispatch has to be before the run may claim the
+#: fault reached the transport.
+#:
+#: A lost packet is retransmitted, so a reliable transport survives loss by
+#: taking longer -- not by failing. The bar is therefore "measurably slower
+#: than the healthy dispatch", and it has to clear the noise: on this stack the
+#: healthy navigation measures 1.99 s to 2.23 s from run to run, so a quarter of
+#: a second is the least a real fault can cost and still be told apart from a
+#: quiet moment. A tenth of the baseline covers a longer command, where the
+#: same absolute jitter is a smaller share.
+FAULT_MUST_COST_SECONDS = 0.25
+FAULT_MUST_COST_FRACTION = 0.1
+
+
+def _fault_cost_needed(baseline_seconds: float) -> float:
+    return max(FAULT_MUST_COST_SECONDS, FAULT_MUST_COST_FRACTION * baseline_seconds)
 
 #: Statuses that mean "this command will not move again on its own".
 TERMINAL_STATUSES = frozenset({"completed", "failed", "rejected", "unknown"})
@@ -442,6 +465,12 @@ class RunFacts:
     fault_cleared: bool = False
     #: The loss level in force, for the liveness threshold.
     loss_percent: float = 0.0
+    #: How long the clean dispatch took, in seconds.
+    baseline_seconds: float | None = None
+    #: How long the dispatch under the fault took, in seconds.
+    faulted_seconds: float | None = None
+    #: How long the dispatch after the fault was cleared took, in seconds.
+    recovery_seconds: float | None = None
 
 
 def evaluate_wire_fault(view: LedgerView, facts: RunFacts) -> WireFaultReport:
@@ -573,6 +602,40 @@ def evaluate_wire_fault(view: LedgerView, facts: RunFacts) -> WireFaultReport:
                 ""
                 if facts.baseline_status == "completed"
                 else f"the clean baseline ended {facts.baseline_status!r}"
+            ),
+        )
+    )
+
+    # Did the fault reach the transport at all?
+    #
+    # Without this, a run in which the injected loss never reached a single
+    # packet passes every criterion: nothing was uncertain, nothing was
+    # duplicated, and the recovery worked -- because the link was healthy.
+    # The first two real runs did exactly that, at 30% and at 60% loss, and
+    # both came back PASS. A loss that costs the transport time has to show
+    # up as time.
+    slowdown = None
+    needed = None
+    if facts.baseline_seconds and facts.faulted_seconds:
+        slowdown = facts.faulted_seconds / facts.baseline_seconds
+        needed = _fault_cost_needed(facts.baseline_seconds)
+    results.append(
+        CriterionResult(
+            CRITERIA_BY_ID["WF-C4"],
+            held=bool(
+                facts.baseline_seconds
+                and facts.faulted_seconds
+                and facts.faulted_seconds >= facts.baseline_seconds + needed
+            ),
+            detail=(
+                ""
+                if slowdown is None
+                else (
+                    f"the faulted dispatch took {facts.faulted_seconds:.2f}s against "
+                    f"{facts.baseline_seconds:.2f}s for the baseline "
+                    f"({slowdown:.2f}x); a fault that does not cost at least "
+                    f"{needed:.2f}s did not reach the transport"
+                )
             ),
         )
     )

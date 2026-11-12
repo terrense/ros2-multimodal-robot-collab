@@ -211,9 +211,27 @@ alive for thirty seconds after the decision source died.
 
 ### 5. Wire-fault run
 
-Blocks: the transport-safety claim. The criteria, the injector and the audit are
-built; the run needs a live stack and moving commands. `tc netem` was verified to
-work unprivileged inside `unshare -Ur -n`.
+~~Blocks: the transport-safety claim.~~ **Run against the live stack, 2026-11-12.**
+The whole experiment runs unprivileged: the stack, the injector and the audit
+all live inside one user+network namespace, so the injected loss cannot reach
+anything outside it.
+
+Under `severe` (60% loss, 50% correlated, 200 ms delay) the dispatch still came
+back `completed` — it took **7.85× as long** (17.48 s against 2.23 s), the
+ledger recorded the command once, nothing replayed it, and the command after
+the fault was cleared took 2.13 s. All twelve criteria hold.
+
+Two of them were vacuous rather than satisfied: nothing ended `unknown`, so the
+uncertainty and fail-closed criteria had nothing to check. The transport
+retransmitted what the link dropped. Exercising the fail-closed path needs a
+loss beyond what retransmission can cover.
+
+The first run came back **VOID**, and it was right to: the probe asked `tc` for
+the root qdisc, and the netem rule is a child of a `prio` band, so the probe
+could not see the fault it was meant to confirm. The second run came back
+**PASS**, and it was hollow: the fault had not reached the transport at all,
+and nothing in the criteria could tell. There is now a criterion for that too
+(WF-C4): a fault that costs no time did not happen.
 
 ### 6. The headless CI simulation job
 

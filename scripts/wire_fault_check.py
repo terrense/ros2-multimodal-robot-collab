@@ -81,7 +81,13 @@ def _require_tc() -> str:
 
 
 def _dispatch(client, capability: str, arguments: dict, timeout_s: float):
-    """One command through the runtime, and the receipt it produced."""
+    """One command through the runtime, and the receipt it produced.
+
+    The wall clock comes back too: a lost packet is retransmitted rather than
+    dropped, so the way a fault shows up on a reliable transport is as time.
+    Without the timing there is no way to tell "the system survived the fault"
+    from "the fault never reached the transport".
+    """
     from agent_harness.contracts import ActionRequest, new_command_id
 
     request = ActionRequest(
@@ -91,11 +97,13 @@ def _dispatch(client, capability: str, arguments: dict, timeout_s: float):
         arguments=dict(arguments),
         timeout_s=timeout_s,
     )
+    started = time.monotonic()
     submitted = client.submit(request)
     status = str(getattr(submitted.execution_status, "value", submitted.execution_status))
     receipt = client.wait(request.command_id) if status == "queued" else submitted
+    elapsed = time.monotonic() - started
     observed = str(getattr(receipt.execution_status, "value", receipt.execution_status))
-    return request.command_id, observed, receipt
+    return request.command_id, observed, receipt, elapsed
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -161,10 +169,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # 1. baseline: what does the stack do with no fault at all?
         print("1. baseline dispatch (no fault) ...")
-        command_id, status, _receipt = _dispatch(client, capability, arguments, args.timeout_sec)
+        command_id, status, _receipt, elapsed = _dispatch(
+            client, capability, arguments, args.timeout_sec
+        )
         facts.submitted.append(command_id)
         facts.baseline_status = status
-        print(f"   baseline: {status}")
+        facts.baseline_seconds = elapsed
+        print(f"   baseline: {status} ({elapsed:.2f}s)")
 
         # 2. apply the fault and confirm it is really there.
         print("\n2. applying the fault ...")
@@ -175,11 +186,14 @@ def main(argv: list[str] | None = None) -> int:
 
         # 3. the faulted dispatch.
         print("\n3. faulted dispatch ...")
-        command_id, status, receipt = _dispatch(client, capability, arguments, args.timeout_sec)
+        command_id, status, receipt, elapsed = _dispatch(
+            client, capability, arguments, args.timeout_sec
+        )
         facts.submitted.append(command_id)
+        facts.faulted_seconds = elapsed
         if status == "unknown":
             facts.uncertain.add(command_id)
-        print(f"   observed: {status}")
+        print(f"   observed: {status} ({elapsed:.2f}s)")
     finally:
         # Before anything else: a fault left on the interface would poison
         # every later experiment on this machine.
@@ -191,10 +205,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             # 5. recovery: with the link healthy again, does it work?
             print("\n5. recovery dispatch ...")
-            command_id, status, _receipt = _dispatch(client, capability, arguments, args.timeout_sec)
+            command_id, status, _receipt, elapsed = _dispatch(
+                client, capability, arguments, args.timeout_sec
+            )
             facts.submitted.append(command_id)
             facts.recovery_status = status
-            print(f"   observed: {status}")
+            facts.recovery_seconds = elapsed
+            print(f"   observed: {status} ({elapsed:.2f}s)")
         except Exception as error:  # noqa: BLE001 - a failed recovery is a failed criterion
             facts.recovery_status = f"dispatch failed: {type(error).__name__}"
             print(f"   recovery dispatch failed: {error}")

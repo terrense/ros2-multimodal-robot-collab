@@ -58,6 +58,10 @@ def _facts(**overrides) -> RunFacts:
         "fault_applied": True,
         "fault_cleared": True,
         "loss_percent": 15.0,
+        # The fault has to cost time, or the run says nothing about the robot.
+        "baseline_seconds": 1.0,
+        "faulted_seconds": 3.0,
+        "recovery_seconds": 1.0,
     }
     base.update(overrides)
     return RunFacts(**base)
@@ -73,7 +77,7 @@ def _held(report, criterion_id: str) -> bool:
 
 
 def test_every_criterion_is_written_down_and_decided() -> None:
-    assert len(CRITERIA) == 11
+    assert len(CRITERIA) == 12
     ids = [criterion.id for criterion in CRITERIA]
     assert len(set(ids)) == len(ids)
     for criterion in CRITERIA:
@@ -400,6 +404,53 @@ def test_the_probe_looks_at_the_whole_queueing_discipline() -> None:
 
     assert probe_netem("lo", runner=runner) is True
     assert "root" not in seen["command"], "the whole tree has to be read"
+
+
+def test_a_fault_that_costs_no_time_voids_the_run() -> None:
+    """The fault has to reach the transport, or the run says nothing.
+
+    A lost packet is retransmitted rather than dropped, so a reliable
+    transport survives loss by taking longer -- not by failing. Without this
+    criterion, a run in which the injected loss never reached a single packet
+    passes every other criterion: nothing was uncertain, nothing was
+    duplicated, and the recovery worked, because the link was healthy.
+    """
+    view = _view(
+        {"cmd-1": "completed"},
+        [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
+    )
+    facts = _facts(baseline_seconds=2.2, faulted_seconds=2.25)
+    report = evaluate_wire_fault(view, facts)
+    assert not _held(report, "WF-C4")
+    assert report.verdict is Verdict.VOID, "a fault that never arrived proves nothing"
+
+
+def test_a_mild_fault_that_costs_time_counts() -> None:
+    """Thirty per cent loss costs about a fifth of a second here.
+
+    The bar is "measurably slower than the healthy dispatch", not "slow enough
+    to fail": a mild fault is still a real fault, and a run that threw it away
+    would have been throwing away the measurement.
+    """
+    view = _view(
+        {"cmd-1": "completed"},
+        [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
+    )
+    facts = _facts(baseline_seconds=2.2, faulted_seconds=2.63)
+    report = evaluate_wire_fault(view, facts)
+    assert _held(report, "WF-C4")
+    assert report.verdict is Verdict.PASS
+
+
+def test_a_fault_that_costs_time_is_accepted() -> None:
+    view = _view(
+        {"cmd-1": "completed"},
+        [("cmd-1", "submitted"), ("cmd-1", "started"), ("cmd-1", "finished")],
+    )
+    facts = _facts(baseline_seconds=1.0, faulted_seconds=4.0)
+    report = evaluate_wire_fault(view, facts)
+    assert _held(report, "WF-C4")
+    assert report.verdict is Verdict.PASS
 
 
 def test_the_probe_reports_failure_rather_than_raising() -> None:

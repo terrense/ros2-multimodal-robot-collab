@@ -55,6 +55,7 @@ These do not test the robot; they test whether the measurement is real.
 | **WF-C1** | `fault_was_applied` | `tc qdisc show` reports the netem rule before the first dispatch | Measuring the clean path and reporting it as the faulted path |
 | **WF-C2** | `fault_was_cleared` | `tc qdisc show` reports no netem rule at the end | A leftover rule poisons every later experiment on the machine, and nobody attributes it to this tool |
 | **WF-C3** | `baseline_recorded` | A clean run completed before the faulted one | Without a comparison the faulted result has no meaning: 30% success is good or bad only relative to something |
+| **WF-C4** | `fault_reached_the_transport` | The faulted dispatch took measurably longer than the baseline — at least 0.25 s, or a tenth of the baseline, whichever is more | A run in which the loss never reached a packet passes every other criterion: nothing was uncertain, nothing was duplicated, and the recovery worked — because the link was healthy. The first two real runs came back PASS exactly that way |
 
 ## 3. Thresholds, and why these numbers
 
@@ -68,6 +69,15 @@ These do not test the robot; they test whether the measurement is real.
 
 Correlation matters more than the rate. Independent loss at 15% is survivable by
 retrying a single packet; 15% correlated loss removes a whole exchange.
+
+**A fault has to cost time.** DDS retransmits a lost packet, so a reliable
+transport survives loss by taking longer, not by failing: the faulted dispatch
+has to be measurably slower than the healthy one for the run to mean anything
+(WF-C4). The bar is 0.25 s or a tenth of the baseline, whichever is more — the
+healthy navigation on this stack measures 1.99 s to 2.23 s from run to run, so a
+quarter of a second is the least a real fault can cost and still be told apart
+from a quiet moment. This is the criterion that catches the failure the first
+real runs made — see below.
 
 ## 4. What counts as a failure of the experiment, not of the system
 
@@ -186,3 +196,35 @@ probe reported "no netem rule was observed before the faulted dispatch". The
 run was correctly refused — the verdict was void, not pass — but the void was
 the *measurement's* fault, not the system's. The probe reads the whole tree
 now (`tc qdisc show dev lo`), and there is a test that pins it.
+
+## 8. What the runs showed
+
+The stack, the injector and the audit all run inside one user+network
+namespace, so the whole experiment is unprivileged and the fault cannot reach
+anything outside it.
+
+| Scenario | Fault | Baseline | Faulted | Recovery | Verdict |
+|---|---|---|---|---|---|
+| `dropped_result` | 30% loss, 25% correlation | 2.20 s | 2.45 s (+0.25 s) | 1.98 s | **PASS**, all 12 criteria |
+| `severe` | 60% loss, 50% correlation, 200 ms delay | 2.23 s | **17.48 s (7.85×)** | 2.13 s | **PASS**, all 12 criteria |
+
+The `severe` run is the interesting one. Under 60% loss with half of it
+correlated, the dispatch still came back `completed` — it took **almost eight
+times as long**, because DDS retransmits what the link drops. The ledger
+recorded the command once, nothing replayed it, and the command after the
+fault was cleared took 2.13 s, which is the healthy time.
+
+Two of the criteria were therefore **vacuous rather than satisfied**: nothing
+ended `unknown`, so "an uncertain outcome stays unknown" and "nothing is
+dispatched while an unresolved command is unacknowledged" had nothing to
+check. The scenarios expected most commands to end `unknown`; the transport
+did better than the scenarios assumed. To exercise the fail-closed path the
+loss has to exceed what retransmission can cover — and that is a bigger
+experiment, not a bigger claim.
+
+**The timing criterion is what makes these runs evidence.** Before WF-C4
+existed, a run in which the loss never reached a single packet passed every
+other criterion: nothing uncertain, nothing duplicated, recovery fine —
+because the link was healthy. The first two real runs came back PASS exactly
+that way, at 30% and at 60% loss. A fault that costs no time did not reach the
+transport, and the run said nothing about the robot.
