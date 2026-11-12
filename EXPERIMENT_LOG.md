@@ -515,7 +515,7 @@ python -m pytest agent_harness/tests/test_concurrency_ros.py -q
 这一条把**判据先写下来**,工具再照着实现——顺序反过来,是为了让工具能被文件检查,
 而不是让文件去追工具。
 
-**判据**(`docs/specs/wire-faults.md`):十一条,分三类。
+**判据**(`docs/specs/wire-faults.md`):十二条,分三类。
 
 *安全类* WF-S1..S6:
 | ID | 断言 | 拦的是什么 |
@@ -542,6 +542,7 @@ python -m pytest agent_harness/tests/test_concurrency_ros.py -q
 
 **工具**按固定顺序跑:干净基线 → 加故障并探测 → 故障下派发 → 撤故障并探测 →
 故障撤掉后的恢复派发 → 审计账本。11 条判据全部从账本判定。
+(2026-11-12:又加了一条 WF-C4「故障必须让传输变慢」,共 12 条 —— 见上面那篇。)
 
 **验收命令**:
 ```bash

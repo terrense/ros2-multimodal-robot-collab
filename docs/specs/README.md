@@ -51,7 +51,7 @@ Done since the line was first planned, and worth knowing about:
 |---|---|---|
 | MultiThreadedExecutor + per-resource callback groups | O3.1 | `agent_harness/runtime/concurrency.py`, `RosBackend`, `RosToolExecutor(concurrent=True)`, `--concurrent` |
 | Wire-fault injection and the three invariants | O3.1 | `agent_harness/runtime/wire_faults.py`, `scripts/wire_fault_check.py` |
-| The wire-fault **acceptance criteria**, written before the tool | O3.1 | `docs/specs/wire-faults.md` — eleven criteria in three kinds, with thresholds and the reasons for them |
+| The wire-fault **acceptance criteria**, written before the tool | O3.1 | `docs/specs/wire-faults.md` — twelve criteria in three kinds, with thresholds and the reasons for them. Two of the scenarios have been run against the live stack |
 | The L2 adapter: the live stack behind `reset()`/`step()`, with the action mapping written out and the unsupported actions refused | O6 | `agent_env/l2_gazebo.py` |
 | The live stack scored by the L1 evaluator, with the receipt metrics | O6 | `training/evaluate_l2.py` |
 | The L1 side of the calibration: per-family reference rates derived from the configuration, and the measurement programmes | O6 | `agent_env/l2_calibration.py`, `agent_env/scripts/calibrate_l2.py` |
