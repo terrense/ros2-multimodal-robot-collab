@@ -227,11 +227,14 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | World | 内容 | 谁在用 |
 |---|---|---|
 | `collab_lab.world` | 地面、站点标记、工具架、箱子和墙（障碍物） | **默认**。导航、回执、校准、CI 都跑它 |
-| `workshop.world` | 墙、工作台、棋盘标定板 | `--workshop` 时加载，三台官方机械臂随后 spawn 进来 |
+| `workshop.world` | 墙、工作台、棋盘标定板、**任务站点**、三台官方机械臂 | `--workshop` 时加载 |
 
 **不是两套仿真**：同一个 launch、同一套 ROS 节点、同一张图、同一套运行时。
 移动小车在两个 world 里都在 —— `gazebo_world.launch.py` 负责把它 spawn 进去。
 区别只有「加载哪个 world 文件」和「要不要把三台机械臂放进来」。
+
+**车间场景现在也带任务站点**（工具架 + 三个交接点，和实验室 world 同名同位同色）：
+以前车间里有机械臂却没有站点，场景和任务分在两个地方。
 
 <img alt="the workshop workcell from the overhead camera" src="docs/figures/workshop_overhead.png" width="720">
 

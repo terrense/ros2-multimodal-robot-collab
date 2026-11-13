@@ -210,10 +210,49 @@ def arm_cell(
     return "".join(parts)
 
 
+def task_stations() -> str:
+    """The task's own stations, so the workshop scene can run the task.
+
+    The lab world carries these four markers -- the tool shelf the robot picks
+    from and the three places it delivers to -- and the stations live in
+    `stations.yaml`, which the runtime reads. The workshop scene had the arms
+    but not the stations, so the robot could not actually do the delivery
+    there: the scene and the task were two different places.
+
+    Same names, same poses, same colours as the lab world, so the two are the
+    same workcell with the arms in it.
+    """
+    parts = [
+        "    <!-- The task's stations, shared with the lab world -->\n",
+        box_model(
+            "tool_shelf_marker", (1.25, -0.75, 0.15, 0.0), (0.45, 0.35, 0.30), (0.1, 0.42, 0.8)
+        ),
+        cylinder_model(
+            "station_a_marker", (3.20, 0.40, 0.05, 0.0), 0.18, 0.10, (0.0, 0.55, 0.28)
+        ),
+        cylinder_model(
+            "station_b_marker", (4.15, -1.10, 0.05, 0.0), 0.18, 0.10, (0.78, 0.35, 0.05)
+        ),
+        box_model(
+            "handover_zone_marker",
+            (2.10, 1.35, 0.03, 0.0),
+            (0.55, 0.55, 0.06),
+            (0.65, 0.12, 0.52),
+            collide=False,
+        ),
+    ]
+    return "".join(parts)
+
+
 def wall_camera() -> str:
-    """Wall-mounted overview camera, looking into the room along +y."""
+    """Overhead camera, looking down at the workcell.
+
+    It used to face the east wall, so the one view that could show the whole
+    scene showed a poster instead. It now looks down at the mobile base and the
+    three official arms.
+    """
     return """    <model name="workshop_overhead_camera">
-      <pose>0 -3.85 2.60 0 0.35 1.5708</pose>
+      <pose>2.0 0 7.0 0 1.25 3.1416</pose>
       <static>true</static>
       <link name="camera_link">
         <visual name="body">
@@ -279,6 +318,7 @@ def build() -> str:
     parts.append(cylinder_model("screwdriver_handle", (2.15, 2.25, 0.44, 1.1), 0.015, 0.09, (0.9, 0.75, 0.1)))
     parts.append(cylinder_model("screwdriver_shaft", (2.15, 2.31, 0.44, 1.1), 0.004, 0.13, (0.75, 0.75, 0.78)))
 
+    parts.append(task_stations())
     parts.append(wall_camera())
     parts.append(FOOTER)
     return "".join(parts)

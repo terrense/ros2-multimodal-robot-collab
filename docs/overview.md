@@ -44,14 +44,18 @@
 
 | World | 内容 | 谁在用 |
 |---|---|---|
-| `collab_lab.world` | 地面、站点标记、工具架、箱子和墙（障碍物） | **默认**。`demo_sim.launch.py` 用的就是它 |
-| `workshop.world` | 墙、工作台、棋盘标定板 | `--workshop` 时加载，三台官方机械臂（KUKA KR10 / FANUC M-10iA / Dobot CR10）随后 spawn 进来 |
+| `collab_lab.world` | 地面、站点标记、工具架、箱子和墙（障碍物） | **默认**。导航、回执、校准、CI 都跑它 |
+| `workshop.world` | 墙、工作台、棋盘标定板、**任务站点**、三台官方机械臂 | `--workshop` 时加载 |
 
 它们**不是两个仿真**：同一个 launch、同一套 ROS 节点、同一张图、同一套运行时。
 区别只有「加载哪个 world 文件」和「要不要把三台官方机械臂 spawn 进来」。
 移动小车在两个 world 里都在（`gazebo_world.launch.py` 负责 spawn 它）。
 
-而**三台机械臂需要额外下载**（KUKA 和 Dobot 的官方描述带网格，几百 MB，在
+**车间场景现在也带任务站点**（工具架 + 三个交接点，和实验室 world 同名同位同色）。
+以前车间里有机械臂却没有站点 —— 场景和任务分在两个地方，机器人到了车间也没法执行
+递送。现在两个 world 是同一个工位：一个是带障碍物的版本，一个是带机械臂的版本。
+
+三台机械臂需要**额外下载**（KUKA 和 Dobot 的官方描述带网格，几百 MB，在
 `third_party/robot_descriptions/`，不入库；FANUC 走 apt 包）。所以第一次跑车间场景要先
 `bash scripts/fetch_robot_descriptions.sh`。
 
