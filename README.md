@@ -260,13 +260,14 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **回执指标** | L1 与 L2 两条路径用同一套契约映射算回执指标，并发进 `docs/results.md`；L1 路径测不出的两项（时延、重复效应）写「不适用 + 原因」，不写 0 | 两条路径都测了：L1 4205 次调用（0% 不确定结果），L2 三十次真实任务（0% 不确定、p50 时延 10.0s、0% 重复效应） |
 | **并发调度** | 每资源一把锁 + `MultiThreadedExecutor` + 每资源 callback group（`--concurrent`） | **rclpy 层已验（CI 里跑），全栈未跑** |
 | **线缆故障注入** | 判据先写（`docs/specs/wire-faults.md`，12 条：安全/活性/设置）+ `tc netem` 六套场景 + 按判据判定 | **已构建，六套场景都在真栈上跑过、12 条全过**；整个实验在 user+network 命名空间里，95% 丢包下命令以 `unknown` 收场，账本挡住后续派发直到人工认领。**CI 里也跑一套** |
-| **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、场景驱动、清单写入 | **5/9 已测**：`nav_timeout` 100%（L1 说 66.5%）、`identity_mismatch` 0%（L1 说 34.6%）、`low_confidence` 0%（L1 说 50%）、`user_cancel` 0%（L1 说 100%）、`tool_missing` 100%（一致）；另 4 族这栈造不出故障，探针写清了缺的是哪个机制 |
+| **L1↔L2 校准** | 九类故障的 L1 参考值（从配置推导）、每族测量方案、执行器、场景驱动、清单写入 | **9/9 已测**：`nav_timeout` 100%（L1 说 66.5%）、`identity_mismatch` 0%（L1 说 34.6%）、`low_confidence` 0%（L1 说 50%）、`user_cancel` 0%（L1 说 100%）、`tool_missing` 100%（一致）、`grasp_failure`/`tool_drop`/`no_progress`/`visual_occlusion` 都是"造得出故障、恢复也走通"的那种；这后四族靠的是改机器人自己的节点 |
 | **实验基线** | 规则基线 76.1% / 脚本专家 100%（400 条故障注入 benchmark） | **CPU 可复现**，产物入库 |
 | **后训练栈** | SFT / DPO / Step-Level PPO / OPD + 显存预检 + teacher 独立服务 | **未上 GPU**，六条臂 pending |
 
 **已知限制**（都在文档里写明了，不是待办清单）：
 
-- **底盘的轮子空转，底盘不挪。** ros2_control 把轮子的速度按硬约束写进去，ODE 的接触求解器解不动"轮子推地 + 底盘是重的"这一对约束：把底盘的碰撞盒抬离地面让轮子承重，求解器直接给出 NaN 速度。现在底盘靠一根中脊站着，轮子转得动、里程计在数，但轮子没有载荷就没有抓地力。导航会照里程计报"到了"，同时把"里程计说到了、底盘其实差着 X 米"写进反馈里（`nav_skill_server` 的 `_disagreement`）。`visual_occlusion` 这一族就卡在这儿：换个视角要的是底盘真的动。
+- **底盘的轮子在打滑。** 底盘能开了，但里程计数出来的轮子转圈比底盘走过的路多两倍半，于是导航会在真正到站之前就"到"了。导航每次到站都拿里程计和仿真世界自己的模型位姿对一次，把差值写进反馈（`nav_skill_server` 的 `_disagreement`），而不是装作到了。
+- **底盘上的 Dobot 是道具。** 它的关节被锁死了：这台底盘上的机械臂由 `arm_skill_server` 模拟，真实关节没人驱动；而自由的关节和底盘与地面的接触是求解器没法同时满足的两个约束，它放弃的时候整个模型的速度会变成 NaN——控制器随之停止下发指令，而日志里一个字都没有。
 - **SLAM scan matching 关闭。** 用 odometry 建图，没有回环和漂移校正。调参实验做到 84% 跟踪率仍会导航失败，所以关掉直到能用同样方法验证。
 - **机械臂执行是仿真的。** `arm_skill_server` 用 `simulate_step_seconds` 模拟动作，没有接 MoveIt2 或厂商 SDK。
 - **人脸 / 语音 / 手势是桩或用 vendored 源码跑，没有真机。**
@@ -733,7 +734,7 @@ python -m training.evaluate --policy expert --label expert_oracle
 
 | 文档 | 内容 |
 | --- | --- |
-| [docs/results.md](docs/results.md) | 实验矩阵、实测值、**L2 校准状态声明**（当前 5/9 族有真栈测量，其中 4 族推翻 L1；所以表里的数字一律标注 "仅 L1"） |
+| [docs/results.md](docs/results.md) | 实验矩阵、实测值、**L2 校准状态声明**（当前 9/9 族有真栈测量，其中 4 族推翻 L1；所以表里的数字一律标注 "仅 L1"） |
 | [training/README.md](training/README.md) | 训练栈工程说明：模块、命令、奖励预设、评测口径 |
 | [docs/post_training.md](docs/post_training.md) | 设计取舍（为什么 Skill-level、为什么 process reward ≠ credit assignment、为什么 OPD → PPO）+ **显存预算** |
 | [agent_env/README.md](agent_env/README.md) | 闭环环境层：协议、故障注入、L1 模拟器、脚本专家 |
@@ -769,9 +770,9 @@ python -m agent_env.scripts.run_calibration --plan # 会在实时栈上跑什么
 | L2 适配器（实时栈装进 `reset()/step()`） | 完成；对真栈跑通 |
 | 校准执行器 | 完成；**九族都有探针**，能测的测、测不了的说明缺哪个机制 |
 | 场景道具 + 布置脚本 | 完成，已在 Gazebo 里真的摆过 |
-| 实际测量 | **5/9**，其中 4 个推翻了 L1 |
+| 实际测量 | **9/9**，其中 4 个推翻了 L1 |
 
-**测出来的五族**：
+**测出来的族**：
 
 | 族 | L1 假设 | 实测 (n=30) | Wilson 95% | 判定 |
 |---|---|---|---|---|

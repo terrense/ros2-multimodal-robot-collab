@@ -65,17 +65,23 @@ def main(argv: list[str]) -> int:
             node = joint.find(tag)
             if node is not None:
                 node.set("link", f"dobot_{node.get('link')}")
-        if joint.get("type") == "revolute":
+        if joint.get("type") in ("revolute", "continuous", "prismatic"):
+            # The arm's own joints are locked.
+            #
+            # On this chassis the Dobot is a prop: the arm server simulates
+            # the manipulation (see agent_env's calibration), and nothing
+            # drives the real joints. Leaving them free is not free -- a
+            # free joint that carries two kilograms, welded to a chassis
+            # that is standing on the floor, is a constraint the solver
+            # cannot satisfy at the same time as the chassis's contact.
+            # When it gives up, the whole model's velocities go to NaN: the
+            # wheels' readings are NaN, the controller stops applying
+            # commands, and the odometry simply stops moving -- with nothing
+            # in the log to say why.
+            joint.set("type", "fixed")
             dynamics = joint.find("dynamics")
-            if dynamics is None:
-                dynamics = ET.SubElement(joint, "dynamics")
-            # Damping holds the arm up; friction holds it still. Fifty
-            # newton-metres of friction is more than the solver can carry
-            # next to a wheel that is pushing on the ground: the joint
-            # fights the contact and the physics ends up with NaN
-            # velocities.
-            dynamics.set("damping", "20.0")
-            dynamics.set("friction", "2.0")
+            if dynamics is not None:
+                joint.remove(dynamics)
 
     mount = ET.SubElement(root, "joint", {"name": "dobot_mount", "type": "fixed"})
     ET.SubElement(mount, "origin", {"xyz": MOUNT_XYZ, "rpy": MOUNT_RPY})

@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<!--
+  The workcell's floor.
+
+  Gazebo's stock ground plane has a contact stiffness of 1e5 and a friction
+  of 100. With a wheeled robot whose wheel velocities are imposed every
+  step, that combination needs the solver's help: the contact's correction
+  velocity is capped (max_vel) so that a deep penetration does not turn
+  into an impulse the solver cannot absorb.
+
+  The values are Gazebo's own; what this file adds is the place to change
+  them, and the note that they were a suspect once.
+-->
+<sdf version="1.6">
+  <model name="ground_plane">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>100 100</size>
+          </plane>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>100</mu>
+              <mu2>50</mu2>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <kp>1e5</kp>
+              <kd>1e2</kd>
+            </ode>
+          </contact>
+        </surface>
+      </collision>
+      <visual name="visual">
+        <cast_shadows>false</cast_shadows>
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>100 100</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+            <name>Gazebo/Grey</name>
+          </script>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

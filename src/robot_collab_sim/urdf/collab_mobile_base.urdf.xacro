@@ -50,9 +50,9 @@
          show it: the odometry says the base moved and the chassis says
          otherwise. -->
     <collision>
-      <origin xyz="0 0 0"/>
+      <origin xyz="0 0 0.045"/>
       <geometry>
-        <box size="0.70 0.60 ${base_height}"/>
+        <box size="0.70 0.60 0.13"/>
       </geometry>
     </collision>
   </link>
@@ -61,8 +61,14 @@
     <link name="${name}_wheel_link">
       <inertial>
         <origin xyz="0 0 0"/>
-        <mass value="0.7"/>
-        <inertia ixx="0.0016" ixy="0.0" ixz="0.0" iyy="0.0016" iyz="0.0" izz="0.0024"/>
+        <!-- The wheels are heavy for their size. A wheel that weighs almost
+             nothing cannot be pushed along by the floor: it spins instead,
+             the odometry counts the spins, and the robot goes nowhere while
+             the numbers say it drove. -->
+        <mass value="3.0"/>
+        <!-- A cylinder lying on its side: the small inertia is about its own
+             axis (y), the large one about the diameter. -->
+        <inertia ixx="0.0026" ixy="0.0" ixz="0.0" iyy="0.0054" iyz="0.0" izz="0.0026"/>
       </inertial>
       <visual>
         <origin xyz="0 0 0" rpy="1.5708 0 0"/>
@@ -85,8 +91,12 @@
       <child link="${name}_wheel_link"/>
       <origin xyz="${wheel_x} ${y} -0.05" rpy="0 0 0"/>
       <axis xyz="0 1 0"/>
-      <!-- Friction, so the wheels grip. -->
-      <dynamics damping="0.01" friction="1.2"/>
+      <!-- No joint friction. The controller imposes the wheel's velocity
+           every step, and a friction torque in the same joint is a
+           constraint the solver cannot satisfy: the joint fights the
+           contact, the physics goes to NaN, and the controller dies with
+           it (the odometry simply stops moving). -->
+      <dynamics damping="0.01" friction="0.0"/>
     </joint>
   </xacro:macro>
 

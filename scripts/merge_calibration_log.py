@@ -16,10 +16,10 @@ from pathlib import Path
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 3:
+    if len(argv) < 2:
         print("usage: merge_calibration_log.py LOG.json NEW.json [...]", file=sys.stderr)
         return 2
-    log_path = Path(argv[1])
+    log_path = Path(argv[0])
     payload = json.loads(log_path.read_text(encoding="utf-8"))
     families = {row["family"]: row for row in payload.get("families", [])}
 

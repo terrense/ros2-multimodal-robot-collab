@@ -179,8 +179,17 @@ class NavSkillServer(Node):
                     self._stop()
                     return self._result(False, f"Could not reach {goal.station_id}.")
                 if not await self._turn_to(goal_handle, station):
-                    self._stop()
-                    return self._result(False, f"Could not face {goal.station_id}.")
+                    # The base is at the station; it just cannot face it, and
+                    # a base that cannot rotate on the spot cannot be asked
+                    # to. That is a warning, not a failed drive: the station
+                    # was reached.
+                    self._warnings.append(
+                        f"the base reached {goal.station_id} but could not face it"
+                    )
+                    self.get_logger().warn(
+                        f"The base reached {goal.station_id} and could not turn to "
+                        "face it; its heading is off."
+                    )
             else:
                 await rclpy_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
 
@@ -275,9 +284,12 @@ class NavSkillServer(Node):
             heading = math.atan2(dy, dx)
             error = (heading - yaw + math.pi) % (2.0 * math.pi) - math.pi
             angular = max(-1.0, min(1.0, 2.0 * error))
-            # Turn towards the target first; drive only once it is pointing
-            # roughly the right way.
-            linear = 0.0 if abs(error) > 0.35 else speed * min(1.0, distance / 0.5)
+            # Correct the heading *while* driving. A base that stops to turn
+            # first has to rotate on the spot, and rotating on the spot
+            # means sliding the wheels sideways: the base cannot do it, and
+            # the drive times out with the base pointing the wrong way.
+            alignment = math.cos(error)
+            linear = speed * min(1.0, distance / 0.5) * max(0.35, abs(alignment))
             self._publish_cmd_vel(linear, angular)
             self._ticks += 1
             if self._ticks % 10 == 0:

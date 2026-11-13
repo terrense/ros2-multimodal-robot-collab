@@ -16,8 +16,11 @@
       <update_rate>30.0</update_rate>
     </plugin>
 
+    <!-- This workspace's own floor. Gazebo's stock one has a contact
+         stiffness the solver cannot carry under a wheeled robot whose wheel
+         velocities are imposed every step. -->
     <include>
-      <uri>model://ground_plane</uri>
+      <uri>../models/ground_plane</uri>
     </include>
     <include>
       <uri>model://sun</uri>

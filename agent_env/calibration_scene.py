@@ -265,6 +265,9 @@ class RosScene:
         #: a scene that arranges the world and then finds it unchanged has
         #: arranged nothing.
         self._models: set[str] = set()
+        #: Whether the world's list of models has arrived at all. Before it
+        #: does, "the model is not there" is not a fact.
+        self._heard = False
         from gazebo_msgs.msg import ModelStates
 
         self.node.create_subscription(
@@ -296,6 +299,7 @@ class RosScene:
 
     def _on_model_states(self, msg) -> None:
         self._models = {str(name) for name in msg.name}
+        self._heard = True
 
     def _wait_for_model(self, name: str, present: bool, timeout: float = 8.0) -> bool:
         """Wait until the world agrees about a model.
@@ -345,6 +349,17 @@ class RosScene:
         return ok
 
     def delete(self, name: str) -> bool:
+        """Take a model out of the world.
+
+        A model that is not there is left alone. Asking the simulator to
+        delete something that has already gone produces a request whose
+        effect arrives later, and a late delete removes whatever was spawned
+        under that name in the meantime: the calibration would arrange the
+        scene, watch the obstruction appear, and then find it gone.
+        """
+        if name not in self._models and self._heard:
+            print(f"delete {name}: not present")
+            return True
         service = self._service("delete_entity")
         if service is None:
             raise SystemExit("delete_entity is unavailable: is Gazebo running?")
@@ -443,6 +458,10 @@ class CalibrationSceneDriver:
         self._ros: RosScene | None = None
         #: The parameter value that was there before the scene was armed.
         self._restore: dict[str, float | str] = {}
+        #: The names this driver has spawned, per family.
+        self._spawned: dict[str, list[str]] = {}
+        #: How many props have been spawned in total.
+        self._counter = 0
 
     @property
     def ros(self) -> RosScene:
@@ -464,7 +483,15 @@ class CalibrationSceneDriver:
         stations = load_stations(self._stations_path)
         for prop in scene.props:
             x, y, z, yaw = resolve_pose(prop, stations)
-            self.ros.spawn(prop.name, prop.path, x, y, z, yaw)
+            # A fresh name every time. The simulator refuses to spawn a
+            # model under a name it has seen before, even after the model
+            # has been deleted: the scene would be arranged, the spawn
+            # refused, and the probe would measure a world without its
+            # obstruction.
+            self._counter += 1
+            spawn_name = f"{prop.name}_{self._counter}"
+            if self.ros.spawn(spawn_name, prop.path, x, y, z, yaw):
+                self._spawned.setdefault(name, []).append(spawn_name)
         if scene.parameter is not None:
             node_name, parameter, value = scene.parameter
             previous = self.ros.get_parameter(node_name, parameter)
@@ -478,7 +505,11 @@ class CalibrationSceneDriver:
         scene = SCENES.get(name)
         if scene is None:
             return
+        for spawn_name in self._spawned.pop(name, []):
+            self.ros.delete(spawn_name)
         for prop in scene.props:
+            # Also the plain name: a scene arranged by an older version of
+            # this driver put its props there.
             self.ros.delete(prop.name)
         if scene.parameter is not None:
             node_name, parameter, _value = scene.parameter

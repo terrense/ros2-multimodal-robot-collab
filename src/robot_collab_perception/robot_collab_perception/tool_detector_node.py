@@ -139,9 +139,10 @@ class ToolDetectorNode(Node):
         """Is the tool hidden from where the camera is?
 
         The depth cloud is the world's own account of what is in front of
-        the camera. If the nearest thing along the line to the tool is
-        noticeably nearer than the tool itself, then the tool is behind
-        something.
+        the camera. The question is whether anything stands between the
+        camera and the tool, so the answer is read off the *ray* from the
+        camera to the tool: a surface close to that ray and well in front
+        of the tool is something in the way.
         """
         if not bool(self.get_parameter("occlusion_check").value):
             self._occluded = False
@@ -166,15 +167,33 @@ class ToolDetectorNode(Node):
 
         radius = float(self.get_parameter("occlusion_radius").value)
         margin = float(self.get_parameter("occlusion_margin").value)
-        nearest = _nearest_distance(self._points, local, radius)
-        if nearest is None:
-            # Nothing near the tool at all: the tool is not in view, which is
-            # not the same as being blocked by something.
-            self._occluded = False
-            self._occlusion_checked = True
-            return
-        self._occluded = nearest < expected - margin
+        self._occluded = self._something_in_the_way(local, expected, radius, margin)
         self._occlusion_checked = True
+
+    def _something_in_the_way(
+        self,
+        tool_local: tuple[float, float, float],
+        expected: float,
+        radius: float,
+        margin: float,
+    ) -> bool:
+        """Is there a surface on the ray to the tool, in front of it?
+
+        The camera is the origin of the cloud's frame, so the ray to the
+        tool is the segment from the origin to the tool's place in that
+        frame. A surface within `radius` of that ray, and at least `margin`
+        nearer than the tool, is what stands in the way.
+        """
+        points = self._points
+        direction = np.asarray(tool_local, dtype=float) / expected
+        coordinates = _xyz(points)
+        along = coordinates @ direction
+        perpendicular = np.linalg.norm(
+            coordinates - np.outer(along, direction), axis=1
+        )
+        in_front = (along > 0.05) & (along < expected - margin)
+        close = perpendicular < radius
+        return bool((in_front & close).any())
 
     # ------------------------------------------------------------- publishing
 
@@ -239,28 +258,36 @@ def _rotate_by_quaternion(
     )
 
 
+def _xyz(points: np.ndarray) -> np.ndarray:
+    """The cloud's points as three columns.
+
+    The cloud arrives either as a structured array with named fields or as
+    three plain columns, depending on the sensor_msgs_py version.
+    """
+    if getattr(points, "dtype", None) is not None and points.dtype.names:
+        return np.column_stack(
+            [points["x"], points["y"], points["z"]]
+        ).astype(float)
+    array = np.asarray(points, dtype=float)
+    if array.ndim != 2 or array.shape[1] < 3:
+        return np.zeros((0, 3))
+    return array[:, 0:3]
+
+
 def _nearest_distance(
     points: np.ndarray, target: tuple[float, float, float], radius: float
 ) -> float | None:
     """How far the nearest surface in the cloud is from a point.
 
-    The cloud is in metres; the point is in the camera's frame. The cloud
-    arrives either as a structured array with named fields or as three
-    columns, depending on the sensor_msgs_py version, so both are read.
+    The cloud is in metres; the point is in the camera's frame.
     """
     if points is None or len(points) == 0:
         return None
-    if getattr(points, "dtype", None) is not None and points.dtype.names:
-        xs = np.asarray(points["x"], dtype=float)
-        ys = np.asarray(points["y"], dtype=float)
-        zs = np.asarray(points["z"], dtype=float)
-    else:
-        array = np.asarray(points, dtype=float)
-        if array.ndim != 2 or array.shape[1] < 3:
-            return None
-        xs, ys, zs = array[:, 0], array[:, 1], array[:, 2]
-    distance_squared = (
-        (xs - target[0]) ** 2 + (ys - target[1]) ** 2 + (zs - target[2]) ** 2
+    coordinates = _xyz(points)
+    if coordinates.size == 0:
+        return None
+    distance_squared = np.sum(
+        (coordinates - np.asarray(target, dtype=float)) ** 2, axis=1
     )
     inside = distance_squared <= radius * radius
     if not bool(inside.any()):

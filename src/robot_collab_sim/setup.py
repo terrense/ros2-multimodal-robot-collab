@@ -17,6 +17,7 @@ setup(
         (f"share/{package_name}/config", glob("config/*")),
         (f"share/{package_name}/materials", glob("materials/*")),
         (f"share/{package_name}/models/calibration", glob("models/calibration/*.sdf")),
+        (f"share/{package_name}/models/ground_plane", glob("models/ground_plane/*.sdf")),
         (f"share/{package_name}/meshes/dobot_cr10", glob("meshes/dobot_cr10/*")),
     ],
     install_requires=["setuptools"],

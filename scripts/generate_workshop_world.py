@@ -31,7 +31,7 @@ HEADER = """<?xml version="1.0"?>
       <update_rate>30.0</update_rate>
     </plugin>
 
-    <include><uri>model://ground_plane</uri></include>
+    <include><uri>../models/ground_plane</uri></include>
     <include><uri>model://sun</uri></include>
 """
 

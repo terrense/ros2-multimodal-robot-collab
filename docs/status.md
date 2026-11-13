@@ -175,10 +175,10 @@ each referenced package to be declared.
 It does not drive Nav2, and it does not run a calibration probe. Those stay
 manual.
 
-### 3. Four scenes and one unproducible fault
+### 3. Four scenes and four producible faults
 
 ~~Blocks: the remaining calibration families.~~ **The scenes are arranged and
-every family has a probe** (2026-11-12). **Three of the four that could not be
+every family has a probe** (2026-11-12). **All four that could not be
 produced are produced now** (2026-11-13) — and they were produced by changing
 the robot's own nodes, not by changing the harness:
 
@@ -191,12 +191,17 @@ the robot's own nodes, not by changing the harness:
 - `no_progress` — the mission consults the handover zone before it hands the
   tool over. A blocked zone makes the mission call the operator over the
   speaker (`/hri/tts_text`) and wait for the zone to clear.
+- `visual_occlusion` — the detector reads the depth camera's point cloud and
+  publishes a low-confidence detection when the tool is hidden behind the
+  panel the scene puts up. Clearing the occlusion means looking from somewhere
+  else, which means the base has to move.
 
-`visual_occlusion` is still open, and it is open for a physical reason: the
-detector now reads the depth camera's point cloud and can tell that the tool
-is hidden, but *clearing* the occlusion needs the base to look from somewhere
-else, and the simulated base does not move (its wheels turn without grip — see
-the README's known limits). The probe tries, and refuses with that reason.
+And to make the base move, the Dobot's own joints came off the chassis. They
+were a constraint the solver could not satisfy at the same time as the wheels'
+contact: when it gave up, every velocity in the model went to NaN, the
+controller stopped applying commands without a word in the log, and the
+odometry simply stopped. The arm is a prop on this base — the arm server
+simulates the manipulation — so its joints are locked, and the base drives.
 
 ### 4. The interrupted model
 
@@ -307,24 +312,32 @@ measure again and L1 follows.
 I have not changed `default_params`, because either reading is defensible and
 the choice changes every published number.
 
-### 2. One fault family still needs the base to move
+### 2. The base drives, and what it still gets wrong
 
-`visual_occlusion` is the last of the four that could not be produced. The
-detector now reads the depth camera's point cloud and can tell that the tool
-is hidden behind the panel the scene puts up — but clearing the occlusion
-means looking from somewhere else, and that means the base has to move in the
-world. It does not: ros2_control imposes the wheel velocities, the ODE
-contact solver cannot satisfy "a wheel pushing on the floor" next to a
-30 kg chassis, and the base ends up standing on a spine with wheels that
-turn without grip. The odometry says the base drove; the simulator's own
-model states say it did not, and the navigation now reports that gap instead
-of hiding it.
+The four families that could not be produced are produced now, by changing the
+robot's own nodes. The one thing that had to be fixed underneath them was the
+base itself: the controller manager had never come up, so the base had no
+motors, and every "arrived" was a report of something that did not happen.
 
-The other three were produced by changing the robot's own nodes — an arm that
-can miss a grasp and can drop a tool, and a mission that checks whether the
-handover zone is occupied and calls the operator when it is. That is robot
-control logic, which was off-limits until you said to change the robot's
-nodes; you did, for these three.
+Two defects were behind it, and both were silent:
+
+- **The robot description carried XML comments.** rcl parses the value of a
+  parameter override as YAML, and a colon followed by a space ends the value.
+  The whole description was refused and the controller manager was never
+  created. The description now has its comments stripped before it reaches a
+  node, and fails loudly if anything else in it cannot be carried.
+- **The Dobot's joints were a constraint the solver could not satisfy.** They
+  were free, loaded, and welded to a chassis standing on the floor; when the
+  solver gave up, every velocity in the model went to NaN, the controller
+  stopped applying commands, and the odometry stopped moving — with nothing
+  in the log to say why. The arm is a prop on this base (the arm server
+  simulates the manipulation), so its joints are locked.
+
+What is still wrong: the wheels slip. The odometry counts more wheel
+rotation than the chassis travels, so the navigation stops short of what the
+odometry says it reached. The navigation compares the two — the odometry
+against the simulator's own model states — and reports the gap instead of
+hiding it.
 
 ---
 
