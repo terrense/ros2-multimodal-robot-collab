@@ -1,7 +1,7 @@
 {
   "label": "l2_baseline",
   "overall": {
-    "episodes": 10,
+    "episodes": 30,
     "task_success": 1.0,
     "correct_outcome": 1.0,
     "recovery_success": 0.0,
@@ -12,15 +12,15 @@
     "mean_actions": 1.0,
     "repeated_call_rate": 0.0,
     "no_progress_ratio": 0.0,
-    "total_calls": 10,
+    "total_calls": 30,
     "terminal_classes": {
-      "success": 10
+      "success": 30
     },
     "flags": {}
   },
   "by_fault_bucket": {
     "clean": {
-      "episodes": 10,
+      "episodes": 30,
       "task_success": 1.0,
       "correct_outcome": 1.0,
       "recovery_success": 0.0,
@@ -31,16 +31,16 @@
       "mean_actions": 1.0,
       "repeated_call_rate": 0.0,
       "no_progress_ratio": 0.0,
-      "total_calls": 10,
+      "total_calls": 30,
       "terminal_classes": {
-        "success": 10
+        "success": 30
       },
       "flags": {}
     }
   },
   "by_fault": {
     "clean": {
-      "episodes": 10,
+      "episodes": 30,
       "task_success": 1.0,
       "correct_outcome": 1.0,
       "recovery_success": 0.0,
@@ -51,16 +51,16 @@
       "mean_actions": 1.0,
       "repeated_call_rate": 0.0,
       "no_progress_ratio": 0.0,
-      "total_calls": 10,
+      "total_calls": 30,
       "terminal_classes": {
-        "success": 10
+        "success": 30
       },
       "flags": {}
     }
   },
   "by_failing_phase": {
     "done": {
-      "episodes": 10,
+      "episodes": 30,
       "task_success": 1.0,
       "correct_outcome": 1.0,
       "recovery_success": 0.0,
@@ -71,16 +71,16 @@
       "mean_actions": 1.0,
       "repeated_call_rate": 0.0,
       "no_progress_ratio": 0.0,
-      "total_calls": 10,
+      "total_calls": 30,
       "terminal_classes": {
-        "success": 10
+        "success": 30
       },
       "flags": {}
     }
   },
   "by_length": {
     "short(<=8)": {
-      "episodes": 10,
+      "episodes": 30,
       "task_success": 1.0,
       "correct_outcome": 1.0,
       "recovery_success": 0.0,
@@ -91,16 +91,16 @@
       "mean_actions": 1.0,
       "repeated_call_rate": 0.0,
       "no_progress_ratio": 0.0,
-      "total_calls": 10,
+      "total_calls": 30,
       "terminal_classes": {
-        "success": 10
+        "success": 30
       },
       "flags": {}
     }
   },
   "episodes": [
     {
-      "episode_id": "l2-a43341973d",
+      "episode_id": "l2-aca62e5177",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -117,7 +117,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-6d7808569b",
+      "episode_id": "l2-c16dc1dff5",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -134,7 +134,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-55f691af92",
+      "episode_id": "l2-47efa14cce",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -151,7 +151,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-4829012817",
+      "episode_id": "l2-7df837b4b1",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -168,7 +168,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-24bc66fa63",
+      "episode_id": "l2-c27ee1e9cb",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -185,7 +185,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-722a575cbd",
+      "episode_id": "l2-123adf27e4",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -202,7 +202,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-d948ac8d11",
+      "episode_id": "l2-b73751bc51",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -219,7 +219,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-d9eba197cc",
+      "episode_id": "l2-21f95a14c3",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -236,7 +236,7 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-8f5c8ffda3",
+      "episode_id": "l2-40055aa6db",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -253,7 +253,347 @@
       "length_bucket": "short(<=8)"
     },
     {
-      "episode_id": "l2-60f71bf681",
+      "episode_id": "l2-08f40bd8db",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-848f3364b7",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-8f6a65c3f8",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-8609985410",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-53de38bada",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-69e9d9d6e6",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-a11163d5ea",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-fa86f8ba1f",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-0733f8c42f",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-50e1e39e6e",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-279f490cb5",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-e2eee1b9ea",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-564e678672",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-9cbc841634",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-1f25a70fbf",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-f4b5e71c43",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-84a14a65d9",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-a76624546e",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-a2b59719d0",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-b18a07d0be",
+      "outcome": "success",
+      "terminal_class": "success",
+      "flags": [],
+      "turns": 1,
+      "invalid_calls": 0,
+      "malformed_calls": 0,
+      "safety_violations": 0,
+      "repeated_calls": 0,
+      "max_no_progress": 0,
+      "faulted": false,
+      "fault_bucket": "clean",
+      "faults": [],
+      "failing_phase": "done",
+      "length_bucket": "short(<=8)"
+    },
+    {
+      "episode_id": "l2-489945add8",
       "outcome": "success",
       "terminal_class": "success",
       "flags": [],
@@ -272,13 +612,13 @@
   ],
   "receipts": {
     "source": "l2_receipts",
-    "calls": 10,
+    "calls": 30,
     "uncertain_outcome_rate": 0.0,
-    "latency_p50_ms": 9760.377,
-    "latency_p95_ms": 9969.18,
+    "latency_p50_ms": 10017.153,
+    "latency_p95_ms": 10948.234,
     "by_capability": {
       "mission-control.deliver_tool": {
-        "completed": 10
+        "completed": 30
       }
     },
     "duplicate_effect_rate": 0.0

@@ -111,10 +111,10 @@
       "uncertain_outcome_rate": 0.0
     },
     {
-      "calls": 10,
+      "calls": 30,
       "duplicate_effect_rate": 0.0,
       "evaluation": "l2_baseline",
-      "latency_p50_ms": 9760.377,
+      "latency_p50_ms": 10017.153,
       "source": "l2_receipts",
       "uncertain_outcome_rate": 0.0
     },

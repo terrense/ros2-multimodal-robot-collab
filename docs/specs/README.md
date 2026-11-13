@@ -62,7 +62,7 @@ Done since the line was first planned, and worth knowing about:
 
 All three of those have since run against a live stack: the concurrent executor
 in a real `MultiThreadedExecutor`, the wire faults with real packet loss, and
-the L2 adapter against ten real missions. The wire faults need no root and no
+the L2 adapter against thirty real missions. The wire faults need no root and no
 person — `unshare -Ur -n` grants the capability over its own namespace, and the
 whole experiment lives inside it.
 

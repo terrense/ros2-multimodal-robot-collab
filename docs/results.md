@@ -131,7 +131,7 @@ any command reached the backend twice.
 | evaluation | source | calls | uncertain outcome | latency p50 (ms) | latency p95 (ms) | duplicate effect | evidence |
 |---|---|---|---|---|---|---|---|
 | expert_oracle | l1_trajectory | 4691 | 0.0% | n/a | n/a | n/a | run record |
-| l2_baseline | l2_receipts | 10 | 0.0% | 9760.4 | 9969.2 | 0.0% | run record |
+| l2_baseline | l2_receipts | 30 | 0.0% | 10017.2 | 10948.2 | 0.0% | run record |
 | rule_baseline | l1_trajectory | 4205 | 0.0% | n/a | n/a | n/a | run record |
 
 Not applicable, and why:
@@ -160,7 +160,7 @@ returns real receipts with timestamps and writes a ledger, so
 `python -m training.evaluate_l2` can report latency and a duplicate-effect rate
 that are measurements rather than definitions. **That run has happened** — ten
 real missions, all completed, no uncertain outcomes, no command dispatched
-twice, and a median mission time of 9.76 s.
+twice, and a median mission time of 10.02 s.
 
 Getting the latency at all meant fixing something nobody had noticed was
 missing: the receipt contract has carried `started_at` and `finished_at` since
