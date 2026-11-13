@@ -23,7 +23,7 @@ def main(argv: list[str]) -> int:
     payload = json.loads(log_path.read_text(encoding="utf-8"))
     families = {row["family"]: row for row in payload.get("families", [])}
 
-    for source in argv[2:]:
+    for source in argv[1:]:
         incoming = json.loads(Path(source).read_text(encoding="utf-8"))
         for row in incoming.get("families", []):
             families[row["family"]] = row

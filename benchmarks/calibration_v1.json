@@ -1,20 +1,20 @@
 {
   "version": "calibration_v1",
   "seed": 20261110,
-  "generated_at": 1794448805.1319768,
+  "generated_at": 1794571787.0990775,
   "min_samples": 30,
   "families": [
     {
       "name": "grasp_failure",
       "l1_rate": 0.6587,
-      "l2_rate": null,
+      "l2_rate": 1.0,
       "wilson_95": [
-        0.0,
+        0.7225,
         1.0
       ],
-      "samples": 0,
+      "samples": 10,
       "calibrated": false,
-      "reason": "not_measured",
+      "reason": "insufficient_samples",
       "question": "a pick that failed once succeeds on the next attempt",
       "l1_source": "default_params.failed_attempts == 1"
     },
@@ -63,28 +63,28 @@
     {
       "name": "no_progress",
       "l1_rate": 1.0,
-      "l2_rate": null,
+      "l2_rate": 1.0,
       "wilson_95": [
-        0.0,
+        0.5655,
         1.0
       ],
-      "samples": 0,
+      "samples": 5,
       "calibrated": false,
-      "reason": "not_measured",
+      "reason": "insufficient_samples",
       "question": "a blocked handover is unblocked by calling the operator",
       "l1_source": "l1_sim: handover_blocked clears on hri.publish_tts"
     },
     {
       "name": "tool_drop",
       "l1_rate": 1.0,
-      "l2_rate": null,
+      "l2_rate": 1.0,
       "wilson_95": [
-        0.0,
+        0.7225,
         1.0
       ],
-      "samples": 0,
+      "samples": 10,
       "calibrated": false,
-      "reason": "not_measured",
+      "reason": "insufficient_samples",
       "question": "a dropped tool can be re-picked from where it fell",
       "l1_source": "l1_sim: drop_pending puts the tool in DROP_ZONE"
     },

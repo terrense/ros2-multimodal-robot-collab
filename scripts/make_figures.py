@@ -66,6 +66,10 @@ FAMILY_ORDER = (
     "low_confidence",
     "user_cancel",
     "tool_missing",
+    "grasp_failure",
+    "tool_drop",
+    "no_progress",
+    "visual_occlusion",
 )
 FAMILY_LABELS = {
     "nav_timeout": "nav_timeout",
@@ -73,6 +77,10 @@ FAMILY_LABELS = {
     "low_confidence": "low_confidence",
     "user_cancel": "user_cancel",
     "tool_missing": "tool_missing",
+    "grasp_failure": "grasp_failure",
+    "tool_drop": "tool_drop",
+    "no_progress": "no_progress",
+    "visual_occlusion": "visual_occlusion",
 }
 SCENARIO_ORDER = (
     "duplicated_packets",

@@ -45,6 +45,6 @@ stations:
     frame_id: map
     pose:
       x: 0.00
-      y: 1.60
-      yaw: -1.08
+      y: 2.40
+      yaw: -1.19
     role: viewpoint

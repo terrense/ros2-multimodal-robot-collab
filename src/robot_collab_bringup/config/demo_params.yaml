@@ -37,8 +37,10 @@ tool_detector_node:
     # the tool. A hidden tool is a detection the mission cannot act on.
     occluded_confidence: 0.22
     # How much closer than the tool a surface has to be to count as
-    # blocking it.
-    occlusion_margin: 0.08
+    # blocking it. A quarter of a metre: the shelf the tool stands on is
+    # itself a surface along the last of the ray, and it is not an
+    # obstruction.
+    occlusion_margin: 0.25
     # How far around the tool a surface may be and still block it.
     occlusion_radius: 0.12
 

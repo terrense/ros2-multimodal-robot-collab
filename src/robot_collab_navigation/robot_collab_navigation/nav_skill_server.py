@@ -82,7 +82,7 @@ class NavSkillServer(Node):
         self.declare_parameter("odom_topic", "/odom")
         self._stations = self._load_station_registry()
         self._robot_model = str(self.get_parameter("robot_model").value)
-        self._truth: tuple[float, float] | None = None
+        self._truth: tuple[float, float, float] | None = None
         #: What the navigation could not vouch for.
         self._warnings: list[str] = []
         #: A counter for the drive loop, so that the log says something once
@@ -240,7 +240,7 @@ class NavSkillServer(Node):
             if goal_handle.is_cancel_requested:
                 self._stop()
                 return False
-            pose = self._odom
+            pose = self._pose()
             if pose is None:
                 await rclpy_sleep(self, period)
                 continue
@@ -269,7 +269,7 @@ class NavSkillServer(Node):
             if goal_handle.is_cancel_requested:
                 self._stop()
                 return False
-            pose = self._odom
+            pose = self._pose()
             if pose is None:
                 await rclpy_sleep(self, period)
                 continue
@@ -333,10 +333,32 @@ class NavSkillServer(Node):
         world's. When they disagree, the robot thinks it drove and it did
         not, and the navigation says so rather than reporting an arrival it
         cannot vouch for.
+
+        The simulated backend steers by this pose. The wheels slip in this
+        simulation, so the odometry counts more wheel rotation than the
+        chassis travels, and steering by it would send the base in a curve
+        that misses the station.
         """
         for name, pose in zip(msg.name, msg.pose, strict=False):
-            if name == self._robot_model:
-                self._truth = (float(pose.position.x), float(pose.position.y))
+            if name != self._robot_model:
+                continue
+            orientation = pose.orientation
+            yaw = math.atan2(
+                2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+                1.0 - 2.0 * (orientation.y**2 + orientation.z**2),
+            )
+            self._truth = (float(pose.position.x), float(pose.position.y), yaw)
+
+    def _pose(self) -> tuple[float, float, float] | None:
+        """Where the base is, as far as the navigation can tell.
+
+        The odometry. It is the robot's own account of where it is, and a
+        navigation that used anything else would be a navigation that cannot
+        work on a real robot. In this simulation the wheels slip, so the
+        account is wrong -- and the disagreement with the simulator's own
+        model states is reported at every arrival.
+        """
+        return self._odom
 
     def _disagreement(self) -> float | None:
         """How far the odometry is from where the chassis actually is."""

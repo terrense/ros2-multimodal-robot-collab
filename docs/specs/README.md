@@ -41,7 +41,7 @@ Audit: [`docs/openrua_audit/`](../openrua_audit/).
 
 | Item | Phase it belongs to | Why it is still open |
 |---|---|---|
-| The four families the live stack could not produce | O6 | All four are produced now, and by changing the robot's own nodes rather than by changing the harness: `grasp_failure` needs an arm that can miss a grasp, `tool_drop` needs an arm that can let go of a tool, `no_progress` needs a mission that consults the handover zone and calls the operator, and `visual_occlusion` needs a detector that looks at the world and a base that can move. Each of those is now a node behaviour with a probe that measures it. |
+| The four families the live stack could not produce | O6 | Three of them are produced now, and by changing the robot's own nodes rather than by changing the harness: `grasp_failure` needs an arm that can miss a grasp, `tool_drop` needs an arm that can let go of a tool, and `no_progress` needs a mission that consults the handover zone and calls the operator. Each of those is now a node behaviour with a probe that measures it. `visual_occlusion` is half done: the detector reads the depth camera and knows the tool is hidden, but clearing the occlusion needs a second viewpoint, and the simulated base's wheels grip sideways, so it cannot turn. |
 | Running the wire faults | O3.1 | The injection tool, five scenarios and the three invariants are built and tested; running them needs root, a live stack and a person. |
 | The receipt metrics from a live run | O6 | The L1 side is measured and published (`docs/results.md`). The L2 side needs a live stack and a ledger behind it; that run has not happened. |
 

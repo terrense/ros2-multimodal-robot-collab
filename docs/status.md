@@ -102,20 +102,20 @@ advanced a single step.
 ### Calibration: the state of the fault model
 
 L1's fault behaviour is configured, not measured, and the calibration machinery
-exists to change that. Five families have been measured at 30 samples each, and
-**four of the five disagree with L1**:
+exists to change that. Eight families have been measured against the live
+stack, and **four of them disagree with L1**:
 
-| Family | L1 says | Live stack (n=30) | Wilson 95% | Verdict |
+| Family | L1 says | Live stack | Wilson 95% | Verdict |
 |---|---|---|---|---|
-| `nav_timeout` | 0.665 | 1.000 | `[0.887, 1.000]` | `interval_excludes_l1_rate` — L1 says a third of its episodes need two timeouts; the stack recovered first time, 30/30 |
-| `identity_mismatch` | 0.346 | 0.000 | `[0.000, 0.114]` | `interval_excludes_l1_rate` — L1 says a face mismatch heals a third of the time; the stack says never |
-| `low_confidence` | 0.500 | 0.000 | `[0.000, 0.114]` | `interval_excludes_l1_rate` — L1 gives a re-perceive half a chance; the detector publishes the same confidence every time |
-| `user_cancel` | 1.000 | 0.000 | `[0.000, 0.114]` | `interval_excludes_l1_rate` — the motion stops, and the mission reports it as a failed pick rather than as a cancellation |
-| `tool_missing` | 1.000 | 1.000 | `[0.887, 1.000]` | `ok` — the mission says "Could not find tool …", and keeps saying so |
-| `grasp_failure` | 0.659 | **not producible** | — | the simulated arm never fails a grasp |
-| `visual_occlusion` | 1.000 | **not producible** | — | the perception stub publishes a fixed detection and does not observe the world |
-| `tool_drop` | 1.000 | **not producible** | — | nothing on the stack releases a held tool |
-| `no_progress` | 1.000 | **not producible** | — | nothing consults the handover zone, so it cannot be blocked |
+| `nav_timeout` | 0.665 | 1.000 (30/30) | `[0.886, 1.000]` | `interval_excludes_l1_rate` — L1 says a third of its episodes need two timeouts; the stack recovered first time, 30/30 |
+| `identity_mismatch` | 0.346 | 0.000 (0/30) | `[0.000, 0.114]` | `interval_excludes_l1_rate` — L1 says a face mismatch heals a third of the time; the stack says never |
+| `low_confidence` | 0.500 | 0.000 (0/30) | `[0.000, 0.114]` | `interval_excludes_l1_rate` — L1 gives a re-perceive half a chance; the detector publishes the same confidence every time |
+| `user_cancel` | 1.000 | 0.000 (0/30) | `[0.000, 0.114]` | `interval_excludes_l1_rate` — the motion stops, and the mission reports it as a failed pick rather than as a cancellation |
+| `tool_missing` | 1.000 | 1.000 (30/30) | `[0.886, 1.000]` | `ok` — the mission says "Could not find tool …", and keeps saying so |
+| `grasp_failure` | 0.659 | 1.000 (10/10) | `[0.723, 1.000]` | `insufficient_samples` — the arm can miss a grasp now; ten samples is not thirty |
+| `tool_drop` | 1.000 | 1.000 (10/10) | `[0.723, 1.000]` | `insufficient_samples` — the arm can let go of a tool now |
+| `no_progress` | 1.000 | 1.000 (5/5) | `[0.566, 1.000]` | `insufficient_samples` — the mission asks for help now |
+| `visual_occlusion` | 1.000 | **not measured** | — | the detector sees the occlusion; the base cannot turn to look from somewhere else, so there is no second viewpoint |
 
 The four rows that disagree point the same way: **L1 assumes a self-healing the
 stack does not have.** A face mismatch that heals, a marginal detection that
@@ -314,10 +314,11 @@ the choice changes every published number.
 
 ### 2. The base drives, and what it still gets wrong
 
-The four families that could not be produced are produced now, by changing the
-robot's own nodes. The one thing that had to be fixed underneath them was the
-base itself: the controller manager had never come up, so the base had no
-motors, and every "arrived" was a report of something that did not happen.
+Three of the four families that could not be produced are produced now, by
+changing the robot's own nodes. The one thing that had to be fixed underneath
+them was the base itself: the controller manager had never come up, so the
+base had no motors, and every "arrived" was a report of something that did
+not happen.
 
 Two defects were behind it, and both were silent:
 
@@ -333,11 +334,16 @@ Two defects were behind it, and both were silent:
   in the log to say why. The arm is a prop on this base (the arm server
   simulates the manipulation), so its joints are locked.
 
-What is still wrong: the wheels slip. The odometry counts more wheel
-rotation than the chassis travels, so the navigation stops short of what the
-odometry says it reached. The navigation compares the two — the odometry
-against the simulator's own model states — and reports the gap instead of
-hiding it.
+What is still wrong: the wheels grip sideways. The base drives where it was
+pointed and cannot turn, so the odometry counts more wheel rotation than the
+chassis travels and the navigation ends up somewhere the robot is not. The
+navigation compares the two — the odometry against the simulator's own model
+states — and reports the gap instead of hiding it.
+
+That is also why `visual_occlusion` is the one family still unmeasured: the
+detector can see that the tool is hidden behind the panel the scene puts up,
+but clearing the occlusion means looking from somewhere else, and this base
+cannot look from anywhere else.
 
 ---
 

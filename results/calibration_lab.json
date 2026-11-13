@@ -3,14 +3,15 @@
   "min_samples": 30,
   "families": [
     {
-      "family": "nav_timeout",
-      "successes": 30,
-      "samples": 30,
+      "family": "grasp_failure",
+      "successes": 10,
+      "samples": 10,
       "rate": 1.0,
-      "note": "30/30 samples behaved as L1 predicts",
+      "note": "10/10 samples behaved as L1 predicts",
       "detail": {
-        "first": "unknown",
-        "second": "completed"
+        "first": "failed",
+        "second": "completed",
+        "tool_id": "hex_key_3mm"
       }
     },
     {
@@ -23,18 +24,6 @@
         "first": "failed",
         "second": "failed",
         "operator_id": "operator_001_absent"
-      }
-    },
-    {
-      "family": "tool_missing",
-      "successes": 30,
-      "samples": 30,
-      "rate": 1.0,
-      "note": "30/30 samples behaved as L1 predicts",
-      "detail": {
-        "tool_id": "hex_key_3mm_absent",
-        "first": "Action completed: /mission/deliver_tool | Could not find tool hex_key_3mm_absent. | Action completed: /mission/deliver_tool",
-        "second": "Action completed: /mission/deliver_tool | Could not find tool hex_key_3mm_absent. | Action completed: /mission/deliver_tool"
       }
     },
     {
@@ -61,6 +50,53 @@
           }
         ],
         "threshold": 0.7
+      }
+    },
+    {
+      "family": "nav_timeout",
+      "successes": 30,
+      "samples": 30,
+      "rate": 1.0,
+      "note": "30/30 samples behaved as L1 predicts",
+      "detail": {
+        "first": "unknown",
+        "second": "completed"
+      }
+    },
+    {
+      "family": "no_progress",
+      "successes": 5,
+      "samples": 5,
+      "rate": 1.0,
+      "note": "5/5 samples behaved as L1 predicts",
+      "detail": {
+        "status": "completed",
+        "called_the_operator": true,
+        "blocked": true
+      }
+    },
+    {
+      "family": "tool_drop",
+      "successes": 10,
+      "samples": 10,
+      "rate": 1.0,
+      "note": "10/10 samples behaved as L1 predicts",
+      "detail": {
+        "first": "failed",
+        "second": "completed",
+        "drop_frame": "drop_zone_10"
+      }
+    },
+    {
+      "family": "tool_missing",
+      "successes": 30,
+      "samples": 30,
+      "rate": 1.0,
+      "note": "30/30 samples behaved as L1 predicts",
+      "detail": {
+        "tool_id": "hex_key_3mm_absent",
+        "first": "Action completed: /mission/deliver_tool | Could not find tool hex_key_3mm_absent. | Action completed: /mission/deliver_tool",
+        "second": "Action completed: /mission/deliver_tool | Could not find tool hex_key_3mm_absent. | Action completed: /mission/deliver_tool"
       }
     },
     {
@@ -93,20 +129,8 @@
   ],
   "unmeasured": [
     {
-      "family": "grasp_failure",
-      "reason": "no fault produced: the first pick succeeded; the probe produced no grasp failure to recover from"
-    },
-    {
       "family": "visual_occlusion",
       "reason": "no fault produced: the detection is still confident with the occluder in place: the perception stub publishes a fixed detection and does not observe the world, so nothing can occlude it"
-    },
-    {
-      "family": "tool_drop",
-      "reason": "no fault produced: the tool is in the frame it was asked for: nothing on this stack releases a held tool, so a drop cannot happen"
-    },
-    {
-      "family": "no_progress",
-      "reason": "no fault produced: the handover completed with the station occupied: nothing on this stack consults the handover zone, so it cannot be blocked"
     }
   ]
 }

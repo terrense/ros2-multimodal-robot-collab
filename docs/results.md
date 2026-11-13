@@ -5,7 +5,7 @@ Primary metric: `recovery_success` -- share of fault-injected episodes that end 
 
 <!-- BEGIN GENERATED: summary -->
 Runs completed: 1/7. Pending: sft, sft_dpo, ppo_terminal, ppo_progress, opd_pure, opd_warmup_ppo.
-L2 status: 1/9 fault families calibrated against the live stack; not calibrated: grasp_failure (not_measured), identity_mismatch (interval_excludes_l1_rate), low_confidence (interval_excludes_l1_rate), nav_timeout (interval_excludes_l1_rate), no_progress (not_measured), tool_drop (not_measured), user_cancel (interval_excludes_l1_rate), visual_occlusion (not_measured). Every result below is L1 only.
+L2 status: 1/9 fault families calibrated against the live stack; not calibrated: grasp_failure (insufficient_samples), identity_mismatch (interval_excludes_l1_rate), low_confidence (interval_excludes_l1_rate), nav_timeout (interval_excludes_l1_rate), no_progress (insufficient_samples), tool_drop (insufficient_samples), user_cancel (interval_excludes_l1_rate), visual_occlusion (not_measured). Every result below is L1 only.
 <!-- END GENERATED: summary -->
 
 Targets are pre-registered acceptance criteria, not results. Measured columns
@@ -258,18 +258,29 @@ Two scenes with completely different geometry, five identical rates. Both
 logs are committed (`results/calibration_lab.json`,
 `results/calibration_workshop.json`).
 
+The three families that needed the robot's own nodes -- `grasp_failure`,
+`tool_drop` and `no_progress` -- have been measured in the lab scene only so
+far; the workshop run is still to come.
+
 ### The four that the stack cannot produce
 
-The other four families are not measured, and the reason is a property of the
-software rather than of the harness -- which is the first time that is true of
-all of them:
+The other four families could not be produced because the software did not
+behave the way the fault needs. Three of them are produced now, and the
+production was in the robot's own nodes:
 
-| Family | Why the fault cannot happen |
-|---|---|
-| `visual_occlusion` | The perception stub publishes a fixed detection and does not observe the world. An occluder changes nothing, and there is no viewpoint-change capability to clear one with. |
-| `tool_drop` | Nothing on the stack releases a held tool: the only grasp puts the tool in the frame it was asked for. |
-| `no_progress` | Nothing consults the handover zone, so an occupied station is not a blocked handover. |
-| `grasp_failure` | The simulated arm never fails a grasp. |
+| Family | What the robot had to do | Measured |
+|---|---|---|
+| `grasp_failure` | The arm can miss a grasp once: the next attempt closes on nothing, the one after that works. | 10/10 |
+| `tool_drop` | The arm can let go of the tool in transit, and publishes where it fell, so the retry picks it up from there. | 10/10 |
+| `no_progress` | The mission consults the handover zone before it hands the tool over, calls the operator when the zone is blocked, and waits for the zone to clear. | 5/5 |
+| `visual_occlusion` | The detector reads the depth camera's point cloud and publishes a low-confidence detection when something stands between the camera and the tool. | **not measured** |
+
+`visual_occlusion` is the one that is still open, and the reason is
+physical rather than a missing mechanism: clearing an occlusion means
+looking from somewhere else, and the simulated base's wheels grip sideways,
+so it drives where it was pointed and cannot turn. The detector's half of
+the work is done -- it reads the world and knows the tool is hidden -- but
+there is no second viewpoint to look from.
 
 Each of those probes tries anyway, and refuses with the mechanism that is
 missing. "Scene not arranged" was the old answer, and it blamed the operator
@@ -290,8 +301,8 @@ fault model.
 
 Both families are now scene-dependent, with the scene written down: a marginally
 lit tool for `low_confidence`, a tool absent from the world for `tool_missing`.
-`grasp_failure` is dispatchable but cannot be made to fail -- the simulated arm
-succeeds on the first attempt -- so its probe refuses with that reason.
+`grasp_failure` is now measurable too: the arm can be made to miss a grasp
+once, and the probe measures the retry.
 
 Two integration defects were found the same way and fixed: `run_calibration`
 wrote its log under a `families` key while `calibrate_l2 --from-log` read only
