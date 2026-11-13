@@ -9,6 +9,8 @@ Everything in here is **evidence**, not scratch. It is what makes a number in
 | `run_records/<arm>.json` | The run record for it: model, prompt hash, action-schema hash, benchmark hash, seeds, budgets, artifacts. |
 | `wire/wire_<scenario>.json` | One transport-fault run: the scenario, the criteria and their verdicts, and the numbers the run saw (how long the command took healthy and under the fault, and how many packets the link says it dropped). |
 | `conditions.json` | The four closed-loop configurations of Phase 6, scored on the same thirty L1 episodes. |
+| `calibration_lab.json` | The calibration's measurements in the lab scene (the default world). |
+| `calibration_workshop.json` | The same calibration in the workshop scene, with the three official arms in the world. The two agree on every family, which is what makes the measurement a measurement of the stack rather than of a scene. |
 
 The wire reports are the evidence for six PASS verdicts: without them, the
 twelve criteria had passed but nothing in the repository said so. The figures

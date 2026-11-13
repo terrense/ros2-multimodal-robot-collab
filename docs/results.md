@@ -240,6 +240,24 @@ That is the calibration mechanism working. None of these numbers is a bug in a
 probe: each probe refuses to count a sample unless it actually produced the
 fault.
 
+### The same numbers in both scenes
+
+The calibration is a measurement of the **stack**, not of a particular world.
+Run it again in the workshop scene -- three official arms, a workbench, the
+task's stations -- and every rate is the same:
+
+| Family | Lab scene (obstacles) | Workshop scene (three arms) |
+|---|---|---|
+| `nav_timeout` | 30/30 | 30/30 |
+| `identity_mismatch` | 0/30 | 0/30 |
+| `tool_missing` | 30/30 | 30/30 |
+| `low_confidence` | 0/30 | 0/30 |
+| `user_cancel` | 0/30 | 0/30 |
+
+Two scenes with completely different geometry, five identical rates. Both
+logs are committed (`results/calibration_lab.json`,
+`results/calibration_workshop.json`).
+
 ### The four that the stack cannot produce
 
 The other four families are not measured, and the reason is a property of the

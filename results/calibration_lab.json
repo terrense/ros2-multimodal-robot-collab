@@ -1,0 +1,112 @@
+{
+  "version": "l2_measurements_v1",
+  "min_samples": 30,
+  "families": [
+    {
+      "family": "nav_timeout",
+      "successes": 30,
+      "samples": 30,
+      "rate": 1.0,
+      "note": "30/30 samples behaved as L1 predicts",
+      "detail": {
+        "first": "unknown",
+        "second": "completed"
+      }
+    },
+    {
+      "family": "identity_mismatch",
+      "successes": 0,
+      "samples": 30,
+      "rate": 0.0,
+      "note": "0/30 samples behaved as L1 predicts",
+      "detail": {
+        "first": "failed",
+        "second": "failed",
+        "operator_id": "operator_001_absent"
+      }
+    },
+    {
+      "family": "tool_missing",
+      "successes": 30,
+      "samples": 30,
+      "rate": 1.0,
+      "note": "30/30 samples behaved as L1 predicts",
+      "detail": {
+        "tool_id": "hex_key_3mm_absent",
+        "first": "Action completed: /mission/deliver_tool | Could not find tool hex_key_3mm_absent. | Action completed: /mission/deliver_tool",
+        "second": "Action completed: /mission/deliver_tool | Could not find tool hex_key_3mm_absent. | Action completed: /mission/deliver_tool"
+      }
+    },
+    {
+      "family": "low_confidence",
+      "successes": 0,
+      "samples": 30,
+      "rate": 0.0,
+      "note": "0/30 samples behaved as L1 predicts",
+      "detail": {
+        "first": {
+          "tool_id": "hex_key_3mm",
+          "label": "3mm hex key",
+          "confidence": 0.4000000059604645,
+          "source_frame": "camera_link",
+          "detector_id": "tool_detector_node"
+        },
+        "second": [
+          {
+            "tool_id": "hex_key_3mm",
+            "label": "3mm hex key",
+            "confidence": 0.4000000059604645,
+            "source_frame": "camera_link",
+            "detector_id": "tool_detector_node"
+          }
+        ],
+        "threshold": 0.7
+      }
+    },
+    {
+      "family": "user_cancel",
+      "successes": 0,
+      "samples": 30,
+      "rate": 0.0,
+      "note": "0/30 samples behaved as L1 predicts",
+      "detail": {
+        "motion": {
+          "stop": "Topic message published: /arm/control_command | Topic message published: /arm/control_command",
+          "motion": "Action completed: /skills/pick_and_place | Manipulation stopped by operator gesture. | Action completed: /skills/pick_and_place",
+          "motion_status": "failed",
+          "stopped": true
+        },
+        "mission": {
+          "stop": "Topic message published: /arm/control_command | Topic message published: /arm/control_command",
+          "mission": "Action completed: /mission/deliver_tool | Manipulation failed for hex_key_3mm. | Action completed: /mission/deliver_tool",
+          "mission_status": "failed",
+          "phases": [
+            "NAVIGATE",
+            "NAVIGATE",
+            "NAVIGATE",
+            "PICK_TOOL"
+          ],
+          "cancelled": false
+        }
+      }
+    }
+  ],
+  "unmeasured": [
+    {
+      "family": "grasp_failure",
+      "reason": "no fault produced: the first pick succeeded; the probe produced no grasp failure to recover from"
+    },
+    {
+      "family": "visual_occlusion",
+      "reason": "no fault produced: the detection is still confident with the occluder in place: the perception stub publishes a fixed detection and does not observe the world, so nothing can occlude it"
+    },
+    {
+      "family": "tool_drop",
+      "reason": "no fault produced: the tool is in the frame it was asked for: nothing on this stack releases a held tool, so a drop cannot happen"
+    },
+    {
+      "family": "no_progress",
+      "reason": "no fault produced: the handover completed with the station occupied: nothing on this stack consults the handover zone, so it cannot be blocked"
+    }
+  ]
+}
