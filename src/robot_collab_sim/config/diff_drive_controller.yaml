@@ -1,0 +1,23 @@
+# The diff-drive controller's parameters.
+#
+# The spawner hands this file to the controller when it loads it, so the
+# parameters land on the controller's own node under the names the
+# controller declares. The block is keyed by the controller's name, and
+# `ros__parameters` is the marker rcl strips when it reads the file.
+diff_drive_controller:
+  ros__parameters:
+    # The wheels are 0.72 m apart and 0.06 m in radius, from
+    # collab_mobile_base.urdf.xacro. A wrong wheel separation makes the
+    # odometry disagree with the robot, and a wrong radius makes the
+    # odometry disagree with the distance travelled.
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+    wheel_separation: 0.72
+    wheel_radius: 0.06
+    publish_rate: 50.0
+    odom_frame_id: odom
+    base_frame_id: base_footprint
+    use_stamped_vel: false
+    open_loop: false
+    enable_odom_tf: true
+    use_sim_time: true

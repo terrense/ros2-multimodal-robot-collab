@@ -1,4 +1,5 @@
 import math
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,8 +10,10 @@ from ament_index_python.packages import (
     PackageNotFoundError,
     get_package_share_directory,
 )
-from geometry_msgs.msg import PoseStamped
+from gazebo_msgs.msg import ModelStates
+from geometry_msgs.msg import PoseStamped, Twist
 from nav2_msgs.action import NavigateToPose
+from nav_msgs.msg import Odometry
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
 from rclpy.task import Future
@@ -54,7 +57,54 @@ class NavSkillServer(Node):
         self.declare_parameter("nav2_action_name", "/navigate_to_pose")
         self.declare_parameter("nav2_server_timeout_sec", 5.0)
         self.declare_parameter("nav2_goal_timeout_sec", 120.0)
+        self.declare_parameter("simulate_max_speed", 0.6)
+        self.declare_parameter("simulate_arrive_tolerance", 0.15)
+        self.declare_parameter("simulate_drive_timeout_sec", 60.0)
+        self.declare_parameter("simulate_control_hz", 10.0)
+        # The simulator's own account of the robot, so that a drive the
+        # odometry reports and the chassis does not show is visible.
+        self.declare_parameter("model_states_topic", "/model_states")
+        self.declare_parameter("robot_model", "collab_mobile_base")
+        self.declare_parameter("odometry_disagreement_m", 0.25)
+        # How close is close enough when facing a station, and how long the
+        # base may spend trying.
+        self.declare_parameter("simulate_turn_tolerance_rad", 0.25)
+        self.declare_parameter("simulate_turn_timeout_sec", 20.0)
+        # Where the base takes its commands and where its pose comes from.
+        #
+        # The defaults are the classic names. A base driven by ros2_control
+        # listens on the controller's own topics -- /diff_drive_controller/
+        # cmd_vel_unstamped and /diff_drive_controller/odom -- so the launch
+        # points these two parameters at them. Getting this wrong is quiet:
+        # the navigation reports that it drove to the station and the robot
+        # never moved.
+        self.declare_parameter("cmd_vel_topic", "/cmd_vel")
+        self.declare_parameter("odom_topic", "/odom")
         self._stations = self._load_station_registry()
+        self._robot_model = str(self.get_parameter("robot_model").value)
+        self._truth: tuple[float, float] | None = None
+        #: What the navigation could not vouch for.
+        self._warnings: list[str] = []
+        #: A counter for the drive loop, so that the log says something once
+        #: a second instead of ten times a second.
+        self._ticks = 0
+        self.create_subscription(
+            ModelStates,
+            str(self.get_parameter("model_states_topic").value),
+            self._on_model_states,
+            5,
+        )
+        self._cmd_vel = self.create_publisher(
+            Twist, str(self.get_parameter("cmd_vel_topic").value), 10
+        )
+        self._cmd_vel_topic = str(self.get_parameter("cmd_vel_topic").value)
+        self._odom: tuple[float, float, float] | None = None
+        self.create_subscription(
+            Odometry,
+            str(self.get_parameter("odom_topic").value),
+            self._on_odom,
+            10,
+        )
         self._nav2_client = ActionClient(
             self,
             NavigateToPose,
@@ -69,6 +119,12 @@ class NavSkillServer(Node):
             cancel_callback=self._handle_cancel,
         )
         backend = str(self.get_parameter("backend").value)
+        if backend.lower() == "nav2" and self._cmd_vel_topic != "/cmd_vel":
+            # Nav2 publishes the classic /cmd_vel; the base listens on the
+            # controller's own topic. This relay is what connects the two.
+            # It is only wired up when the two differ, because a relay onto
+            # the topic it reads from is a loop.
+            self.create_subscription(Twist, "/cmd_vel", self._relay_cmd_vel, 10)
         station_count = len(self._known_station_ids())
         self.get_logger().info(f"Navigation skill server is ready: backend={backend}, stations={station_count}.")
 
@@ -91,6 +147,14 @@ class NavSkillServer(Node):
         return await self._execute_simulated_navigation(goal_handle)
 
     async def _execute_simulated_navigation(self, goal_handle) -> NavigateToStation.Result:
+        """Drive the base to the station, for real.
+
+        This backend used to publish progress and report success without
+        moving: the robot stayed where it was, and every physical question was
+        unaskable -- can the arm reach the tool, is the handover zone
+        occupied, does the view of the tool change when the robot drives
+        somewhere else. Those are exactly the questions the calibration asks.
+        """
         goal = goal_handle.request
         station = self._stations.get(goal.station_id)
         station_detail = ""
@@ -106,13 +170,169 @@ class NavSkillServer(Node):
         for state, progress, detail in steps:
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
+                self._stop()
                 return self._result(False, "Navigation canceled.")
             self._publish_feedback(goal_handle, state, progress, detail)
             self.get_logger().info(f"[{state}] {detail}")
-            await rclpy_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
+            if state == "MOVING" and station is not None:
+                if not await self._drive_to(goal_handle, station):
+                    self._stop()
+                    return self._result(False, f"Could not reach {goal.station_id}.")
+                if not await self._turn_to(goal_handle, station):
+                    self._stop()
+                    return self._result(False, f"Could not face {goal.station_id}.")
+            else:
+                await rclpy_sleep(self, float(self.get_parameter("simulate_step_seconds").value))
+
+        disagreement = self._disagreement()
+        if disagreement is not None and disagreement > float(
+            self.get_parameter("odometry_disagreement_m").value
+        ):
+            # The odometry says the base arrived and the chassis says it
+            # did not. Saying so is the point: a navigation that reports an
+            # arrival nobody can vouch for is how a robot ends up telling
+            # lies about where it is.
+            self._warnings.append(
+                f"the odometry and the chassis disagree by {disagreement:.2f} m at {goal.station_id}"
+            )
+            self.get_logger().warn(
+                f"The odometry says the base reached {goal.station_id}, but the "
+                f"chassis is {disagreement:.2f} m from where the odometry says it is."
+            )
+            self._publish_feedback(
+                goal_handle,
+                "ARRIVED",
+                1.00,
+                f"Reached {goal.station_id} according to the odometry; the "
+                f"chassis is {disagreement:.2f} m away from there.",
+            )
 
         goal_handle.succeed()
         return self._result(True, f"Reached {goal.station_id}.")
+
+    async def _turn_to(self, goal_handle, station: StationPose) -> bool:
+        """Turn to face the way the station is meant to be approached.
+
+        A robot that arrives at a workstation and keeps the heading it drove
+        in is a robot whose camera is pointing at the wall. The station's
+        yaw is the way it is meant to face, and the camera is on the robot.
+
+        The tolerance is loose on purpose. The base has no grip in this
+        simulation, so the last degrees of a turn are the ones it cannot
+        finish, and a robot that never finishes turning never arrives: the
+        tolerance is what says "close enough to work at the station".
+        """
+        tolerance = float(self.get_parameter("simulate_turn_tolerance_rad").value)
+        speed = 0.6
+        timeout = float(self.get_parameter("simulate_turn_timeout_sec").value)
+        period = 1.0 / float(self.get_parameter("simulate_control_hz").value)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if goal_handle.is_cancel_requested:
+                self._stop()
+                return False
+            pose = self._odom
+            if pose is None:
+                await rclpy_sleep(self, period)
+                continue
+            _, _, yaw = pose
+            error = (station.yaw - yaw + math.pi) % (2.0 * math.pi) - math.pi
+            if abs(error) <= tolerance:
+                self._stop()
+                return True
+            self._publish_cmd_vel(0.0, max(-1.0, min(1.0, speed * 2.0 * error)))
+            await rclpy_sleep(self, period)
+        self._stop()
+        return False
+
+    async def _drive_to(self, goal_handle, station: StationPose) -> bool:
+        """Drive straight towards the station until the base is close enough.
+
+        A straight line, because the stations are in the open part of the
+        workcell. A real planner is what the `nav2` backend is for.
+        """
+        tolerance = float(self.get_parameter("simulate_arrive_tolerance").value)
+        speed = float(self.get_parameter("simulate_max_speed").value)
+        timeout = float(self.get_parameter("simulate_drive_timeout_sec").value)
+        period = 1.0 / float(self.get_parameter("simulate_control_hz").value)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if goal_handle.is_cancel_requested:
+                self._stop()
+                return False
+            pose = self._odom
+            if pose is None:
+                await rclpy_sleep(self, period)
+                continue
+            x, y, yaw = pose
+            dx = station.x - x
+            dy = station.y - y
+            distance = math.hypot(dx, dy)
+            self._last_drive = (x, y, yaw, distance)
+            if distance <= tolerance:
+                self._stop()
+                return True
+            heading = math.atan2(dy, dx)
+            error = (heading - yaw + math.pi) % (2.0 * math.pi) - math.pi
+            angular = max(-1.0, min(1.0, 2.0 * error))
+            # Turn towards the target first; drive only once it is pointing
+            # roughly the right way.
+            linear = 0.0 if abs(error) > 0.35 else speed * min(1.0, distance / 0.5)
+            self._publish_cmd_vel(linear, angular)
+            self._ticks += 1
+            if self._ticks % 10 == 0:
+                # Once a second: enough to see what the base is doing, not
+                # enough to bury the log.
+                self.get_logger().info(
+                    f"[DRIVE] at ({x:.2f}, {y:.2f}) yaw {yaw:.2f}, "
+                    f"{distance:.2f} m to go, command v={linear:.2f} w={angular:.2f}"
+                )
+            await rclpy_sleep(self, period)
+        self._stop()
+        return False
+
+    def _publish_cmd_vel(self, linear: float, angular: float) -> None:
+        twist = Twist()
+        twist.linear.x = float(linear)
+        twist.angular.z = float(angular)
+        self._cmd_vel.publish(twist)
+
+    def _relay_cmd_vel(self, msg: Twist) -> None:
+        """Forward a velocity command from the classic topic to the base."""
+        self._cmd_vel.publish(msg)
+
+    def _stop(self) -> None:
+        self._publish_cmd_vel(0.0, 0.0)
+
+    def _on_odom(self, msg: Odometry) -> None:
+        position = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
+        yaw = math.atan2(
+            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z),
+        )
+        self._odom = (float(position.x), float(position.y), float(yaw))
+
+    def _on_model_states(self, msg: ModelStates) -> None:
+        """Where the chassis really is.
+
+        The simulator publishes the poses of everything in the world. The
+        odometry is the robot's own account of where it is; this is the
+        world's. When they disagree, the robot thinks it drove and it did
+        not, and the navigation says so rather than reporting an arrival it
+        cannot vouch for.
+        """
+        for name, pose in zip(msg.name, msg.pose, strict=False):
+            if name == self._robot_model:
+                self._truth = (float(pose.position.x), float(pose.position.y))
+
+    def _disagreement(self) -> float | None:
+        """How far the odometry is from where the chassis actually is."""
+        if self._odom is None or self._truth is None:
+            return None
+        return math.hypot(
+            self._odom[0] - self._truth[0], self._odom[1] - self._truth[1]
+        )
 
     async def _execute_nav2_navigation(self, goal_handle) -> NavigateToStation.Result:
         goal = goal_handle.request

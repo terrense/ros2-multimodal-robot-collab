@@ -17,8 +17,13 @@ def generate_launch_description():
     robot_description_path = PathJoinSubstitution([sim_share, "urdf", "collab_mobile_base.urdf.xacro"])
     default_world_path = PathJoinSubstitution([sim_share, "worlds", "collab_lab.world"])
 
+    # Not a plain `xacro` call: the description has to survive being handed to
+    # the controller manager as a parameter override, and rcl parses the value
+    # of an override as YAML -- where a colon followed by a space (an XML
+    # comment) ends the value. `robot_description` strips the comments and
+    # fails loudly if something else in the description cannot be carried.
     robot_description = ParameterValue(
-        Command(["xacro ", robot_description_path]),
+        Command(["python3 -m robot_collab_sim.robot_description ", robot_description_path]),
         value_type=str,
     )
 
@@ -68,8 +73,55 @@ def generate_launch_description():
                     "0.0",
                     "-y",
                     "0.0",
+                    # On the ground, not above it: the wheels touch, and a
+                    # robot that spawns in the air lands on its wheels with
+                    # a contact the solver cannot resolve.
                     "-z",
-                    "0.08",
+                    "0.0",
+                ],
+            ),
+            # The wheels are commanded through ros2_control. Without these two
+            # spawners the base has no motors: the joints spin and the robot
+            # slides a couple of centimetres, which looks like a robot that
+            # moves and is not one.
+            #
+            # The controller manager lives inside the gzserver process and
+            # only appears once the world has loaded and the robot has been
+            # spawned -- a minute and a half on a cold start, longer on a CI
+            # runner. The spawners' own timeout is 60 s, so they have to be
+            # told to wait longer than the default or they give up before the
+            # manager exists.
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                name="spawn_joint_state_broadcaster",
+                output="screen",
+                arguments=[
+                    "joint_state_broadcaster",
+                    "--controller-manager",
+                    "/controller_manager",
+                    "--controller-manager-timeout",
+                    "300",
+                ],
+            ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                name="spawn_diff_drive_controller",
+                output="screen",
+                arguments=[
+                    "diff_drive_controller",
+                    "--controller-manager",
+                    "/controller_manager",
+                    "--controller-manager-timeout",
+                    "300",
+                    # A controller reads its parameters from its own node, and
+                    # the spawner is what hands them over. The file is named
+                    # here rather than inside the manager's configuration
+                    # because only the launch knows where the package was
+                    # installed.
+                    "--param-file",
+                    PathJoinSubstitution([sim_share, "config", "diff_drive_controller.yaml"]),
                 ],
             ),
         ]

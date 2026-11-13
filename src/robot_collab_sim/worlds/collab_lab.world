@@ -23,6 +23,13 @@
       <uri>model://sun</uri>
     </include>
 
+    <!-- The stations are markers, not furniture: they say where the robot
+         has to stand, and the robot has to be able to stand there. The
+         shelf marker used to have a collision, and the base pushed against
+         it and never arrived: the navigation reported a drive that could
+         not finish, and every measurement that needed the robot at the
+         shelf failed for a reason that had nothing to do with the fault
+         under test. -->
     <model name="tool_shelf_marker">
       <pose>1.25 -0.75 0.15 0 0 0</pose>
       <static>true</static>
@@ -38,13 +45,6 @@
             <diffuse>0.1 0.42 0.8 1</diffuse>
           </material>
         </visual>
-        <collision name="collision">
-          <geometry>
-            <box>
-              <size>0.45 0.35 0.30</size>
-            </box>
-          </geometry>
-        </collision>
       </link>
     </model>
 

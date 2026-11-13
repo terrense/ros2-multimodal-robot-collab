@@ -24,6 +24,7 @@ is not by path.
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,6 +49,13 @@ class Prop:
     #: Height above the ground plane.
     z: float
     role: str
+    #: How far along the line of sight from the robot's start pose to the
+    #: station the prop stands, as a fraction. When it is set, the prop is
+    #: placed on that line instead of at the offset, and turned to face
+    #: along it.
+    along: float | None = None
+    #: A fixed heading, in radians. Nothing to set it with it.
+    yaw: float | None = None
 
     @property
     def path(self) -> Path:
@@ -63,7 +71,7 @@ class Scene:
     manual: tuple[str, ...] = field(default_factory=tuple)
     #: A node parameter the scene sets, as (node, parameter, value). The
     #: value that was there before is restored when the scene is cleared.
-    parameter: tuple[str, str, float] | None = None
+    parameter: tuple[str, str, float | str] | None = None
 
 
 SCENES: dict[str, Scene] = {
@@ -74,26 +82,31 @@ SCENES: dict[str, Scene] = {
                 name="calib_occluder",
                 sdf="calib_occluder.sdf",
                 station="tool_shelf",
-                offset=(-0.55, 0.10),
+                offset=(0.0, 0.0),
                 z=0.0,
                 role="blocks the D435's view of the shelf from the start pose",
+                # The panel stands on the line of sight from where the base
+                # starts to the shelf, so the detector's ray to the tool
+                # meets the panel instead of the tool. A short move to the
+                # side clears it, which is what the probe measures.
+                along=0.62,
             ),
         ),
         note="the base starts where the shelf is visible but the tool is not",
     ),
     "tool_drop": Scene(
         family="tool_drop",
-        props=(
-            Prop(
-                name="calib_dropped_tool",
-                sdf="calib_dropped_tool.sdf",
-                station="handover_zone",
-                offset=(-0.85, -0.55),
-                z=0.0,
-                role="the tool on the floor along the delivery route, within arm reach",
-            ),
+        props=(),
+        note="the arm's gripper lets go in transit, and the tool falls where it fell",
+        # The arm's grip is what fails. A gripper that never lets go cannot
+        # answer the question, and a scene that arranges the world by
+        # spawning a prop cannot make a gripper slip.
+        parameter=("arm_skill_server", "fault_mode", "drop"),
+        manual=(
+            "the arm releases the tool in transit; the place it fell is published "
+            "on /manipulation/tool_dropped",
+            "the second attempt has to pick the tool up from that place",
         ),
-        note="the tool is on the floor where a second pick can reach it",
     ),
     "no_progress": Scene(
         family="no_progress",
@@ -108,6 +121,18 @@ SCENES: dict[str, Scene] = {
             ),
         ),
         note="the handover station is occupied until the operator is called over",
+    ),
+    "grasp_failure": Scene(
+        family="grasp_failure",
+        props=(),
+        note="the gripper closes on nothing once, and the next attempt works",
+        # A gripper that always closes on the tool cannot answer the
+        # question. The fault is one miss, not a broken gripper: the second
+        # attempt is what the recovery rate measures.
+        parameter=("arm_skill_server", "fault_mode", "miss_once"),
+        manual=(
+            "the first grasp attempt closes on nothing; the second one works",
+        ),
     ),
     "low_confidence": Scene(
         family="low_confidence",
@@ -177,6 +202,35 @@ def resolve(prop: Prop, stations: dict[str, tuple[float, float]]) -> tuple[float
     return (round(x + prop.offset[0], 3), round(y + prop.offset[1], 3), prop.z)
 
 
+def resolve_pose(
+    prop: Prop, stations: dict[str, tuple[float, float]]
+) -> tuple[float, float, float, float]:
+    """Where to spawn a prop and which way it faces.
+
+    A prop that stands on the line of sight is placed there rather than at
+    an offset, because "on the line of sight" is the arrangement: a panel
+    that is a hand's width to the side of the ray does not block anything.
+    """
+    if prop.along is None:
+        x, y, z = resolve(prop, stations)
+        return (x, y, z, float(prop.yaw or 0.0))
+
+    if prop.station not in stations:
+        raise SystemExit(
+            f"{prop.name} is positioned relative to {prop.station!r}, "
+            f"which is not in {STATIONS_YAML}"
+        )
+    target_x, target_y = stations[prop.station]
+    dx = target_x - ROBOT_START[0]
+    dy = target_y - ROBOT_START[1]
+    x = ROBOT_START[0] + dx * prop.along
+    y = ROBOT_START[1] + dy * prop.along
+    # The panel faces along the line of sight, so that it is edge-on to
+    # anybody looking from the side.
+    yaw = math.atan2(dy, dx) + math.pi / 2.0
+    return (round(x, 3), round(y, 3), prop.z, round(yaw, 4))
+
+
 def scene_for(family: str) -> Scene:
     scene = SCENES.get(family)
     if scene is None:
@@ -206,6 +260,16 @@ class RosScene:
         if self._owns_context:
             self.rclpy.init()
         self.node = self.rclpy.create_node("calibration_scene")
+        #: The models the world currently has. The simulator's own list is
+        #: the only account of whether a spawn or a delete took effect, and
+        #: a scene that arranges the world and then finds it unchanged has
+        #: arranged nothing.
+        self._models: set[str] = set()
+        from gazebo_msgs.msg import ModelStates
+
+        self.node.create_subscription(
+            ModelStates, "/model_states", self._on_model_states, 5
+        )
 
     def close(self) -> None:
         self.node.destroy_node()
@@ -213,15 +277,44 @@ class RosScene:
             self.rclpy.shutdown()
 
     def _service(self, fragment: str, timeout: float = 10.0):
+        """Find one of the simulator's services.
+
+        The plain name is preferred: the simulator advertises the same
+        service twice, once plain and once under `/gazebo`, and only one of
+        the two answers on every transport.
+        """
         end = time.time() + timeout
         while time.time() < end:
             names = [name for name, _ in self.node.get_service_names_and_types() if fragment in name]
+            for name in names:
+                if name == f"/{fragment}":
+                    return name
             if names:
                 return names[0]
             self.rclpy.spin_once(self.node, timeout_sec=0.2)
         return None
 
-    def spawn(self, name: str, path: Path, x: float, y: float, z: float) -> bool:
+    def _on_model_states(self, msg) -> None:
+        self._models = {str(name) for name in msg.name}
+
+    def _wait_for_model(self, name: str, present: bool, timeout: float = 8.0) -> bool:
+        """Wait until the world agrees about a model.
+
+        A spawn that the simulator accepted but did not perform, and a
+        delete that is still in flight when the next spawn asks for the same
+        name, both look like success to the caller. The world's own list is
+        the only way to tell.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            self.rclpy.spin_once(self.node, timeout_sec=0.1)
+            if (name in self._models) == present:
+                return True
+        return False
+
+    def spawn(
+        self, name: str, path: Path, x: float, y: float, z: float, yaw: float = 0.0
+    ) -> bool:
         from geometry_msgs.msg import Pose
 
         service = self._service("spawn_entity")
@@ -236,10 +329,18 @@ class RosScene:
         request.initial_pose.position.x = x
         request.initial_pose.position.y = y
         request.initial_pose.position.z = z
+        request.initial_pose.orientation.z = math.sin(yaw / 2.0)
+        request.initial_pose.orientation.w = math.cos(yaw / 2.0)
         future = client.call_async(request)
         self.rclpy.spin_until_future_complete(self.node, future, timeout_sec=30.0)
         result = future.result()
         ok = bool(result and result.success)
+        if ok and not self._wait_for_model(name, present=True):
+            # The simulator said yes and the world disagrees: the prop is
+            # not there, and a measurement against a world without it is a
+            # measurement of nothing.
+            print(f"spawn {name}: the simulator accepted it and the world has no such model")
+            return False
         print(f"spawn {name} at ({x}, {y}, {z}): {'ok' if ok else (result.status_message if result else 'timeout')}")
         return ok
 
@@ -255,13 +356,16 @@ class RosScene:
         self.rclpy.spin_until_future_complete(self.node, future, timeout_sec=20.0)
         result = future.result()
         ok = bool(result and result.success)
+        if ok and not self._wait_for_model(name, present=False):
+            print(f"delete {name}: the simulator accepted it and the world still has it")
+            return False
         print(f"delete {name}: {'ok' if ok else 'not present'}")
         return ok
 
     # ------------------------------------------------------------ parameters
 
-    def get_parameter(self, node_name: str, name: str) -> float | None:
-        """Read a double parameter off a live node, or None if it is not there."""
+    def get_parameter(self, node_name: str, name: str) -> float | str | None:
+        """Read a parameter off a live node, or None if it is not there."""
         from rcl_interfaces.msg import ParameterType
         from rcl_interfaces.srv import GetParameters
 
@@ -282,10 +386,12 @@ class RosScene:
             return float(value.double_value)
         if value.type == ParameterType.PARAMETER_INTEGER:
             return float(value.integer_value)
+        if value.type == ParameterType.PARAMETER_STRING:
+            return str(value.string_value)
         return None
 
-    def set_parameter(self, node_name: str, name: str, value: float) -> bool:
-        """Set a double parameter on a live node."""
+    def set_parameter(self, node_name: str, name: str, value: float | str) -> bool:
+        """Set a parameter on a live node."""
         from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
         from rcl_interfaces.srv import SetParameters
 
@@ -295,11 +401,17 @@ class RosScene:
             return False
         client = self.node.create_client(SetParameters, service)
         client.wait_for_service(timeout_sec=5.0)
+        if isinstance(value, str):
+            parameter_value = ParameterValue(
+                type=ParameterType.PARAMETER_STRING, string_value=value
+            )
+        else:
+            parameter_value = ParameterValue(
+                type=ParameterType.PARAMETER_DOUBLE, double_value=float(value)
+            )
         parameter = Parameter()
         parameter.name = name
-        parameter.value = ParameterValue(
-            type=ParameterType.PARAMETER_DOUBLE, double_value=float(value)
-        )
+        parameter.value = parameter_value
         request = SetParameters.Request()
         request.parameters = [parameter]
         future = client.call_async(request)
@@ -330,7 +442,7 @@ class CalibrationSceneDriver:
         self._stations_path = stations_path
         self._ros: RosScene | None = None
         #: The parameter value that was there before the scene was armed.
-        self._restore: dict[str, float] = {}
+        self._restore: dict[str, float | str] = {}
 
     @property
     def ros(self) -> RosScene:
@@ -351,8 +463,8 @@ class CalibrationSceneDriver:
             return
         stations = load_stations(self._stations_path)
         for prop in scene.props:
-            x, y, z = resolve(prop, stations)
-            self.ros.spawn(prop.name, prop.path, x, y, z)
+            x, y, z, yaw = resolve_pose(prop, stations)
+            self.ros.spawn(prop.name, prop.path, x, y, z, yaw)
         if scene.parameter is not None:
             node_name, parameter, value = scene.parameter
             previous = self.ros.get_parameter(node_name, parameter)

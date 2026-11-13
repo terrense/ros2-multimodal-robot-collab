@@ -73,8 +73,17 @@ class RosStack:
         #: and cheaper.
         self._detections: list[dict[str, Any]] = []
         self._events: list[dict[str, Any]] = []
+        self._drops: list[str] = []
+        self._spoken: list[str] = []
+        #: The subscriptions are made when the stack is built, not when a
+        #: probe first asks to read: a message that arrives between the drop
+        #: and the reading is the message the probe needs, and a
+        #: subscription created at reading time has already missed it.
         self._detection_subscription: Any = None
         self._event_subscription: Any = None
+        self._drop_subscription: Any = None
+        self._tts_subscription: Any = None
+        self._subscribe_all()
 
     def call(self, capability: str, arguments: dict[str, Any]) -> Any:
         from agent_harness.contracts import ActionRequest, new_command_id
@@ -102,6 +111,53 @@ class RosStack:
         status = getattr(receipt, "execution_status", "")
         return str(getattr(status, "value", status))
 
+    def _subscribe_all(self) -> None:
+        """Listen to the four things a probe can ask about."""
+        from std_msgs.msg import String
+
+        from robot_collab_interfaces.msg import MissionEvent, ToolDetection
+
+        node = self._executor.node
+
+        def on_detection(msg: Any) -> None:
+            self._detections.append(
+                {
+                    "tool_id": str(msg.tool_id),
+                    "label": str(msg.label),
+                    "confidence": float(msg.confidence),
+                    "source_frame": str(msg.source_frame),
+                    "detector_id": str(msg.detector_id),
+                }
+            )
+
+        def on_event(msg: Any) -> None:
+            self._events.append(
+                {
+                    "state": str(msg.state),
+                    "detail": str(msg.detail),
+                    "progress": float(msg.progress),
+                }
+            )
+
+        def on_drop(msg: Any) -> None:
+            self._drops.append(str(msg.data))
+
+        def on_tts(msg: Any) -> None:
+            self._spoken.append(str(msg.data))
+
+        self._detection_subscription = node.create_subscription(
+            ToolDetection, "/perception/tool_detections", on_detection, 10
+        )
+        self._event_subscription = node.create_subscription(
+            MissionEvent, "/mission/events", on_event, 20
+        )
+        self._drop_subscription = node.create_subscription(
+            String, "/manipulation/tool_dropped", on_drop, 10
+        )
+        self._tts_subscription = node.create_subscription(
+            String, "/hri/tts_text", on_tts, 10
+        )
+
     def read_detections(self, timeout_s: float = 3.0) -> list[dict[str, Any]]:
         """What the perception nodes published.
 
@@ -109,24 +165,6 @@ class RosStack:
         tool" to call, so a probe that has to know what the detector saw has
         to read what it published.
         """
-        from robot_collab_interfaces.msg import ToolDetection
-
-        node = self._executor.node
-        if self._detection_subscription is None:
-            def on_detection(msg: Any) -> None:
-                self._detections.append(
-                    {
-                        "tool_id": str(msg.tool_id),
-                        "label": str(msg.label),
-                        "confidence": float(msg.confidence),
-                        "source_frame": str(msg.source_frame),
-                        "detector_id": str(msg.detector_id),
-                    }
-                )
-
-            self._detection_subscription = node.create_subscription(
-                ToolDetection, "/perception/tool_detections", on_detection, 10
-            )
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline and not self._detections:
             self._wait_for_the_executor()
@@ -143,22 +181,6 @@ class RosStack:
         probe knows when the arm is actually moving -- a cancel raised before
         the arm has started has nothing to stop.
         """
-        from robot_collab_interfaces.msg import MissionEvent
-
-        node = self._executor.node
-        if self._event_subscription is None:
-            def on_event(msg: Any) -> None:
-                self._events.append(
-                    {
-                        "state": str(msg.state),
-                        "detail": str(msg.detail),
-                        "progress": float(msg.progress),
-                    }
-                )
-
-            self._event_subscription = node.create_subscription(
-                MissionEvent, "/mission/events", on_event, 20
-            )
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             if until_state and any(event["state"] == until_state for event in self._events):
@@ -166,6 +188,28 @@ class RosStack:
             self._wait_for_the_executor()
         received = list(self._events)
         self._events.clear()
+        return received
+
+    def read_tool_drops(self, timeout_s: float = 5.0) -> list[str]:
+        """Where the arm dropped tools.
+
+        A tool that fell somewhere unknown cannot be picked up again, so the
+        place it fell is part of what happened.
+        """
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline and not self._drops:
+            self._wait_for_the_executor()
+        received = list(self._drops)
+        self._drops.clear()
+        return received
+
+    def read_tts(self, timeout_s: float = 2.0) -> list[str]:
+        """What was said over the speaker."""
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline and not self._spoken:
+            self._wait_for_the_executor()
+        received = list(self._spoken)
+        self._spoken.clear()
         return received
 
     def _wait_for_the_executor(self) -> None:
@@ -229,6 +273,16 @@ def main() -> None:
     parser.add_argument("--delivery-station", default="station_a")
     parser.add_argument("--operator-id", default="operator_001")
     parser.add_argument(
+        "--home-station",
+        default="home",
+        help="where the base stands when the occluder blocks the view of the tool",
+    )
+    parser.add_argument(
+        "--viewpoint-station",
+        default="viewpoint_left",
+        help="where the base stands when the view of the tool is clear",
+    )
+    parser.add_argument(
         "--no-scenes",
         action="store_true",
         help="do not arrange the world; the scene-dependent families cannot be measured",
@@ -267,6 +321,8 @@ def main() -> None:
             pickup_station=args.pickup_station,
             delivery_station=args.delivery_station,
             operator_id=args.operator_id,
+            home_station=args.home_station,
+            viewpoint_station=args.viewpoint_station,
             scenes=scenes,
         )
         measurements = runner.run(families)

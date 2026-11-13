@@ -2602,7 +2602,6 @@
           <geometry><box><size>0.45 0.35 0.3</size></box></geometry>
           <material><ambient>0.1 0.42 0.8 1</ambient><diffuse>0.1 0.42 0.8 1</diffuse></material>
         </visual>
-        <collision name="collision"><geometry><box><size>0.45 0.35 0.3</size></box></geometry></collision>
       </link>
     </model>
     <model name="station_a_marker">

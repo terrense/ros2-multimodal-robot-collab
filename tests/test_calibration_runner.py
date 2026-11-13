@@ -58,6 +58,8 @@ class FakeStack:
         text: dict[str, str] | None = None,
         detections: list[dict] | None = None,
         events: list[dict] | None = None,
+        drops: list[str] | None = None,
+        spoken: list[str] | None = None,
     ) -> None:
         self.script = {name: list(statuses) for name, statuses in (script or {}).items()}
         #: What each capability says, on top of its status.
@@ -66,6 +68,10 @@ class FakeStack:
         self.detections = list(detections or [])
         #: The mission's progress events.
         self.events = list(events or [{"state": "PICK_TOOL", "detail": "", "progress": 0.64}])
+        #: Where the arm dropped tools.
+        self.drops = list(drops or [])
+        #: What was said over the speaker.
+        self.spoken = list(spoken or [])
         self.calls: list[tuple[str, dict]] = []
         #: The outcomes the probes acknowledged.
         self.reconciled: list[tuple[str, str]] = []
@@ -93,6 +99,12 @@ class FakeStack:
 
     def read_mission_events(self, timeout_s: float = 5.0, until_state: str | None = None):
         return list(self.events)
+
+    def read_tool_drops(self, timeout_s: float = 5.0):
+        return list(self.drops)
+
+    def read_tts(self, timeout_s: float = 2.0):
+        return list(self.spoken)
 
 
 def _runner(stack, samples: int = 3, **kwargs) -> CalibrationRunner:
@@ -140,7 +152,7 @@ def test_a_stack_that_is_not_answering_is_not_measured() -> None:
 def test_the_grasp_probe_uses_the_configured_tool_not_a_constant() -> None:
     """The bug this test exists for: a hard-coded name measured nothing."""
     stack = FakeStack({"manipulation.pick_and_place": ["unknown", "completed"]})
-    runner = _runner(stack, tool_id="hex_key_3mm")
+    runner = _runner(stack, tool_id="hex_key_3mm", scenes=FakeScenes())
     measurement = runner.measure(FaultType.GRASP_FAILURE, samples=1)
     assert measurement is not None
     tools = {arguments["tool_id"] for _capability, arguments in stack.calls}
@@ -149,7 +161,7 @@ def test_the_grasp_probe_uses_the_configured_tool_not_a_constant() -> None:
 
 def test_the_grasp_probe_still_works_for_a_configured_tool() -> None:
     stack = FakeStack({"manipulation.pick_and_place": ["unknown", "completed"]})
-    runner = _runner(stack, tool_id="wrench")
+    runner = _runner(stack, tool_id="wrench", scenes=FakeScenes())
     assert runner.measure(FaultType.GRASP_FAILURE, samples=1) is not None
     assert {arguments["tool_id"] for _c, arguments in stack.calls} == {"wrench"}
 
@@ -230,6 +242,7 @@ def test_only_two_families_can_produce_their_own_fault() -> None:
         FaultType.VISUAL_OCCLUSION,
         FaultType.TOOL_DROP,
         FaultType.NO_PROGRESS,
+        FaultType.GRASP_FAILURE,
     }
     assert set(PROBES) == set(FaultType), "every family needs a probe"
 
@@ -289,8 +302,10 @@ def test_a_re_perceive_that_stays_marginal_is_measured_as_a_failure() -> None:
     measurement = _runner(stack, scenes=scenes).measure(FaultType.LOW_CONFIDENCE, samples=1)
     assert measurement is not None
     assert measurement.successes == 0
-    assert scenes.armed == ["low_confidence"]
-    assert scenes.cleared == ["low_confidence"]
+    # The world is arranged before the sample and again for it: the fault
+    # has to be there for every measurement, not just for the first.
+    assert scenes.armed == ["low_confidence", "low_confidence"]
+    assert scenes.cleared == ["low_confidence", "low_confidence"]
 
 
 def test_a_re_perceive_that_heals_is_measured_as_a_success() -> None:
@@ -474,3 +489,129 @@ def test_every_probe_accepts_the_runner() -> None:
     for family, probe in PROBES.items():
         parameters = list(inspect.signature(probe).parameters)
         assert parameters == ["stack", "scene"], f"{family.value}: {parameters}"
+
+
+# ------------------------------------------------- the four families in detail
+
+
+def test_a_grasp_that_missed_once_succeeds_on_the_next_attempt() -> None:
+    stack = FakeStack({"manipulation.pick_and_place": ["failed", "completed"]})
+    measurement = _runner(stack, scenes=FakeScenes()).measure(
+        FaultType.GRASP_FAILURE, samples=1
+    )
+    assert measurement is not None
+    assert measurement.successes == 1
+    assert len(stack.calls) == 2, "the probe has to try again"
+
+
+def test_a_grasp_that_never_fails_is_not_a_measurement() -> None:
+    """A probe that only ever sees a clean grasp has measured the healthy
+    path. Counting it would blame the system for a fault it never saw."""
+    stack = FakeStack({"manipulation.pick_and_place": ["completed"]})
+    runner = _runner(stack, scenes=FakeScenes())
+    assert runner.measure(FaultType.GRASP_FAILURE, samples=1) is None
+    assert "no fault produced" in runner.refusals["grasp_failure"]
+
+
+def test_a_dropped_tool_is_picked_up_from_where_it_fell() -> None:
+    stack = FakeStack(
+        {"manipulation.pick_and_place": ["failed", "completed"]},
+        drops=["drop_zone_1"],
+    )
+    measurement = _runner(stack, scenes=FakeScenes()).measure(
+        FaultType.TOOL_DROP, samples=1
+    )
+    assert measurement is not None
+    assert measurement.successes == 1
+    second = stack.calls[1][1]
+    assert second["source_frame"] == "drop_zone_1", "the retry has to start where the tool fell"
+
+
+def test_a_drop_that_says_nowhere_is_not_a_recovery() -> None:
+    """A tool that fell somewhere unknown cannot be picked up again."""
+    stack = FakeStack({"manipulation.pick_and_place": ["failed", "completed"]}, drops=[])
+    runner = _runner(stack, scenes=FakeScenes())
+    assert runner.measure(FaultType.TOOL_DROP, samples=1) is None
+    assert "where the tool went" in runner.refusals["tool_drop"]
+
+
+def test_a_blocked_handover_counts_only_when_the_operator_was_called() -> None:
+    stack = FakeStack(
+        {"mission-control.deliver_tool": ["completed"]},
+        events=[{"state": "HANDOVER_BLOCKED", "detail": "", "progress": 0.96}],
+        spoken=["The handover zone at handover_zone is occupied. Please clear handover_zone."],
+    )
+    measurement = _runner(stack, scenes=FakeScenes()).measure(
+        FaultType.NO_PROGRESS, samples=1
+    )
+    assert measurement is not None
+    assert measurement.successes == 1
+
+
+def test_a_handover_that_asked_nobody_is_not_a_recovery() -> None:
+    stack = FakeStack(
+        {"mission-control.deliver_tool": ["completed"]},
+        events=[{"state": "PLACE_AND_HANDOVER", "detail": "", "progress": 0.98}],
+        spoken=[],
+    )
+    runner = _runner(stack, scenes=FakeScenes())
+    assert runner.measure(FaultType.NO_PROGRESS, samples=1) is None
+    assert "without anybody being called" in runner.refusals["no_progress"]
+
+
+def test_an_occlusion_is_cleared_by_looking_from_another_station() -> None:
+    stack = FakeStack(
+        {"navigation.navigate_to_station": ["completed"]},
+        detections=[{"tool_id": "hex_key_3mm", "confidence": 0.2}],
+    )
+    # The second reading is the clear one: the probe reads the detections
+    # again after the move.
+    reads = {"count": 0}
+    original = stack.read_detections
+
+    def read_detections(timeout_s: float = 3.0):
+        reads["count"] += 1
+        if reads["count"] == 1:
+            return [{"tool_id": "hex_key_3mm", "confidence": 0.2}]
+        return [{"tool_id": "hex_key_3mm", "confidence": 0.9}]
+
+    stack.read_detections = read_detections
+    del original
+    measurement = _runner(stack, scenes=FakeScenes()).measure(
+        FaultType.VISUAL_OCCLUSION, samples=1
+    )
+    assert measurement is not None
+    assert measurement.successes == 1
+    stations = [arguments["station_id"] for _capability, arguments in stack.calls]
+    assert "home" in stations and "viewpoint_left" in stations
+
+
+def test_an_occlusion_that_does_not_clear_is_measured_as_a_failure_to_recover() -> None:
+    """The family asks whether a blocked detection is cleared by a move.
+
+    A move that clears nothing is not a missing measurement: it is a
+    recovery rate of zero, and L1 says the rate is one. That difference is
+    the finding.
+    """
+    stack = FakeStack(
+        {"navigation.navigate_to_station": ["completed"]},
+        detections=[{"tool_id": "hex_key_3mm", "confidence": 0.2}],
+    )
+    measurement = _runner(stack, scenes=FakeScenes()).measure(
+        FaultType.VISUAL_OCCLUSION, samples=1
+    )
+    assert measurement is not None
+    assert measurement.successes == 0
+    assert measurement.detail["blocked"] == 0.2
+    assert measurement.detail["cleared"] == 0.2
+
+
+def test_a_detection_that_is_never_blocked_is_not_a_measurement() -> None:
+    """Nothing was occluded, so there is no recovery to measure."""
+    stack = FakeStack(
+        {"navigation.navigate_to_station": ["completed"]},
+        detections=[{"tool_id": "hex_key_3mm", "confidence": 0.9}],
+    )
+    runner = _runner(stack, scenes=FakeScenes())
+    assert runner.measure(FaultType.VISUAL_OCCLUSION, samples=1) is None
+    assert "no fault produced" in runner.refusals["visual_occlusion"]

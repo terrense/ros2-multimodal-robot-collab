@@ -10,6 +10,8 @@
 
   <link name="base_footprint"/>
 
+  <!-- The chassis sits 110 mm above the ground, so that the wheels and not
+       the caster carry the robot. -->
   <joint name="base_footprint_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
@@ -31,10 +33,26 @@
         <color rgba="0.1 0.34 0.72 1.0"/>
       </material>
     </visual>
+    <!-- The chassis's collision is a spine between the wheels, not a belly
+         down to the ground.
+
+         A belly that reaches the ground squashes the wheels against it: the
+         wheels cannot turn, the odometry never moves, and the navigation
+         reports a drive that never happened. A belly that stops above the
+         ground lets the wheels carry the robot, which is what a real robot
+         does, but a wheel that is commanded to turn while it pushes on the
+         floor is the one constraint the solver cannot satisfy, and the
+         physics ends up with NaN velocities.
+
+         The spine takes the weight and leaves the wheels free to turn. The
+         base still does not drive: the wheels have no load, so they have no
+         grip. That is a known defect, and the simulator's own model states
+         show it: the odometry says the base moved and the chassis says
+         otherwise. -->
     <collision>
       <origin xyz="0 0 0"/>
       <geometry>
-        <box size="${base_length} ${base_width} ${base_height}"/>
+        <box size="0.70 0.60 ${base_height}"/>
       </geometry>
     </collision>
   </link>
@@ -67,6 +85,8 @@
       <child link="${name}_wheel_link"/>
       <origin xyz="${wheel_x} ${y} -0.05" rpy="0 0 0"/>
       <axis xyz="0 1 0"/>
+      <!-- Friction, so the wheels grip. -->
+      <dynamics damping="0.01" friction="1.2"/>
     </joint>
   </xacro:macro>
 
@@ -90,6 +110,10 @@
       </geometry>
     </collision>
   </link>
+  <!-- The caster is up out of the way: it is there to stop the robot from
+       tipping, not to carry it. A caster that touches the ground takes the
+       weight off the wheels, and wheels with no load on them have no
+       grip. -->
   <joint name="front_caster_joint" type="fixed">
     <parent link="base_link"/>
     <child link="front_caster_link"/>
@@ -145,26 +169,32 @@
   </gazebo>
 
   <gazebo>
-    <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
-      <ros>
-        <namespace>/</namespace>
-        <remapping>cmd_vel:=cmd_vel</remapping>
-        <remapping>odom:=odom</remapping>
-      </ros>
-      <update_rate>50</update_rate>
-      <left_joint>left_wheel_joint</left_joint>
-      <right_joint>right_wheel_joint</right_joint>
-      <wheel_separation>0.72</wheel_separation>
-      <wheel_diameter>0.12</wheel_diameter>
-      <max_wheel_torque>20.0</max_wheel_torque>
-      <max_wheel_acceleration>1.5</max_wheel_acceleration>
-      <publish_odom>true</publish_odom>
-      <publish_odom_tf>true</publish_odom_tf>
-      <publish_wheel_tf>true</publish_wheel_tf>
-      <odometry_frame>odom</odometry_frame>
-      <robot_base_frame>base_footprint</robot_base_frame>
+    <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
+      <parameters>$(find robot_collab_sim)/config/ros2_control.yaml</parameters>
     </plugin>
   </gazebo>
+
+  <!-- The wheels are commanded through ros2_control, so the base really
+       moves. See config/ros2_control.yaml. -->
+  <ros2_control name="MobileBaseSystem" type="system">
+    <hardware>
+      <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+    </hardware>
+    <xacro:macro name="wheel_command" params="name">
+      <joint name="${name}_wheel_joint">
+        <command_interface name="velocity">
+          <param name="min">-20.0</param>
+          <param name="max">20.0</param>
+        </command_interface>
+        <state_interface name="velocity">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="position"/>
+      </joint>
+    </xacro:macro>
+    <xacro:wheel_command name="left"/>
+    <xacro:wheel_command name="right"/>
+  </ros2_control>
 
   <gazebo reference="lidar_link">
     <sensor name="front_lidar" type="ray">

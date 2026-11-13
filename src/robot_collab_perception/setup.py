@@ -23,6 +23,7 @@ setup(
             "face_auth_node = robot_collab_perception.face_auth_node:main",
             "gesture_recognizer_node = robot_collab_perception.gesture_recognizer_node:main",
             "openpose_gesture_node = robot_collab_perception.openpose_gesture_node:main",
+            "zone_occupancy_node = robot_collab_perception.zone_occupancy_node:main",
         ],
     },
 )

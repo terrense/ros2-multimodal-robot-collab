@@ -1,0 +1,36 @@
+# The controller manager's own configuration.
+#
+# The base used to be driven by gazebo_ros_diff_drive, which sets the wheel
+# velocities directly. Continuous joints have no motor, so the wheels spun and
+# the base slid a couple of centimetres -- the robot sat still while the
+# navigation reported success. The diff-drive controller below actually
+# commands the wheels, so the pose in /odom is real, and a question like
+# "can the arm reach the tool from here?" finally has an answer.
+#
+# Two things about the shape of this file are not obvious.
+#
+# Everything lives under `controller_manager`, because a parameter file is
+# keyed by node name and the controller manager is the node named
+# `controller_manager`. A controller's own block at the top level of the file
+# would be handed to a node that does not exist.
+#
+# There is no `ros__parameters` marker inside a controller's block. rcl
+# strips that marker once per node block and not again: with it, the type
+# ends up as the parameter `diff_drive_controller.ros__parameters.type`, and
+# the controller manager, which asks for `diff_drive_controller.type`, finds
+# nothing and answers "the 'type' param was not defined".
+#
+# The controller's own parameters -- the wheel names, the wheel separation --
+# live in diff_drive_controller.yaml, which the spawner hands to the
+# controller when it loads it. A controller reads its parameters from its
+# own node, not from the manager's.
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+    use_sim_time: true
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster

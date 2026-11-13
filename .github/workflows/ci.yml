@@ -265,35 +265,45 @@ jobs:
 
       - name: Calibration probe against the live stack
         # The calibration machinery is what says whether L1's fault model
-        # holds. Running one family here means a broken probe fails the build
+        # holds. Running the families here means a broken probe fails the build
         # instead of quietly reporting "not measured" for months -- which is
         # exactly how two families sat unmeasured for a long time.
         #
         # The check is that a measurement came out, not that the rate matches:
         # the rate is a measurement, and a measurement that changes is not a
         # build failure.
-        timeout-minutes: 10
+        #
+        # Four families are checked: one that was always measurable, and the
+        # three that the robot nodes had to be changed for -- the arm that can
+        # miss a grasp and drop a tool, and the mission that asks for help when
+        # the handover zone is occupied. Each of those needs the live stack to
+        # be right in a way no unit test can check.
+        timeout-minutes: 20
         run: |
           set -o pipefail
           source /opt/ros/humble/setup.bash
           source install/setup.bash
           export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
           export PYTHONPATH="$PWD:${PYTHONPATH:-}"
-          timeout 300 python3 -m agent_env.scripts.run_calibration \
-            --family identity_mismatch --samples 10 --out /tmp/ci_calibration.json
-          python3 - <<'PY'
+          for family in identity_mismatch grasp_failure tool_drop no_progress; do
+            echo "=== $family ==="
+            timeout 400 python3 -m agent_env.scripts.run_calibration \
+              --family "$family" --samples 3 --out "/tmp/ci_calibration_$family.json"
+            python3 - "$family" <<'PY'
           import json
           import sys
 
-          data = json.load(open("/tmp/ci_calibration.json", encoding="utf-8"))
+          family = sys.argv[1]
+          data = json.load(open(f"/tmp/ci_calibration_{family}.json", encoding="utf-8"))
           measured = [row for row in data.get("families", []) if row.get("samples")]
           if not measured:
-              print("the calibration probe produced no measurement")
+              print(f"the {family} probe produced no measurement")
               print(json.dumps(data.get("unmeasured", []), indent=2))
               sys.exit(1)
           for row in measured:
               print(f"{row['family']}: {row['successes']}/{row['samples']}")
           PY
+          done
 
       - name: Wire-fault experiment against the live stack
         # The transport-safety criteria are twelve assertions about what the

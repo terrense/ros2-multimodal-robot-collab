@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import yaml
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
@@ -5,6 +9,21 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+
+
+def _tool_position() -> str:
+    """Where the tool is, for the detector that has to look at it.
+
+    The tool sits on the shelf marked at the `tool_shelf` station, and the
+    shelf's marker is a box whose top is at 0.30 m. The detector needs the
+    tool's place in the world so that it can tell whether the tool is
+    visible from where the camera is -- which is the difference between a
+    detection and a blocked one.
+    """
+    registry = Path(get_package_share_directory("robot_collab_bringup")) / "config" / "stations.yaml"
+    data = yaml.safe_load(registry.read_text(encoding="utf-8")) or {}
+    pose = ((data.get("stations") or {}).get("tool_shelf") or {}).get("pose") or {}
+    return f"{float(pose.get('x', 1.25))} {float(pose.get('y', -0.75))} 0.30"
 
 
 def generate_launch_description():
@@ -121,6 +140,13 @@ def generate_launch_description():
                         "use_sim_time": use_sim_time,
                         "backend": nav_backend,
                         "station_file": stations,
+                        # The base is driven by ros2_control, and a
+                        # ros2_control controller listens on its own topics.
+                        # The navigation server has to talk to those: on the
+                        # classic /cmd_vel it would report a drive that never
+                        # happened.
+                        "cmd_vel_topic": "/diff_drive_controller/cmd_vel_unstamped",
+                        "odom_topic": "/diff_drive_controller/odom",
                     },
                 ],
             ),
@@ -145,6 +171,10 @@ def generate_launch_description():
                     {
                         "use_sim_time": use_sim_time,
                         "source_frame": "camera_link",
+                        # The detector looks at the world before it publishes
+                        # a detection, so it needs to know where its tool is.
+                        "tool_position": _tool_position(),
+                        "world_frame": "map",
                     },
                 ],
             ),
@@ -171,6 +201,22 @@ def generate_launch_description():
                 name="face_auth_node",
                 output="screen",
                 parameters=common_params,
+            ),
+            # The workcell monitor: it tells the mission whether the handover
+            # zone is free, and it plays the operator when the mission calls
+            # for the zone to be cleared.
+            Node(
+                package="robot_collab_perception",
+                executable="zone_occupancy_node",
+                name="zone_occupancy_node",
+                output="screen",
+                parameters=[
+                    params,
+                    {
+                        "use_sim_time": use_sim_time,
+                        "station_file": stations,
+                    },
+                ],
             ),
             Node(
                 package="robot_collab_perception",

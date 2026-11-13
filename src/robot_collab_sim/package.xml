@@ -8,10 +8,13 @@
 
   <buildtool_depend>ament_python</buildtool_depend>
 
+  <exec_depend>controller_manager</exec_depend>
   <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>gazebo_ros2_control</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>ros2_controllers</exec_depend>
   <exec_depend>xacro</exec_depend>
   <!-- The URDF includes `$(find realsense2_description)` and
        `$(find velodyne_description)`. Without these declared, rosdep installs

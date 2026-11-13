@@ -9,11 +9,17 @@
   <buildtool_depend>ament_python</buildtool_depend>
 
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>gazebo_msgs</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>robot_collab_interfaces</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <!-- The tool detector reads the depth camera's point cloud and looks the
+       tool up in the TF tree, so it can tell whether the tool is visible
+       from where the camera is. -->
+  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

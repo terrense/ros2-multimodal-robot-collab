@@ -1,3 +1,4 @@
+import time
 import uuid
 
 import rclpy
@@ -5,6 +6,7 @@ from geometry_msgs.msg import PoseStamped
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
 from rclpy.task import Future
+from std_msgs.msg import Bool, String
 
 from robot_collab_interfaces.action import (
     DeliverTool,
@@ -38,11 +40,21 @@ class MissionStateMachine(Node):
         self.declare_parameter("handover_frame", "handover_zone")
         self.declare_parameter("tool_detection_timeout_sec", 3.0)
         self.declare_parameter("min_tool_confidence", 0.70)
+        # The handover zone, and the occupancy report the workcell publishes
+        # about it. A mission that hands the tool over into an occupied zone
+        # is how a delivery gets lost, so the mission looks before it hands
+        # over, and calls the operator when the zone is blocked.
+        self.declare_parameter("handover_zone", "handover_zone")
+        self.declare_parameter("zone_occupancy_topic", "/safety/zone_occupancy/handover_zone")
+        self.declare_parameter("tts_topic", "/hri/tts_text")
+        self.declare_parameter("handover_wait_sec", 20.0)
 
         self._mission_id = ""
         self._state = "IDLE"
         self._warnings: list[str] = []
         self._latest_tools: dict[str, ToolDetection] = {}
+        self._zone_occupied = False
+        self._zone_seen = False
         self._event_pub = self.create_publisher(MissionEvent, "/mission/events", 10)
         self._tool_sub = self.create_subscription(
             ToolDetection,
@@ -54,6 +66,15 @@ class MissionStateMachine(Node):
             QuerySystemState,
             "/system/query_state",
             self._handle_query_state,
+        )
+        self._zone_sub = self.create_subscription(
+            Bool,
+            str(self.get_parameter("zone_occupancy_topic").value),
+            self._handle_zone_occupancy,
+            5,
+        )
+        self._tts_pub = self.create_publisher(
+            String, str(self.get_parameter("tts_topic").value), 10
         )
         self._verify_client = ActionClient(self, VerifyOperator, "/skills/verify_operator")
         self._nav_client = ActionClient(self, NavigateToStation, "/skills/navigate_to_station")
@@ -70,6 +91,11 @@ class MissionStateMachine(Node):
 
     def _handle_tool_detection(self, msg: ToolDetection) -> None:
         self._latest_tools[msg.tool_id] = msg
+
+    def _handle_zone_occupancy(self, msg: Bool) -> None:
+        self._zone_occupied = bool(msg.data)
+        self._zone_seen = True
+        self.get_logger().info(f"[ZONE] the handover zone is occupied={self._zone_occupied}.")
 
     def _handle_goal(self, goal_request: DeliverTool.Goal) -> GoalResponse:
         if not goal_request.tool_id or not goal_request.target_station:
@@ -144,16 +170,88 @@ class MissionStateMachine(Node):
             goal_handle.abort()
             return self._result(False, f"Navigation to {goal.target_station} failed.")
 
-        await self._simulated_step(
-            goal_handle,
-            "PLACE_AND_HANDOVER",
-            0.98,
-            "Tool placed in the handover area.",
-        )
+        if not await self._handover(goal_handle):
+            goal_handle.abort()
+            return self._result(False, "The handover zone was not cleared.")
 
         self._publish_state("COMPLETED", 1.0, "Tool delivered and handover confirmed.")
         goal_handle.succeed()
         return self._result(True, "Tool delivery completed.")
+
+    async def _handover(self, goal_handle) -> bool:
+        """Hand the tool over, if the zone is free.
+
+        A blocked handover is not a failure the robot can talk its way out
+        of on its own: it needs a person. So the mission looks at the zone,
+        and if something is in the way it calls the operator over the
+        speaker and waits for the zone to clear.
+
+        The wait has an end. A mission that waits for a person who never
+        comes is a mission that never finishes.
+        """
+        zone = str(self.get_parameter("handover_zone").value)
+        self.get_logger().info(
+            f"[HANDOVER] the zone {zone} reports occupied={self._zone_occupied}."
+        )
+        if not self._zone_occupied:
+            await self._simulated_step(
+                goal_handle,
+                "PLACE_AND_HANDOVER",
+                0.98,
+                "Tool placed in the handover area.",
+            )
+            return True
+
+        self._publish_state(
+            "HANDOVER_BLOCKED",
+            0.96,
+            f"The handover zone at {zone} is occupied; calling the operator.",
+        )
+        self._publish_feedback(
+            goal_handle,
+            "HANDOVER_BLOCKED",
+            0.96,
+            f"The handover zone at {zone} is occupied; calling the operator.",
+        )
+        self._call_operator(zone)
+
+        wait = float(self.get_parameter("handover_wait_sec").value)
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            if goal_handle.is_cancel_requested:
+                self._cancel(goal_handle)
+                return False
+            if not self._zone_occupied:
+                self._publish_state(
+                    "HANDOVER_CLEARED",
+                    0.97,
+                    f"The handover zone at {zone} is clear.",
+                )
+                await self._simulated_step(
+                    goal_handle,
+                    "PLACE_AND_HANDOVER",
+                    0.98,
+                    "Tool placed in the handover area.",
+                )
+                return True
+            await rclpy_sleep(self, 0.5)
+        self._warnings.append(f"handover zone {zone} stayed occupied")
+        return False
+
+    def _call_operator(self, zone: str) -> None:
+        """Ask a person to clear the zone.
+
+        The same call the agent makes through `hri.publish_tts`: the mission
+        is the agent's delegate at this level, and a person standing in the
+        handover zone is a person who has to be asked.
+        """
+        message = String()
+        message.data = (
+            f"The handover zone at {zone} is occupied. Please clear {zone} "
+            "so the tool can be handed over."
+        )
+        self._tts_pub.publish(message)
+        self.get_logger().warn(message.data)
 
     async def _verify_operator(self, goal: DeliverTool.Goal, goal_handle) -> bool:
         self._publish_feedback(goal_handle, "VERIFY_IDENTITY", 0.08, f"Verifying operator {goal.operator_id}.")

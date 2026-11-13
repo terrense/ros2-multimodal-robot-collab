@@ -28,8 +28,19 @@ tool_detector_node:
     tool_id: hex_key_3mm
     tool_label: 3mm hex key
     source_frame: tool_camera_link
-    publish_hz: 1.0
+    # Five a second, so that a reading is never more than a fifth of a
+    # second out of date: the calibration reads what the detector published
+    # after the world has changed.
+    publish_hz: 5.0
     confidence: 0.88
+    # The confidence published when something is between the camera and
+    # the tool. A hidden tool is a detection the mission cannot act on.
+    occluded_confidence: 0.22
+    # How much closer than the tool a surface has to be to count as
+    # blocking it.
+    occlusion_margin: 0.08
+    # How far around the tool a surface may be and still block it.
+    occlusion_radius: 0.12
 
 face_auth_node:
   ros__parameters:
@@ -37,6 +48,14 @@ face_auth_node:
       - operator_001
       - operator_002
     simulate_step_seconds: 0.35
+
+zone_occupancy_node:
+  ros__parameters:
+    zones: ["handover_zone"]
+    # The handover zone is a hand's width across. Anything bigger would
+    # count the crates that stand next to it as obstructions.
+    zone_radius: 0.15
+    update_hz: 2.0
 
 gesture_recognizer_node:
   ros__parameters:

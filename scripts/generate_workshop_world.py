@@ -224,8 +224,14 @@ def task_stations() -> str:
     """
     parts = [
         "    <!-- The task's stations, shared with the lab world -->\n",
+        # The markers are visual only, as in the lab world: the robot has to
+        # be able to stand where the station is.
         box_model(
-            "tool_shelf_marker", (1.25, -0.75, 0.15, 0.0), (0.45, 0.35, 0.30), (0.1, 0.42, 0.8)
+            "tool_shelf_marker",
+            (1.25, -0.75, 0.15, 0.0),
+            (0.45, 0.35, 0.30),
+            (0.1, 0.42, 0.8),
+            collide=False,
         ),
         cylinder_model(
             "station_a_marker", (3.20, 0.40, 0.05, 0.0), 0.18, 0.10, (0.0, 0.55, 0.28)

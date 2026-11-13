@@ -266,6 +266,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 **已知限制**（都在文档里写明了，不是待办清单）：
 
+- **底盘的轮子空转，底盘不挪。** ros2_control 把轮子的速度按硬约束写进去，ODE 的接触求解器解不动"轮子推地 + 底盘是重的"这一对约束：把底盘的碰撞盒抬离地面让轮子承重，求解器直接给出 NaN 速度。现在底盘靠一根中脊站着，轮子转得动、里程计在数，但轮子没有载荷就没有抓地力。导航会照里程计报"到了"，同时把"里程计说到了、底盘其实差着 X 米"写进反馈里（`nav_skill_server` 的 `_disagreement`）。`visual_occlusion` 这一族就卡在这儿：换个视角要的是底盘真的动。
 - **SLAM scan matching 关闭。** 用 odometry 建图，没有回环和漂移校正。调参实验做到 84% 跟踪率仍会导航失败，所以关掉直到能用同样方法验证。
 - **机械臂执行是仿真的。** `arm_skill_server` 用 `simulate_step_seconds` 模拟动作，没有接 MoveIt2 或厂商 SDK。
 - **人脸 / 语音 / 手势是桩或用 vendored 源码跑，没有真机。**
@@ -315,9 +316,11 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 取消在 L1 里会以「取消」收场，真栈**确实停住了运动**，但把它记成「抓取失败」。
 照 L1 训出来的策略会等一个永远不来的重试。
 
-另外四族（`visual_occlusion` / `tool_drop` / `no_progress` / `grasp_failure`）
-**这栈造不出故障** —— 感知桩不观察世界、没有东西会放下手里的工具、没人查交接区、
-仿真臂不会抓空。探针会说明缺的是哪个机制，而不是报一句「场景没布置」。
+另外三族（`tool_drop` / `no_progress` / `grasp_failure`）**这栈造不出故障** —— 感知桩不观察世界、没有东西会放下手里的
+工具、没人查交接区、仿真臂不会抓空。探针会说明缺的是哪个机制，而不是报一句「场景没布置」。
+这三族已经改成机器人自己的行为了：机械臂会抓空一次、会半路掉工具，任务在交接区被占时
+会叫操作员并等他清障。剩下 `visual_occlusion` 要的是「换个视角」，而换视角要底盘真的挪动 ——
+它现在挪不动（见「已知限制」）。
 
 ### 线缆故障：丢包要么让命令变慢，要么把它拿走
 
@@ -803,8 +806,9 @@ python3 scripts/calibration_scene.py arm  visual_occlusion   # 摆上
 python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 ```
 
-另外四族这栈造不出故障，探针会说明缺的是哪个机制：感知桩不观察世界（遮挡）、
+另外三族这栈造不出故障，探针会说明缺的是哪个机制：感知桩不观察世界（遮挡）、
 没有东西会放下手里的工具（掉件）、没人查交接区（无进展）、仿真臂不会抓空（抓取失败）。
+其中掉件、无进展、抓取失败已经改成机器人自己的行为，遮挡还差一个「底盘真的挪动」。
 
 ---
 
@@ -849,7 +853,7 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] Gazebo 车间：官方 KUKA/FANUC/Dobot、D435 + VLP-16、SLAM + Nav2 导航打通
 - [x] L2 适配器 + 实时栈评测 + 校准执行器 + 场景道具
 - [x] 线缆故障注入工具与三条不变量（netem + ledger 审计）
-- [x] 校准真跑：**五族各 30 样本**，四个推翻了 L1 的假设；另四族这栈造不出故障，探针写明缺哪个机制
+- [x] 校准真跑：**八族有实测**，其中四族推翻了 L1 的假设；掉件/无进展/抓取失败三族是靠改机器人自己的节点才测得出来的
 - [x] 端点覆盖测试：每个 action server 必须在 schema 里有对应能力（这条本来能提前抓到 `pick_and_place` 的缺失）
 - [x] **headless 真栈冒烟进 CI**：`gzserver` 无窗口起栈 + 派发一次真实递送
 - [x] 依赖声明检查：`$(find X)` / `FindPackageShare` / ROS import 引用的包必须在 `package.xml` 里（抓到两个没声明的传感器包）
@@ -861,7 +865,7 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 待做：
 
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
-- [ ] **让剩下四族能测**：要一个会观察世界的真检测器（遮挡）、一个会释放工具的机械臂（掉件）、一个会查交接区占用的任务状态机（无进展）、一个会抓空的机械臂（抓取失败）。这四条要换软件，不是换场景
+- [ ] **让 `visual_occlusion` 这族能测**：要一个会观察世界的真检测器（遮挡），而"换个视角"要的是底盘在世界里真的挪动——轮子现在空转（见「已知限制」）
 - [ ] CI 里再往前一步：驱动 Nav2（现在只到"图起来 + 一条计划派发 + 一次校准探针 + 一次线缆故障"）
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定

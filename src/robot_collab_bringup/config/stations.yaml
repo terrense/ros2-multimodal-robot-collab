@@ -27,4 +27,24 @@ stations:
       y: 1.35
       yaw: -1.57
     role: delivery
-
+  # Where the base stands when it starts, and where it stands when the
+  # calibration wants the view of the tool blocked. The yaw faces the tool
+  # shelf, because a camera pointing at the wall sees nothing at all.
+  home:
+    frame_id: map
+    pose:
+      x: 0.00
+      y: 0.00
+      yaw: -0.54
+    role: start
+  # The other side of the line of sight from the tool shelf: from here the
+  # shelf is seen past the occluder instead of through it. The yaw faces
+  # the shelf, so that the camera is looking at the tool and not away
+  # from it.
+  viewpoint_left:
+    frame_id: map
+    pose:
+      x: 0.00
+      y: 1.60
+      yaw: -1.08
+    role: viewpoint

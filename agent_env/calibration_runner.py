@@ -53,6 +53,7 @@ SCENE_FAMILIES = frozenset(
         FaultType.VISUAL_OCCLUSION,
         FaultType.TOOL_DROP,
         FaultType.NO_PROGRESS,
+        FaultType.GRASP_FAILURE,
     }
 )
 
@@ -115,6 +116,21 @@ class Stack(Protocol):
         A probe that has to interrupt a mission needs to know when the
         mission is actually moving: a cancel raised before the arm has
         started has nothing to stop.
+        """
+
+    def read_tool_drops(self, timeout_s: float = 5.0) -> list[str]:
+        """Where the arm dropped tools.
+
+        A tool that fell somewhere unknown cannot be picked up again, so the
+        place it fell is part of what happened.
+        """
+
+    def read_tts(self, timeout_s: float = 2.0) -> list[str]:
+        """What was said over the speaker.
+
+        A mission that is blocked calls the operator; that call is on the
+        speaker, and a probe that wants to know whether the call happened
+        reads it there.
         """
 
 
@@ -185,6 +201,11 @@ class CalibrationRunner:
     pickup_station: str = "tool_shelf"
     delivery_station: str = "station_a"
     operator_id: str = "operator_001"
+    #: Where the base stands when the occluder blocks the view, and where it
+    #: stands when the view is clear. The viewpoint has to be a station the
+    #: navigation can drive to, because changing the viewpoint is a move.
+    home_station: str = "home"
+    viewpoint_station: str = "viewpoint_left"
     #: What the mission state machine counts as a confident detection.
     min_tool_confidence: float = DEFAULT_MIN_CONFIDENCE
     #: How long a motion runs before the cancel is raised. Long enough to be
@@ -242,6 +263,14 @@ class CalibrationRunner:
         why: str | None = None
         try:
             for _ in range(wanted):
+                if arranged and self.scenes is not None:
+                    # The world is arranged again for every sample. A fault
+                    # has to be there for each measurement, and an operator
+                    # who cleared the zone in the last sample has to be
+                    # undone: otherwise the second sample measures a
+                    # recovery that the first one already made.
+                    self.scenes.clear(family)
+                    self.scenes.arm(family)
                 try:
                     result = probe(self.stack, self)
                 except SceneRequired as error:
@@ -508,38 +537,68 @@ def probe_low_confidence(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
 def probe_visual_occlusion(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     """Is a blocked detection cleared by changing viewpoint?
 
-    Two things have to be true for this family to mean anything on a live
-    stack: the detector has to see the world, and there has to be a way to
-    change the viewpoint. The stack has neither -- the perception stub
-    publishes a fixed detection, and there is no viewpoint-change capability
-    -- so the probe reports that instead of a number.
+    Three readings and two moves. The base returns to the pose where the
+    occluder is in the way, reads the detection, drives to a station that
+    sees the shelf from the side, and reads it again. The tool is blocked
+    while the panel is between the camera and the shelf and clear once the
+    base has moved.
+
+    The move is a real one: the base has to drive, because the camera is on
+    the base and the panel is in the world.
     """
     reader = getattr(stack, "read_detections", None)
     if reader is None:
         raise StackUnavailable("the stack cannot read the detection topic")
-    detections = reader(3.0)
-    if not detections:
-        raise StackUnavailable("the stack published no detection")
-    confidence = float(detections[0].get("confidence", 1.0))
-    if confidence >= scene.min_tool_confidence:
-        where = "with the occluder in place" if scene.scene_armed(FaultType.VISUAL_OCCLUSION) else ""
+
+    home = stack.call(
+        "navigation.navigate_to_station",
+        {"station_id": scene.home_station, "reason": "calibration: the pose the occluder blocks"},
+    )
+    if _status(stack, home) != "completed":
         raise ProbeUnavailable(
-            f"the detection is still confident {where}: the perception stub "
-            "publishes a fixed detection and does not observe the world, so "
-            "nothing can occlude it"
+            "the base could not return to the pose where the view is blocked: "
+            f"{_receipt_text(home) or 'no detail'}"
         )
-    raise ProbeUnavailable(
-        "the detection is blocked, but the stack has no viewpoint-change "
-        "capability, so there is no way to clear the occlusion"
+
+    blocked = reader(5.0)
+    if not blocked:
+        raise StackUnavailable("the stack published no detection")
+    # The most recent detection, not the most confident one: a reading from
+    # before the occluder was placed would say nothing about it.
+    first = float(blocked[-1].get("confidence", 1.0))
+    if first >= scene.min_tool_confidence:
+        raise ProbeUnavailable(
+            "the detection is still confident with the occluder in place: "
+            "nothing is between the camera and the tool, so there is no "
+            "occlusion to clear"
+        )
+
+    move = stack.call(
+        "navigation.navigate_to_station",
+        {"station_id": scene.viewpoint_station, "reason": "calibration: change the viewpoint"},
+    )
+    if _status(stack, move) != "completed":
+        raise ProbeUnavailable(
+            "the base could not change its viewpoint: "
+            f"{_receipt_text(move) or 'no detail'}"
+        )
+
+    cleared = reader(5.0)
+    if not cleared:
+        raise StackUnavailable("the stack published no detection after the move")
+    second = float(cleared[-1].get("confidence", 1.0))
+    return ProbeResult(
+        success=second >= scene.min_tool_confidence,
+        detail={"blocked": first, "cleared": second, "viewpoint": scene.viewpoint_station},
     )
 
 
 def probe_tool_drop(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     """Can a dropped tool be re-picked from where it fell?
 
-    A drop needs something to drop the tool. The stack's only grasp puts the
-    tool in the frame it was asked for, and nothing on it releases a held
-    tool, so the fault cannot happen and the probe says so.
+    The first pick carries the tool and then loses it. The second pick
+    starts from the place it fell, not from the shelf it came from: a
+    recovery that quietly went back to the shelf would not be a recovery.
     """
     arguments = {
         "tool_id": scene.tool_id,
@@ -548,25 +607,43 @@ def probe_tool_drop(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     }
     receipt = stack.call("manipulation.pick_and_place", dict(arguments))
     status = _status(stack, receipt)
-    if status != "completed":
+    if status == "completed":
         raise ProbeUnavailable(
-            f"the pick did not complete (it was {status!r}), so there was no "
-            "tool to drop: "
+            "the tool reached the target frame: the arm did not drop it, so "
+            "there is no drop to recover from"
+        )
+
+    drops = stack.read_tool_drops(5.0)
+    if not drops:
+        raise ProbeUnavailable(
+            "the pick failed but nothing said where the tool went: "
             f"{_receipt_text(receipt) or 'no detail'}"
         )
-    raise ProbeUnavailable(
-        "the tool is in the frame it was asked for: nothing on this stack "
-        "releases a held tool, so a drop cannot happen"
+    frame = str(drops[-1])
+
+    retry = stack.call(
+        "manipulation.pick_and_place",
+        {
+            "tool_id": scene.tool_id,
+            "source_frame": frame,
+            "target_frame": scene.delivery_station,
+        },
+    )
+    second = _status(stack, retry)
+    return ProbeResult(
+        success=second == "completed",
+        detail={"first": status, "second": second, "drop_frame": frame},
     )
 
 
 def probe_no_progress(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
     """Is a blocked handover unblocked by calling the operator?
 
-    The blocker has to make the handover fail. The handover is a simulated
-    step in the mission state machine and nothing consults the handover zone,
-    so an occupied station changes nothing -- and the probe reports that
-    rather than a recovery rate.
+    The mission has to notice that the handover zone is occupied, call the
+    operator, and then complete the handover. A mission that hands the tool
+    over into an occupied zone has not recovered from anything, so the
+    sample counts only when the operator was called and the handover
+    followed.
     """
     arguments = {
         "tool_id": scene.tool_id,
@@ -574,15 +651,27 @@ def probe_no_progress(stack: Stack, scene: CalibrationRunner) -> ProbeResult:
         "operator_id": scene.operator_id,
     }
     receipt = stack.call("mission-control.deliver_tool", dict(arguments))
-    if _status(stack, receipt) != "completed":
+    status = _status(stack, receipt)
+    if status != "completed":
         raise ProbeUnavailable(
-            "the mission failed with the handover station occupied: "
+            "the mission failed with the handover zone occupied: "
             f"{_receipt_text(receipt) or 'no detail'}"
         )
-    where = "with the station occupied" if scene.scene_armed(FaultType.NO_PROGRESS) else ""
-    raise ProbeUnavailable(
-        f"the handover completed {where}: nothing on this stack consults the "
-        "handover zone, so it cannot be blocked"
+
+    spoken = stack.read_tts(2.0)
+    events = stack.read_mission_events(2.0)
+    called = any("handover" in text.lower() for text in spoken)
+    blocked = any(event.get("state") == "HANDOVER_BLOCKED" for event in events)
+    if not called or not blocked:
+        states = [str(event.get("state")) for event in events]
+        raise ProbeUnavailable(
+            "the handover completed without anybody being called: the mission "
+            "did not consult the handover zone "
+            f"(said {spoken!r}, states {states!r})"
+        )
+    return ProbeResult(
+        success=True,
+        detail={"status": status, "called_the_operator": called, "blocked": blocked},
     )
 
 

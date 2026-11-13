@@ -69,17 +69,38 @@ def main(argv: list[str]) -> int:
             dynamics = joint.find("dynamics")
             if dynamics is None:
                 dynamics = ET.SubElement(joint, "dynamics")
-            dynamics.set("damping", "50.0")
-            dynamics.set("friction", "50.0")
+            # Damping holds the arm up; friction holds it still. Fifty
+            # newton-metres of friction is more than the solver can carry
+            # next to a wheel that is pushing on the ground: the joint
+            # fights the contact and the physics ends up with NaN
+            # velocities.
+            dynamics.set("damping", "20.0")
+            dynamics.set("friction", "2.0")
 
     mount = ET.SubElement(root, "joint", {"name": "dobot_mount", "type": "fixed"})
     ET.SubElement(mount, "origin", {"xyz": MOUNT_XYZ, "rpy": MOUNT_RPY})
     ET.SubElement(mount, "parent", {"link": "base_link"})
     ET.SubElement(mount, "child", {"link": "dobot_base_link"})
 
+    # Drop the arm's own ros2_control hardware.
+    #
+    # The simulation's arm executor is simulated -- `arm_skill_server` does not
+    # drive the Dobot's joints -- so this hardware was never used. Worse, its
+    # gazebo_ros2_control plugin and the mobile base's one want the same node
+    # name, and the second one to start takes gzserver down with it.
+    for control in list(root.findall("ros2_control")):
+        root.remove(control)
+    for gazebo in list(root.findall("gazebo")):
+        for plugin in list(gazebo.findall("plugin")):
+            if plugin.get("filename", "").endswith("libgazebo_ros2_control.so"):
+                gazebo.remove(plugin)
+
     # xacro:include takes the children of the included document root, so the
     # file keeps its <robot> wrapper.
     tree.write(target, encoding="utf-8", xml_declaration=True)
+    # ElementTree writes no newline at the end, and the file is checked in.
+    with open(target, "a", encoding="utf-8") as handle:
+        handle.write("\n")
     print(f"{target}: dobot mounted at {MOUNT_XYZ}")
     return 0
 

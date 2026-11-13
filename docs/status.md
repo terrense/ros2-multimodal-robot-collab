@@ -178,19 +178,25 @@ manual.
 ### 3. Four scenes and one unproducible fault
 
 ~~Blocks: the remaining calibration families.~~ **The scenes are arranged and
-every family has a probe** (2026-11-12). What is left is a limitation of the
-stack rather than of the harness, and it is now a stated reason instead of a
-silent gap:
+every family has a probe** (2026-11-12). **Three of the four that could not be
+produced are produced now** (2026-11-13) — and they were produced by changing
+the robot's own nodes, not by changing the harness:
 
-- `visual_occlusion` — the perception stub publishes a fixed detection and does
-  not observe the world, so an occluder changes nothing. A real detector is
-  needed before this family can mean anything.
-- `tool_drop` — nothing on the stack releases a held tool.
-- `no_progress` — nothing consults the handover zone, so it cannot be blocked.
-- `grasp_failure` — the simulated arm never fails a grasp.
+- `grasp_failure` — the arm can miss a grasp once. The arm server takes a
+  `fault_mode`, and the scene arms it; the next grasp closes on nothing and
+  the one after that works.
+- `tool_drop` — the same arm can let go of the tool in transit. Where it fell
+  is published on `/manipulation/tool_dropped`, and the retry picks it up from
+  there rather than from the shelf.
+- `no_progress` — the mission consults the handover zone before it hands the
+  tool over. A blocked zone makes the mission call the operator over the
+  speaker (`/hri/tts_text`) and wait for the zone to clear.
 
-Each of those probes tries, and refuses with the mechanism that is missing. The
-other five families are measured.
+`visual_occlusion` is still open, and it is open for a physical reason: the
+detector now reads the depth camera's point cloud and can tell that the tool
+is hidden, but *clearing* the occlusion needs the base to look from somewhere
+else, and the simulated base does not move (its wheels turn without grip — see
+the README's known limits). The probe tries, and refuses with that reason.
 
 ### 4. The interrupted model
 
@@ -301,18 +307,24 @@ measure again and L1 follows.
 I have not changed `default_params`, because either reading is defensible and
 the choice changes every published number.
 
-### 2. Four fault families need simulation features, not scenes
+### 2. One fault family still needs the base to move
 
-`visual_occlusion`, `tool_drop`, `no_progress` and `grasp_failure` cannot be
-produced by the stack as it stands: the perception stub does not observe the
-world, nothing releases a held tool, nothing consults the handover zone, and
-the simulated arm never fails a grasp.
+`visual_occlusion` is the last of the four that could not be produced. The
+detector now reads the depth camera's point cloud and can tell that the tool
+is hidden behind the panel the scene puts up — but clearing the occlusion
+means looking from somewhere else, and that means the base has to move in the
+world. It does not: ros2_control imposes the wheel velocities, the ODE
+contact solver cannot satisfy "a wheel pushing on the floor" next to a
+30 kg chassis, and the base ends up standing on a spine with wheels that
+turn without grip. The odometry says the base drove; the simulator's own
+model states say it did not, and the navigation now reports that gap instead
+of hiding it.
 
-Making them producible means **changing the robot's own nodes** — a detector
-that looks at the world, an arm that can slip, a mission that checks whether
-the station is occupied. That is robot control logic, which is off-limits
-without your say-so, so I have written the probes to *refuse with the reason*
-instead of pretending.
+The other three were produced by changing the robot's own nodes — an arm that
+can miss a grasp and can drop a tool, and a mission that checks whether the
+handover zone is occupied and calls the operator when it is. That is robot
+control logic, which was off-limits until you said to change the robot's
+nodes; you did, for these three.
 
 ---
 
