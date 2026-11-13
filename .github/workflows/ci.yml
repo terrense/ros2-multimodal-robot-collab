@@ -278,6 +278,10 @@ jobs:
         # miss a grasp and drop a tool, and the mission that asks for help when
         # the handover zone is occupied. Each of those needs the live stack to
         # be right in a way no unit test can check.
+        #
+        # `visual_occlusion` is the one family that is not checked here: the
+        # detector can see the occlusion, but clearing it needs the base to
+        # turn, and the simulated base's wheels grip sideways.
         timeout-minutes: 20
         run: |
           set -o pipefail
