@@ -198,9 +198,12 @@ def render_gz_sim(xacro_path: str) -> str:
     swapped = (
         description.replace(
             'filename="libgazebo_ros2_control.so"',
-            'filename="libgz_ros2_control.so"',
+            'filename="libgz_ros2_control-system.so"',
         )
-        .replace('name="gazebo_ros2_control"', 'name="gz_ros2_control"')
+        .replace(
+            'name="gazebo_ros2_control"',
+            'name="gz_ros2_control::GazeboSimROS2ControlPlugin"',
+        )
         .replace(
             "<plugin>gazebo_ros2_control/GazeboSystem</plugin>",
             "<plugin>gz_ros2_control/GazeboSimSystem</plugin>",
