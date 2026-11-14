@@ -107,6 +107,12 @@ class NavSkillServer(Node):
         #: ramped towards the wanted one: see `_publish_cmd_vel`.
         self._commanded_linear = 0.0
         self._commanded_angular = 0.0
+        #: Where the base has been, and when, so the navigation can tell
+        #: that it is not moving.
+        self._progress: list[tuple[float, float, float]] = []
+        #: Until when the base turns away from whatever it is stuck on.
+        self._detour_until = 0.0
+        self._detour_sign = 1.0
         self.create_subscription(
             Odometry,
             str(self.get_parameter("odom_topic").value),
@@ -306,6 +312,35 @@ class NavSkillServer(Node):
             # spot, and goes once it is facing the right way.
             alignment = math.cos(error)
             linear = speed * min(1.0, distance / 0.5) * abs(alignment) ** 2
+
+            # An obstacle in the way. The base was asked to go somewhere and
+            # it is not going: it is against a crate, or a wall, or the
+            # panel the calibration puts up. A base that keeps pushing
+            # against it never arrives, and a base that is allowed to drive
+            # through it drives through whatever is in the way, which is
+            # what a crate that only had a visual used to do.
+            #
+            # So the navigation watches whether the base is actually going
+            # anywhere, and when it stops going anywhere it turns away for
+            # a moment and tries again. It is a wall follower, not a
+            # planner, and it says so: it gets around an obstacle by
+            # sliding along it, and it does not know the difference between
+            # a wall and a free path.
+            stuck = self._stuck_against(x, y)
+            if stuck:
+                self._detour_until = time.monotonic() + 2.5
+                self._detour_sign = 1.0 if self._detour_sign >= 0 else -1.0
+                self.get_logger().warn(
+                    f"[DRIVE] not moving at ({x:.2f}, {y:.2f}); "
+                    "turning away and trying again"
+                )
+            if self._detour_until > time.monotonic():
+                # Backing away from whatever is in the way, while turning.
+                # Turning on the spot does not work for this base: the
+                # wheels grip sideways, so a base that is against something
+                # cannot rotate out of it -- it has to reverse first.
+                linear = -0.25
+                angular = 0.6 * self._detour_sign
             self._publish_cmd_vel(linear, angular)
             self._ticks += 1
             if self._ticks % 10 == 0:
@@ -318,6 +353,23 @@ class NavSkillServer(Node):
             await rclpy_sleep(self, period)
         self._stop()
         return False
+
+    def _stuck_against(self, x: float, y: float) -> bool:
+        """Whether the base is being told to move and is not moving.
+
+        The base's own account of where it is, over the last second and a
+        half: a base that was told to go somewhere and has not moved is
+        against something.
+        """
+        now = time.monotonic()
+        self._progress.append((now, x, y))
+        while self._progress and now - self._progress[0][0] > 1.5:
+            self._progress.pop(0)
+        if len(self._progress) < 5:
+            return False
+        first = self._progress[0]
+        travelled = math.hypot(x - first[1], y - first[2])
+        return travelled < 0.05
 
     def _publish_cmd_vel(self, linear: float, angular: float) -> None:
         """Command the base, without slamming the wheels into the new speed.
@@ -350,6 +402,12 @@ class NavSkillServer(Node):
         """Stop the base now, not in a few ticks."""
         self._commanded_linear = 0.0
         self._commanded_angular = 0.0
+        #: Where the base has been, and when, so the navigation can tell
+        #: that it is not moving.
+        self._progress: list[tuple[float, float, float]] = []
+        #: Until when the base turns away from whatever it is stuck on.
+        self._detour_until = 0.0
+        self._detour_sign = 1.0
         twist = Twist()
         twist.linear.x = 0.0
         twist.angular.z = 0.0

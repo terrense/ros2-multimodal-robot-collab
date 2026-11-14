@@ -8,7 +8,21 @@ from __future__ import annotations
 
 import pytest
 
-torch = pytest.importorskip("torch")
+try:
+    import torch
+except ImportError:  # pragma: no cover - torch is optional
+    torch = None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _needs_torch():
+    """The torch-dependent tests, skipped one by one.
+
+    A module-level importorskip aborts the whole session on pytest 6:
+    one skipped module and every other test in the run goes with it.
+    """
+    if torch is None:
+        pytest.skip("torch is not installed")
 
 from training.trainers.opd import (  # noqa: E402
     MixedLossConfig,
