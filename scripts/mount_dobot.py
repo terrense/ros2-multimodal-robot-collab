@@ -18,7 +18,13 @@ from __future__ import annotations
 import sys
 import xml.etree.ElementTree as ET
 
-MOUNT_XYZ = "-0.15 0 0.22"
+#: Where the arm sits on the chassis. The arm weighs about as much as the
+#: chassis's own front end, and it is mounted over the wheel axle: an arm
+#: behind the axle puts the robot's mass behind its wheels, and the robot
+#: tips back onto its own chassis and cannot drive. It is not mounted any
+#: further forward either: the base stops with its nose at the shelf, and an
+#: arm that reaches over the shelf is an arm that knocks the tool off it.
+MOUNT_XYZ = "0.15 0 0.22"
 MOUNT_RPY = "0 0 0"
 DROP = {"world", "dummy_link"}
 DROP_JOINTS = {"world_joint", "dummy_joint"}

@@ -102,7 +102,7 @@ advanced a single step.
 ### Calibration: the state of the fault model
 
 L1's fault behaviour is configured, not measured, and the calibration machinery
-exists to change that. Eight families have been measured against the live
+exists to change that. Nine families have been measured against the live
 stack, and **four of them disagree with L1**:
 
 | Family | L1 says | Live stack | Wilson 95% | Verdict |
@@ -115,7 +115,7 @@ stack, and **four of them disagree with L1**:
 | `grasp_failure` | 0.659 | 1.000 (10/10) | `[0.723, 1.000]` | `insufficient_samples` — the arm can miss a grasp now; ten samples is not thirty |
 | `tool_drop` | 1.000 | 1.000 (10/10) | `[0.723, 1.000]` | `insufficient_samples` — the arm can let go of a tool now |
 | `no_progress` | 1.000 | 1.000 (5/5) | `[0.566, 1.000]` | `insufficient_samples` — the mission asks for help now |
-| `visual_occlusion` | 1.000 | **not measured** | — | the detector sees the occlusion; the base cannot turn to look from somewhere else, so there is no second viewpoint |
+| `visual_occlusion` | 1.000 | 1.000 (10/10) | `[0.723, 1.000]` | `insufficient_samples` — the detector reads the depth cloud now: the tool's own pixels are there or they are not, and a panel in the way takes them away. Ten samples is not thirty |
 
 The four rows that disagree point the same way: **L1 assumes a self-healing the
 stack does not have.** A face mismatch that heals, a marginal detection that
@@ -196,12 +196,23 @@ the robot's own nodes, not by changing the harness:
   panel the scene puts up. Clearing the occlusion means looking from somewhere
   else, which means the base has to move.
 
-And to make the base move, the Dobot's own joints came off the chassis. They
-were a constraint the solver could not satisfy at the same time as the wheels'
-contact: when it gave up, every velocity in the model went to NaN, the
-controller stopped applying commands without a word in the log, and the
-odometry simply stopped. The arm is a prop on this base — the arm server
-simulates the manipulation — so its joints are locked, and the base drives.
+And to make the base move, three things had to be true, and none of them
+was. The Dobot's own joints came off the chassis: they were a constraint the
+solver could not satisfy at the same time as the wheels' contact, and when it
+gave up every velocity in the model went to NaN, the controller stopped
+applying commands without a word in the log, and the odometry simply stopped.
+The arm is a prop on this base — the arm server simulates the manipulation —
+so its joints are locked.
+
+The arm is also 14 kg, and it was mounted behind the wheel axle, so the base
+tipped back onto its own chassis, dragged on the way round, and could not
+drive. The arm is over the axle now, the chassis has no rear corner left to
+rest on, and the caster that stops the base tipping backwards hangs just
+clear of the floor. The navigation steers by the simulator's own account of
+where the chassis is rather than by an odometry that counts wheel rotation
+the wheels never made. With those three fixed, the base drives, turns, and
+arrives where it was sent — which is what the second viewpoint of the
+occlusion probe needs.
 
 ### 4. The interrupted model
 
@@ -314,13 +325,12 @@ the choice changes every published number.
 
 ### 2. The base drives, and what it still gets wrong
 
-Three of the four families that could not be produced are produced now, by
-changing the robot's own nodes. The one thing that had to be fixed underneath
-them was the base itself: the controller manager had never come up, so the
-base had no motors, and every "arrived" was a report of something that did
-not happen.
+All four families that could not be produced are produced now, by changing
+the robot's own nodes. The one thing that had to be fixed underneath them was
+the base itself: the controller manager had never come up, so the base had no
+motors, and every "arrived" was a report of something that did not happen.
 
-Two defects were behind it, and both were silent:
+Four defects were behind it, and all of them were silent:
 
 - **The robot description carried XML comments.** rcl parses the value of a
   parameter override as YAML, and a colon followed by a space ends the value.
@@ -333,17 +343,27 @@ Two defects were behind it, and both were silent:
   stopped applying commands, and the odometry stopped moving — with nothing
   in the log to say why. The arm is a prop on this base (the arm server
   simulates the manipulation), so its joints are locked.
+- **The arm was mounted behind the wheel axle.** Fourteen kilograms of arm
+  behind the wheels tips the base back onto its own chassis, and a base
+  resting on the corner of its own chassis drags. The arm is over the axle
+  now, the chassis has no rear corner left to rest on, and the caster that
+  stops the base tipping backwards hangs just clear of the floor.
+- **The navigation steered by an odometry that was counting wheel rotation the
+  wheels never made.** It drove the base in a curve away from the station it
+  was sent to and reported an arrival. It steers by the simulator's own
+  account of where the chassis is now, and still reports the gap between the
+  two accounts at every arrival.
 
-What is still wrong: the wheels grip sideways. The base drives where it was
-pointed and cannot turn, so the odometry counts more wheel rotation than the
-chassis travels and the navigation ends up somewhere the robot is not. The
-navigation compares the two — the odometry against the simulator's own model
-states — and reports the gap instead of hiding it.
+What is still wrong: the wheels still slip, so the odometry counts more wheel
+rotation than the chassis travels. The navigation now steers by the
+simulator's own account of where the chassis is, and it still compares the two
+— the odometry against the model states — and reports the gap instead of
+hiding it. The base drives where it is pointed and turns while it drives; it
+does not rotate on the spot, and it does not avoid obstacles. The stations are
+in the open part of the workcell for that reason.
 
-That is also why `visual_occlusion` is the one family still unmeasured: the
-detector can see that the tool is hidden behind the panel the scene puts up,
-but clearing the occlusion means looking from somewhere else, and this base
-cannot look from anywhere else.
+The four families that could not be produced are produced now, and all nine
+families have a live measurement.
 
 ---
 
@@ -355,7 +375,7 @@ mode*. To answer it:
 1. **Six arms trained and scored** — the comparison itself.
 2. **A trusted fault model** — calibration either passing or, where it fails,
    the L1 number corrected and the arms re-run against the corrected model.
-   The first half is done: five families measured, four of them falsifying L1.
+   The first half is done: nine families measured, four of them falsifying L1.
    The second half is the decision above.
 3. **The failure decomposition reported per arm** — which is already what the
    report generates; it needs numbers.

@@ -197,4 +197,4 @@
     <axis xyz="0 0 1" />
     <limit lower="-6.27" upper="6.27" effort="100" velocity="3.89" />
   </joint>
-<joint name="dobot_mount" type="fixed"><origin xyz="-0.15 0 0.22" rpy="0 0 0" /><parent link="base_link" /><child link="dobot_base_link" /></joint></robot>
+<joint name="dobot_mount" type="fixed"><origin xyz="0.15 0 0.22" rpy="0 0 0" /><parent link="base_link" /><child link="dobot_base_link" /></joint></robot>

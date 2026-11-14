@@ -5,7 +5,7 @@ Primary metric: `recovery_success` -- share of fault-injected episodes that end 
 
 <!-- BEGIN GENERATED: summary -->
 Runs completed: 1/7. Pending: sft, sft_dpo, ppo_terminal, ppo_progress, opd_pure, opd_warmup_ppo.
-L2 status: 1/9 fault families calibrated against the live stack; not calibrated: grasp_failure (insufficient_samples), identity_mismatch (interval_excludes_l1_rate), low_confidence (interval_excludes_l1_rate), nav_timeout (interval_excludes_l1_rate), no_progress (insufficient_samples), tool_drop (insufficient_samples), user_cancel (interval_excludes_l1_rate), visual_occlusion (not_measured). Every result below is L1 only.
+L2 status: 1/9 fault families calibrated against the live stack; not calibrated: grasp_failure (insufficient_samples), identity_mismatch (interval_excludes_l1_rate), low_confidence (interval_excludes_l1_rate), nav_timeout (interval_excludes_l1_rate), no_progress (insufficient_samples), tool_drop (insufficient_samples), user_cancel (interval_excludes_l1_rate), visual_occlusion (insufficient_samples). Every result below is L1 only.
 <!-- END GENERATED: summary -->
 
 Targets are pre-registered acceptance criteria, not results. Measured columns

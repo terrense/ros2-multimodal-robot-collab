@@ -6,7 +6,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -15,15 +15,49 @@ def _tool_position() -> str:
     """Where the tool is, for the detector that has to look at it.
 
     The tool sits on the shelf marked at the `tool_shelf` station, and the
-    shelf's marker is a box whose top is at 0.30 m. The detector needs the
+    shelf's marker is a box whose top is at 0.38 m. The detector needs the
     tool's place in the world so that it can tell whether the tool is
     visible from where the camera is -- which is the difference between a
     detection and a blocked one.
+
+    The shelf is high enough that the base can still drive up to it: the
+    lidar's top is at 0.33 m, and a tool lower than that is a wall the
+    robot cannot get past.
     """
     registry = Path(get_package_share_directory("robot_collab_bringup")) / "config" / "stations.yaml"
     data = yaml.safe_load(registry.read_text(encoding="utf-8")) or {}
     pose = ((data.get("stations") or {}).get("tool_shelf") or {}).get("pose") or {}
-    return f"{float(pose.get('x', 1.25))} {float(pose.get('y', -0.75))} 0.30"
+    return f"{float(pose.get('x', 1.25))} {float(pose.get('y', -0.75))} 0.41"
+
+
+def _home_yaw() -> str:
+    """The heading the base starts with: the home station's heading.
+
+    The home station is where the base stands when the view of the tool is
+    blocked. If the robot spawns somewhere else, it starts the measurement
+    looking at the wrong thing, and the measurement answers a question
+    nobody asked.
+    """
+    registry = Path(get_package_share_directory("robot_collab_bringup")) / "config" / "stations.yaml"
+    data = yaml.safe_load(registry.read_text(encoding="utf-8")) or {}
+    pose = ((data.get("stations") or {}).get("home") or {}).get("pose") or {}
+    return f"{float(pose.get('yaw', 0.0))}"
+
+
+def _camera_mount() -> str:
+    """Where the camera sits on the robot, read out of the description.
+
+    A detector that looks at the world through the camera has to know
+    where the camera is, and the robot description is the only place that
+    is written down. Reading it here keeps it there: the node is handed
+    the mount, and nobody has to remember to update two files.
+    """
+    xacro = PathJoinSubstitution(
+        [FindPackageShare("robot_collab_sim"), "urdf", "collab_mobile_base.urdf.xacro"]
+    )
+    return Command(
+        ["python3 -m robot_collab_sim.robot_description mount ", xacro]
+    )
 
 
 def generate_launch_description():
@@ -47,6 +81,7 @@ def generate_launch_description():
         launch_arguments={
             "use_sim_time": use_sim_time,
             "world": world,
+            "spawn_yaw": _home_yaw(),
         }.items(),
     )
 
@@ -175,6 +210,7 @@ def generate_launch_description():
                         # a detection, so it needs to know where its tool is.
                         "tool_position": _tool_position(),
                         "world_frame": "map",
+                        "camera_mount": _camera_mount(),
                     },
                 ],
             ),

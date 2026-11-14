@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 import rclpy
-from gazebo_msgs.msg import ModelStates
+from gazebo_msgs.msg import LinkStates, ModelStates
 from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
 from rclpy.qos import (
@@ -61,31 +61,60 @@ class ToolDetectorNode(Node):
         self.declare_parameter("occlusion_margin", 0.25)
         # How far around the tool a surface may be and still block it.
         self.declare_parameter("occlusion_radius", 0.12)
+        # How close a surface has to be to the tool's place in the cloud for
+        # the tool to count as seen.
+        self.declare_parameter("visibility_radius", 0.25)
         # The depth camera's point cloud.
         self.declare_parameter("cloud_topic", "/camera/depth/points")
+        self.declare_parameter("camera_link", "camera_link")
+        # Where the camera sits on the robot, as "x y z yaw" in the robot's
+        # root frame. The launch reads it out of the robot description.
+        self.declare_parameter("camera_mount", "")
         self.declare_parameter("occlusion_check", True)
 
         self._pub = self.create_publisher(ToolDetection, "/perception/tool_detections", 10)
         self._cloud: PointCloud2 | None = None
         self._cloud_frame = ""
         self._points: np.ndarray | None = None
-        self._truth: tuple[float, float, float] | None = None
+        self._truth: tuple[float, float, float, float] | None = None
+        self._base_pose: np.ndarray | None = None
+        self._base_rotation: np.ndarray | None = None
+        self._camera_link: tuple[float, float, float, float] | None = None
         self._mount_cache: tuple[float, tuple[float, float, float]] | None = None
         self._robot_model = "collab_mobile_base"
         self._occluded = False
+        self._visible = False
         self._occlusion_checked = False
         self._logged_occlusion = False
+        self._reported: set[str] = set()
+        self._last_report: tuple[bool, bool] | None = None
+        self._heartbeat = 0
         self._model_states_sub = self.create_subscription(
             ModelStates,
             "/model_states",
             self._on_model_states,
             qos_profile_sensor_data,
         )
+        # The simulator's own account of where the camera is. The static
+        # transforms carry the camera's mount on the chassis, but they are
+        # published once, at startup, and a subscriber that joins later does
+        # not always get them: the detector then has no camera at all, and
+        # reports a tool it cannot see as a tool that is not there. The link
+        # states are published all the time, and they are the truth.
+        self._link_states_sub = self.create_subscription(
+            LinkStates,
+            "/link_states",
+            self._on_link_states,
+            qos_profile_sensor_data,
+        )
         self._cloud_sub = self.create_subscription(
             PointCloud2,
             str(self.get_parameter("cloud_topic").value),
             self._on_cloud,
-            qos_profile_sensor_data,
+            # The default profile, not the sensor-data one: the camera's
+            # publisher is reliable, and a best-effort reader does not get
+            # everything from it here.
+            5,
         )
         self._tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         # The static transforms (the camera's mount, the map anchor) are
@@ -127,13 +156,18 @@ class ToolDetectorNode(Node):
         return (float(parts[0]), float(parts[1]), float(parts[2]))
 
     def _on_model_states(self, msg) -> None:
-        """Where the chassis really is.
+        """Where the chassis really is, and how it is turned.
 
         The simulator publishes the poses of everything in the world. The
         odometry is the robot's own account of where it is, and in this
         simulation the wheels slip: the odometry's heading says one thing
         and the chassis is somewhere else. A detector that trusted the
         odometry would look in the wrong direction.
+
+        The whole attitude is kept, not just the heading. The base does not
+        always sit level: the wheel velocities are imposed every step, so a
+        base that is tilted once stays tilted, and the camera on a tilted
+        base looks somewhere else entirely.
         """
         for name, pose in zip(msg.name, msg.pose, strict=False):
             if name != self._robot_model:
@@ -146,40 +180,120 @@ class ToolDetectorNode(Node):
             self._truth = (
                 float(pose.position.x),
                 float(pose.position.y),
+                float(pose.position.z),
                 yaw,
             )
+            self._base_pose = np.array(
+                [pose.position.x, pose.position.y, pose.position.z], dtype=float
+            )
+            self._base_rotation = _quaternion_matrix(
+                orientation.w, orientation.x, orientation.y, orientation.z
+            )
+
+    def _on_link_states(self, msg) -> None:
+        """Where the camera is, according to the simulator.
+
+        The camera's place in the world, with its heading. This is the
+        detector's own account of where it is looking, and it needs no
+        composition of transforms and no assumption about which way a
+        frame is expressed in.
+        """
+        for name, pose in zip(msg.name, msg.pose, strict=False):
+            if name != str(self.get_parameter("camera_link").value):
+                continue
+            orientation = pose.orientation
+            yaw = math.atan2(
+                2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+                1.0 - 2.0 * (orientation.y**2 + orientation.z**2),
+            )
+            self._camera_link = (
+                float(pose.position.x),
+                float(pose.position.y),
+                float(pose.position.z),
+                yaw,
+            )
+
+    def _report_once(self, message: str) -> None:
+        """Say what the detector is waiting for, once per distinct reason."""
+        if message in self._reported:
+            return
+        self._reported.add(message)
+        self.get_logger().warn(f"[OCCLUSION] {message}")
+
+    def _visibility_radius(self) -> float:
+        """How close a surface has to be to the tool for the tool to be seen."""
+        return float(self.get_parameter("visibility_radius").value)
+
+    def _camera_transform(self) -> tuple[np.ndarray, np.ndarray] | None:
+        """Where the camera is, and which way it looks.
+
+        The camera's place in the world and the rotation that takes the
+        camera's own frame into the world's. The chassis's attitude is
+        used in full: a base that is tilted looks somewhere else, and a
+        detector that assumes a level base looks in the wrong place.
+        """
+        if self._base_pose is None or self._base_rotation is None:
+            return None
+        mount = self._mount()
+        if mount is None:
+            return None
+        yaw, offset = mount
+        mount_rotation = np.array(
+            [
+                [math.cos(yaw), -math.sin(yaw), 0.0],
+                [math.sin(yaw), math.cos(yaw), 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=float,
+        )
+        rotation = self._base_rotation @ mount_rotation
+        position = self._base_pose + self._base_rotation @ np.asarray(offset, dtype=float)
+        return position, rotation
 
     def _camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float, float]] | None:
         """Where the camera is, and which way it looks.
 
-        Two things are needed: the chassis's place in the world, which only
-        the simulator knows, and the camera's mount on the chassis, which
-        only the robot description knows. The first comes from the model
-        states, the second from the static transforms.
+        The simulator says where the camera is. When it does not -- a robot
+        that is not in a simulator, a simulator that does not publish link
+        states -- the camera's place is worked out from the chassis's place
+        and the camera's mount on it, which is what the static transforms
+        are for.
         """
+        if self._camera_link is not None:
+            x, y, z, yaw = self._camera_link
+            return (x, y, z), (math.cos(yaw / 2.0), 0.0, 0.0, math.sin(yaw / 2.0))
         if self._truth is None:
             return None
         camera = self._mount()
         if camera is None:
             return None
         rotation, offset = camera
-        cos_yaw = math.cos(self._truth[2])
-        sin_yaw = math.sin(self._truth[2])
+        cos_yaw = math.cos(self._truth[3])
+        sin_yaw = math.sin(self._truth[3])
         world = (
             self._truth[0] + offset[0] * cos_yaw - offset[1] * sin_yaw,
             self._truth[1] + offset[0] * sin_yaw + offset[1] * cos_yaw,
             self._truth[2] + offset[2],
         )
-        yaw = self._truth[2] + rotation
+        yaw = self._truth[3] + rotation
         return world, (math.cos(yaw / 2.0), 0.0, 0.0, math.sin(yaw / 2.0))
 
     def _mount(self) -> tuple[float, tuple[float, float, float]] | None:
         """The camera's place on the chassis, and its heading relative to it.
 
-        Taken from the static transforms, so the robot description stays the
-        only place the mount is written down.
+        The parameter the launch hands over, which is read out of the robot
+        description: the description is the only place the mount is written
+        down, and a node that has to know where the camera is has to be
+        told. The static transforms carry the same information, but they
+        are published once, when the robot description arrives, and a
+        subscriber that joins later does not always get them.
         """
         if self._mount_cache is not None:
+            return self._mount_cache
+        text = str(self.get_parameter("camera_mount").value).split()
+        if len(text) == 4:
+            x, y, z, yaw = (float(value) for value in text)
+            self._mount_cache = (yaw, (x, y, z))
             return self._mount_cache
         try:
             camera = self._tf_buffer.lookup_transform(
@@ -226,23 +340,6 @@ class ToolDetectorNode(Node):
         self._mount_cache = (heading, (float(offset[0]), float(offset[1]), float(offset[2])))
         return self._mount_cache
 
-    def _camera_pose(self) -> tuple[float, float, float, float] | None:
-        """The camera's place in the world: x, y, z and the yaw."""
-        frame = self._cloud_frame or str(self.get_parameter("source_frame").value)
-        try:
-            transform = self._tf_buffer.lookup_transform(
-                str(self.get_parameter("world_frame").value), frame, rclpy.time.Time()
-            )
-        except (TransformException, LookupError):
-            return None
-        translation = transform.transform.translation
-        rotation = transform.transform.rotation
-        yaw = math.atan2(
-            2.0 * (rotation.w * rotation.z + rotation.x * rotation.y),
-            1.0 - 2.0 * (rotation.y * rotation.y + rotation.z * rotation.z),
-        )
-        return (translation.x, translation.y, translation.z, yaw)
-
     # --------------------------------------------------------------- occlusion
 
     def _update_occlusion(self) -> None:
@@ -259,19 +356,28 @@ class ToolDetectorNode(Node):
             self._occlusion_checked = True
             return
         if self._points is None:
+            self._report_once(
+                f"no points: cloud received={self._cloud is not None}, "
+                f"frame={self._cloud_frame!r}"
+            )
             return
-        camera = self._camera_pose()
+        camera = self._camera_transform()
         if camera is None:
+            self._report_once(
+                f"no camera pose: truth={self._truth is not None}, "
+                f"mount={self._mount() is not None}"
+            )
             return
         translation, rotation = camera
         tool = self._tool_position()
-        local = _rotate_by_quaternion(
-            tool[0] - translation[0],
-            tool[1] - translation[1],
-            tool[2] - translation[2],
-            rotation,
+        # The tool in the camera's own frame. The rotation is the whole
+        # attitude of the camera, not just its heading: a base that is
+        # tilted looks somewhere else, and a detector that looks where a
+        # level camera would look finds a tool that is not there.
+        local = rotation.T @ (
+            np.asarray(tool, dtype=float) - translation
         )
-        expected = math.sqrt(local[0] ** 2 + local[1] ** 2 + local[2] ** 2)
+        expected = float(np.linalg.norm(local))
         if expected <= 1e-6:
             return
         # The depth cloud is published in the optical convention: z forward,
@@ -284,7 +390,25 @@ class ToolDetectorNode(Node):
         radius = float(self.get_parameter("occlusion_radius").value)
         margin = float(self.get_parameter("occlusion_margin").value)
         self._occluded = self._something_in_the_way(local, expected, radius, margin)
+        # Being blocked and not being there at all are the same thing to a
+        # detector: the tool cannot be picked up from what the camera sees.
+        # The difference matters for the experiment, not for the robot.
+        nearest = _nearest_distance(self._points, local, self._visibility_radius())
+        self._visible = nearest is not None
         self._occlusion_checked = True
+        # Say what the detector sees whenever the answer changes. A detector
+        # that quietly keeps the same answer is a detector nobody can check.
+        report = (self._occluded, self._visible)
+        if report != self._last_report:
+            self._last_report = report
+            self.get_logger().warn(
+                f"[OCCLUSION] camera=({translation[0]:.2f}, {translation[1]:.2f}, "
+                f"{translation[2]:.2f}) tool {expected:.2f} m away "
+                f"optical=({local[0]:.2f}, {local[1]:.2f}, {local[2]:.2f}) "
+                f"occluded={self._occluded} visible={self._visible} "
+                f"nearest={nearest if nearest is None else round(nearest, 3)} "
+                f"points={0 if self._points is None else len(self._points)}"
+            )
 
     def _something_in_the_way(
         self,
@@ -316,31 +440,35 @@ class ToolDetectorNode(Node):
     def _publish_detection(self) -> None:
         self._update_occlusion()
         frame = str(self.get_parameter("source_frame").value)
-        camera = self._camera_pose()
+        camera = self._camera_transform()
         pose = PoseStamped()
         pose.header.stamp = self.get_clock().now().to_msg()
         pose.header.frame_id = frame
         if camera is not None:
+            translation, rotation = camera
             tool = self._tool_position()
-            dx = tool[0] - camera[0]
-            dy = tool[1] - camera[1]
-            # The tool in the camera's frame, with the camera looking along
-            # its own x axis.
-            cos_yaw = math.cos(-camera[3])
-            sin_yaw = math.sin(-camera[3])
-            pose.pose.position.x = dx * cos_yaw - dy * sin_yaw
-            pose.pose.position.y = dx * sin_yaw + dy * cos_yaw
-            pose.pose.position.z = tool[2] - camera[2]
+            # The tool in the camera's own frame: x forward, y to the left,
+            # z up.
+            local = rotation.T @ (np.asarray(tool, dtype=float) - translation)
+            pose.pose.position.x = float(local[0])
+            pose.pose.position.y = float(local[1])
+            pose.pose.position.z = float(local[2])
         else:
             pose.pose.position.x = 0.42
             pose.pose.position.y = -0.12
             pose.pose.position.z = 0.08
         pose.pose.orientation.w = 1.0
 
-        occluded = self._occluded and self._occlusion_checked
+        # A detector that cannot see the tool says so with a low
+        # confidence. What is in the way is reported as well, but it is not
+        # what decides: the shelf the tool stands on is itself a surface
+        # along the last of the ray, and a detector that called every
+        # grazing surface an obstruction would call the tool hidden while
+        # looking straight at it. The tool's own pixels are the answer.
+        hidden = self._occlusion_checked and not self._visible
         confidence = (
             float(self.get_parameter("occluded_confidence").value)
-            if occluded
+            if hidden
             else float(self.get_parameter("confidence").value)
         )
 
@@ -353,9 +481,26 @@ class ToolDetectorNode(Node):
         msg.source_frame = frame
         msg.detector_id = self.get_name()
         self._pub.publish(msg)
-        if occluded:
+        if hidden:
             self.get_logger().warn(
                 f"Tool {msg.tool_id} is not visible from here; confidence {confidence:.2f}."
+            )
+        # A heartbeat: what the detector believes, every few seconds, whether
+        # it changed or not. A detector whose account of the world cannot be
+        # read off the log is a detector nobody can check.
+        self._heartbeat += 1
+        if self._heartbeat % 25 == 0:
+            camera = self._camera_transform()
+            where = (
+                "no camera"
+                if camera is None
+                else f"camera=({camera[0][0]:.2f}, {camera[0][1]:.2f}, {camera[0][2]:.2f})"
+            )
+            self.get_logger().warn(
+                f"[OCCLUSION] {where} checked={self._occlusion_checked} "
+                f"occluded={self._occluded} visible={self._visible} "
+                f"points={0 if self._points is None else len(self._points)} "
+                f"confidence={confidence:.2f}"
             )
 
 
@@ -413,6 +558,18 @@ def _matrix_quaternion(matrix: np.ndarray) -> tuple[float, float, float, float]:
         y = (matrix[1, 2] + matrix[2, 1]) / scale
         z = 0.25 * scale
     return (float(w), float(x), float(y), float(z))
+
+
+def _inverse_quaternion(
+    quaternion: tuple[float, float, float, float]
+) -> tuple[float, float, float, float]:
+    """The inverse of a rotation given as (w, x, y, z).
+
+    Turning a world vector into a camera-frame vector means undoing the
+    camera's heading, and the undoing of a rotation is its conjugate.
+    """
+    w, x, y, z = quaternion
+    return (w, -x, -y, -z)
 
 
 def _rotate_by_quaternion(

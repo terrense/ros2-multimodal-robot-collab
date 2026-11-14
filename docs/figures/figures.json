@@ -95,6 +95,18 @@
         0.5655,
         1.0
       ]
+    },
+    {
+      "family": "visual_occlusion",
+      "l1_rate": 1.0,
+      "l2_rate": 1.0,
+      "label": "visual_occlusion",
+      "samples": 10,
+      "verdict": "insufficient_samples",
+      "wilson": [
+        0.7225,
+        1.0
+      ]
     }
   ],
   "conditions": [

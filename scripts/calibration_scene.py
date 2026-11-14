@@ -38,7 +38,7 @@ from agent_env.calibration_scene import (  # noqa: E402 - the path fix comes fir
     STATIONS_YAML,
     RosScene,
     load_stations,
-    resolve,
+    resolve_pose,
     scene_for,
 )
 
@@ -67,8 +67,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == "show":
         print(f"[{scene.family}] {scene.note}")
         for prop in scene.props:
-            x, y, z = resolve(prop, stations)
-            print(f"  {prop.name:22s} {prop.sdf:24s} -> ({x}, {y}, {z})  {prop.role}")
+            x, y, z, yaw = resolve_pose(prop, stations)
+            print(
+                f"  {prop.name:22s} {prop.sdf:24s} -> ({x}, {y}, {z}) "
+                f"yaw {yaw:.2f}  {prop.role}"
+            )
         if scene.parameter is not None:
             node, parameter, value = scene.parameter
             print(f"  parameter {node}.{parameter} = {value}")
@@ -89,8 +92,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.action == "arm":
             for prop in scene.props:
-                x, y, z = resolve(prop, stations)
-                if not ros.spawn(prop.name, prop.path, x, y, z):
+                # The same placement the runner uses: a prop that stands on
+                # the line of sight is placed on it, and turned to face
+                # along it. Placing it at the station instead would put the
+                # obstruction on top of the thing it is meant to hide.
+                x, y, z, yaw = resolve_pose(prop, stations)
+                if not ros.spawn(prop.name, prop.path, x, y, z, yaw):
                     return 1
             if scene.parameter is not None:
                 node, parameter, value = scene.parameter

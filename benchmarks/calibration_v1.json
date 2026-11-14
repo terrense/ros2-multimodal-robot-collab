@@ -1,7 +1,7 @@
 {
   "version": "calibration_v1",
   "seed": 20261110,
-  "generated_at": 1794571787.0990775,
+  "generated_at": 1794593110.9752696,
   "min_samples": 30,
   "families": [
     {
@@ -119,14 +119,14 @@
     {
       "name": "visual_occlusion",
       "l1_rate": 1.0,
-      "l2_rate": null,
+      "l2_rate": 1.0,
       "wilson_95": [
-        0.0,
+        0.7225,
         1.0
       ],
-      "samples": 0,
+      "samples": 10,
       "calibrated": false,
-      "reason": "not_measured",
+      "reason": "insufficient_samples",
       "question": "a blocked detection is cleared by changing viewpoint",
       "l1_source": "l1_sim: occlusion_cleared is set by navigation.reposition"
     }

@@ -12,6 +12,7 @@ def generate_launch_description():
     robot_name = LaunchConfiguration("robot_name")
     world = LaunchConfiguration("world")
     gui = LaunchConfiguration("gui")
+    spawn_yaw = LaunchConfiguration("spawn_yaw")
 
     sim_share = FindPackageShare("robot_collab_sim")
     robot_description_path = PathJoinSubstitution([sim_share, "urdf", "collab_mobile_base.urdf.xacro"])
@@ -48,6 +49,15 @@ def generate_launch_description():
             DeclareLaunchArgument("robot_name", default_value="collab_mobile_base"),
             DeclareLaunchArgument("world", default_value=default_world_path),
             DeclareLaunchArgument("gui", default_value="true"),
+            DeclareLaunchArgument(
+                "spawn_yaw",
+                default_value="0.0",
+                description=(
+                    "The heading the base is spawned with. The bringup passes the "
+                    "home station's yaw, so that the robot starts where the "
+                    "stations say it starts and faces what it is meant to see."
+                ),
+            ),
             gazebo_launch,
             Node(
                 package="robot_state_publisher",
@@ -78,6 +88,12 @@ def generate_launch_description():
                     # a contact the solver cannot resolve.
                     "-z",
                     "0.0",
+                    # The heading the base starts with. A camera that starts
+                    # pointing at a wall sees nothing, and a measurement that
+                    # needs the robot to look at the tool needs it to start
+                    # looking at the tool.
+                    "-Y",
+                    spawn_yaw,
                 ],
             ),
             # The wheels are commanded through ros2_control. Without these two

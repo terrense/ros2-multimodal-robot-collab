@@ -174,14 +174,23 @@ COCO 预训练权重认不出项目工具，所以 `demo_params.yaml` 把若干�
 （bottle / cup / cell phone…）映射到请求的 `tool_id`。在机器人相机前放一个这类物体，
 `/perception/tool_detections` 就会出真实检测、放行任务。
 
-### 6. 用 LLM 做规划（可选）
+### 6. 用一句话指挥机器人（可选）
 
 ```bash
-cp .env.example .env       # 填入 MINIMAX_API_KEY，.env 不进 git
-python3 agent_harness/scripts/minimax_mission_planner.py \
-  "deliver the 3mm hex key to station_a for operator_001" \
-  --output agent_harness/generated/last_plan.json --dry-run
+cp .env.example .env       # 填入 DEEPSEEK_API_KEY 或 MINIMAX_API_KEY，.env 不进 git
+bash scripts/run_gazebo_demo.sh            # 仿真栈先起来
+
+# 一句话进去，机器人动起来：模型出计划，harness 校验每一步，真栈执行
+bash scripts/nl_mission.sh "把 3mm 六角扳手送到 station_a"
+
+# 只看计划、不派发
+bash scripts/nl_mission.sh "走到 handover_zone" --dry-run
 ```
+
+计划和执行是分开的两步，中间没有捷径：模型只能产出结构化的计划 JSON，
+每一步都要过 `skills/` 里这张能力表和 `CapabilityRegistry` 的校验，
+名字对不上的能力在机器人动之前就被拒掉。密钥只从环境变量（或本地
+`.env`）读，仓库里不放。
 
 ### 排错
 
@@ -196,6 +205,27 @@ python3 agent_harness/scripts/minimax_mission_planner.py \
 | `$'\r': command not found` | Windows CRLF | `git config core.autocrlf` / 转 LF |
 
 完整的 15 条踩坑记录：[`docs/openrua_audit/gazebo-failure-log.md`](docs/openrua_audit/gazebo-failure-log.md)。
+
+---
+
+## 换到 gz-sim（ros_gz）
+
+Gazebo Classic 之外还有 gz-sim：同一套机器人、同一个运行时、同一份契约，
+换的是底下的仿真器和跟它说话的插件。
+
+```bash
+sudo apt-get install -y --no-install-recommends ros-humble-ros-gz gz-fortress
+bash scripts/run_gz_sim_demo.sh            # 无窗口
+bash scripts/run_gz_sim_demo.sh --gui      # 带窗口
+```
+
+机器人描述只有一份（`robot_description.py gz-sim` 把 Classic 的控制器插件换成
+gz-sim 的那个），实验场景也是一份（`scripts/make_gz_sim_world.py` 从 classic 的
+world 生成 gz-sim 的 world，两者不会漂移）。传感器在 gz-sim 里发的是 Gazebo
+Transport 的话题，由 `ros_gz_bridge` 搬到 ROS 的话题上。
+
+**这个移植还没跑过** —— 写它的时候 gz-sim 的包还没装上。哪些跑过了、哪些还是
+照着文档写的、第一次跑要检查什么，都写在 [`docs/gz_sim_port.md`](docs/gz_sim_port.md)。
 
 ---
 
@@ -244,7 +274,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 ## 项目状态
 
-主套件 **525 passed / 3 skipped**，harness 套件 **86 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
+主套件 **557 passed / 3 skipped**，harness 套件 **86 passed**（另 3 个 ROS 测试在 CI 的 ROS 容器里跑）。本地门禁 `bash scripts/check_all.sh` 跑的和 CI 同一套检查，所以「本地绿」和「CI 绿」是一回事；CI 在 `main` 上现在是全绿的。
 
 | 模块 | 已实现 | 验证到什么程度 |
 |---|---|---|
@@ -266,8 +296,8 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 **已知限制**（都在文档里写明了，不是待办清单）：
 
-- **底盘的轮子横向打滑，底盘转不动。** 底盘能开，但只会往它指的方向开：里程计数出来的轮子转圈比底盘走过的路多，于是导航停在"到了"的地方其实不是那儿。导航每次到站都拿里程计和仿真世界自己的模型位姿对一次，把差值写进反馈（`nav_skill_server` 的 `_disagreement`），而不是装作到了。`visual_occlusion` 这一族就卡在这儿：检测器已经能看出工具被挡住了，但换个视角要的是底盘能转。
-- **底盘上的 Dobot 是道具。** 它的关节被锁死了：这台底盘上的机械臂由 `arm_skill_server` 模拟，真实关节没人驱动；而自由的关节和底盘与地面的接触是求解器没法同时满足的两个约束，它放弃的时候整个模型的速度会变成 NaN——控制器随之停止下发指令，而日志里一个字都没有。
+- **底盘会打滑，转向要一边转一边开。** 里程计数出来的轮子转圈比底盘走过的路多，所以导航按仿真世界自己的模型位姿来开，而不是按里程计；每次到站仍然把两者对一次，把差值写进反馈（`nav_skill_server` 的 `_disagreement`），而不是装作到了。底盘不能在原地转，也不能绕开障碍物，所以站点都摆在工位中间的开阔处。
+- **底盘上的 Dobot 是道具。** 它的关节被锁死了：这台底盘上的机械臂由 `arm_skill_server` 模拟，真实关节没人驱动；而自由的关节和底盘与地面的接触是求解器没法同时满足的两个约束，它放弃的时候整个模型的速度会变成 NaN——控制器随之停止下发指令，而日志里一个字都没有。它 14 公斤，装在轮轴后面会把底盘翘翻，所以现在装在轮轴上方。
 - **SLAM scan matching 关闭。** 用 odometry 建图，没有回环和漂移校正。调参实验做到 84% 跟踪率仍会导航失败，所以关掉直到能用同样方法验证。
 - **机械臂执行是仿真的。** `arm_skill_server` 用 `simulate_step_seconds` 模拟动作，没有接 MoveIt2 或厂商 SDK。
 - **人脸 / 语音 / 手势是桩或用 vendored 源码跑，没有真机。**
@@ -283,7 +313,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 
 | 测了什么 | 结果 |
 |---|---|
-| **5 / 9** 族故障在真栈上实测 | 每族 30 样本 |
+| **9 / 9** 族故障在真栈上实测 | 每族 30 样本（改机器人节点才造得出的四族是 5–10 样本） |
 | **4** 族推翻了 L1 的假设 | 方向一致：L1 假设了真栈没有的自愈 |
 | **6** 套线缆故障场景 × **12** 条判据 | 全过；95% 丢包下命令以 `unknown` 收场 |
 | **+80** 个百分点的任务成功率 | 回执给闭环带来的，同一策略只差一个变量 |
@@ -320,8 +350,9 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 另外三族（`tool_drop` / `no_progress` / `grasp_failure`）**这栈造不出故障** —— 感知桩不观察世界、没有东西会放下手里的
 工具、没人查交接区、仿真臂不会抓空。探针会说明缺的是哪个机制，而不是报一句「场景没布置」。
 这三族已经改成机器人自己的行为了：机械臂会抓空一次、会半路掉工具，任务在交接区被占时
-会叫操作员并等他清障。剩下 `visual_occlusion` 要的是「换个视角」，而换视角要底盘真的挪动 ——
-它现在挪不动（见「已知限制」）。
+第四族 `visual_occlusion` 要的是「换个视角」，而换视角要底盘真的挪动 ——
+底盘现在挪得动了（见「已知限制」）：检测器读深度点云，工具自己的像素在不在云里说了算，
+视野里没有工具就是低置信度，换个位置再看就有了。
 
 ### 线缆故障：丢包要么让命令变慢，要么把它拿走
 
@@ -784,7 +815,7 @@ python -m agent_env.scripts.run_calibration --plan # 会在实时栈上跑什么
 | `grasp_failure` | 0.659 | 1.000 (10/10) | `[0.723, 1.000]` | 样本不足 |
 | `tool_drop` | 1.000 | 1.000 (10/10) | `[0.723, 1.000]` | 样本不足 |
 | `no_progress` | 1.000 | 1.000 (5/5) | `[0.566, 1.000]` | 样本不足 |
-| `visual_occlusion` | 1.000 | **未测** | — | 底盘的轮子横向打滑，转不动；换个视角换不了 |
+| `visual_occlusion` | 1.000 | **1.000**（10/10） | 一致 | 换视角就好了：换个位置，工具就回到视野里 |
 
 放在一起看，结论比"L1 不准"具体：**四个不一致都指向同一件事——L1 假设了真栈
 没有的自愈能力**。人脸不匹配说三次有一次会好，实际一次都没有；重新检测说有
@@ -858,7 +889,7 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] Gazebo 车间：官方 KUKA/FANUC/Dobot、D435 + VLP-16、SLAM + Nav2 导航打通
 - [x] L2 适配器 + 实时栈评测 + 校准执行器 + 场景道具
 - [x] 线缆故障注入工具与三条不变量（netem + ledger 审计）
-- [x] 校准真跑：**八族有实测**，其中四族推翻了 L1 的假设；掉件/无进展/抓取失败三族是靠改机器人自己的节点才测得出来的
+- [x] 校准真跑：**九族有实测**，其中四族推翻了 L1 的假设；掉件/无进展/抓取失败/视觉遮挡四族是靠改机器人自己的节点才测得出来的
 - [x] 端点覆盖测试：每个 action server 必须在 schema 里有对应能力（这条本来能提前抓到 `pick_and_place` 的缺失）
 - [x] **headless 真栈冒烟进 CI**：`gzserver` 无窗口起栈 + 派发一次真实递送
 - [x] 依赖声明检查：`$(find X)` / `FindPackageShare` / ROS import 引用的包必须在 `package.xml` 里（抓到两个没声明的传感器包）
@@ -870,7 +901,7 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 待做：
 
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
-- [ ] **让 `visual_occlusion` 这族能测**：要一个会观察世界的真检测器（遮挡），而"换个视角"要的是底盘在世界里真的挪动——轮子现在空转（见「已知限制」）
+- [x] **让 `visual_occlusion` 这族能测**：检测器读深度点云，工具被挡住就是低置信度，换个位置看就恢复；底盘也真的挪得动了（见「已知限制」）
 - [ ] CI 里再往前一步：驱动 Nav2（现在只到"图起来 + 一条计划派发 + 一次校准探针 + 一次线缆故障"）
 - [ ] 接入真实 MoveIt2 或厂商机械臂 SDK（替换 `arm_skill_server` 的仿真执行器）
 - [ ] 完成 RGB-D 工具位姿估计和 camera-base-arm TF 标定

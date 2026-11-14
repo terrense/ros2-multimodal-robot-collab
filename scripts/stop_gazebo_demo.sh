@@ -1,30 +1,40 @@
 #!/bin/bash
 # Stop everything started by scripts/run_gazebo_demo.sh.
 #
-# Two passes, and the order matters.
+# Nothing here matches a process by a generic name. The demo starts the
+# launch with setsid, so the launch leads its own process group and every
+# node it started belongs to that group: signalling the group takes the
+# whole stack down, and nothing outside it is touched. The leftover sweep
+# afterwards matches this repository's own install path.
 #
-# The first pass signals the whole process group of the launch. The demo
-# starts the launch with setsid, so the launch leads its own group and the
-# nodes belong to it: signalling the launch alone leaves them behind, and a
-# session that restarts the demo a few times ends up with a dozen silent
+# Signalling the launch alone is not enough -- the nodes keep running, and
+# a session that restarts the demo a few times ends up with a dozen silent
 # nodes eating memory.
-for pgid in $(pgrep -f "ros2 launch robot_collab_bringup" | xargs -r ps -o pgid= | tr -d ' ' | sort -u); do
+set -u
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LAUNCH_PATTERN="ros2 launch robot_collab_bringup"
+
+group_ids() {
+  pgrep -f "$LAUNCH_PATTERN" 2>/dev/null \
+    | xargs -r ps -o pgid= 2>/dev/null \
+    | tr -d ' ' | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u
+}
+
+for pgid in $(group_ids); do
   kill -INT -- -"$pgid" 2>/dev/null
 done
-pkill -INT -f "ros2 launch robot_collab_bringup gazebo_nav_vins_demo" 2>/dev/null
+pkill -INT -f "$LAUNCH_PATTERN" 2>/dev/null
 sleep 3
-# The second pass is for whatever the first one missed: a node that was
-# started outside the launch's group, or a launch that is already gone.
-for pattern in gzserver gzclient bt_navigator controller_server planner_server \
-               behavior_server smoother_server velocity_smoother lifecycle_manager \
-               waypoint_follower slam_toolbox async_slam_toolbox_node \
-               static_transform_publisher vins_mono_bridge_node \
-               robot_state_publisher mission_state_machine nav_skill_server \
-               arm_skill_server tool_detector_node yolov8_tool_detector_node \
-               face_auth_node gesture_recognizer_node voice_gateway_node \
-               agent_gateway_node zone_occupancy_node spawn_entity; do
-  pkill -9 -f "$pattern" 2>/dev/null
+
+# Whatever the group signal missed: this repository's own node executables.
+for pid in $(pgrep -f "$REPO/install/robot_collab_" 2>/dev/null); do
+  kill -9 "$pid" 2>/dev/null
+done
+# And the simulator this demo started, identified by the world it was given.
+for pid in $(pgrep -f "gzserver.*$REPO/install/robot_collab_sim" 2>/dev/null); do
+  kill -9 "$pid" 2>/dev/null
 done
 sleep 1
-echo "remaining=$(pgrep -c -f 'robot_collab|gzserver|slam_toolbox|static_transform_publisher' 2>/dev/null || echo 0)"
+echo "remaining=$(pgrep -c -f "$REPO/install/robot_collab_|gzserver.*$REPO" 2>/dev/null || echo 0)"
 echo "stopped"

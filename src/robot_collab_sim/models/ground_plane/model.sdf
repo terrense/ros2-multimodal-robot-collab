@@ -25,8 +25,21 @@
         <surface>
           <friction>
             <ode>
-              <mu>100</mu>
-              <mu2>50</mu2>
+              <!-- A plain floor. The idea that the friction along the
+                   rolling direction can be made small and the friction
+                   across it large -- so that the wheels can slide sideways
+                   and the base can rotate -- was measured: the base drove
+                   0.68 m and turned 26 degrees with (mu 0.05, mu2 1.0),
+                   and 0.64 m and 27 degrees with (mu 1.0, mu2 0.05).
+                   Gazebo Classic's contact model does not hand the wheel a
+                   rolling direction to be small in, so the pair does
+                   nothing either way. What the base actually loses is
+                   speed: the wheels spin at the commanded rate and the
+                   chassis follows at about two thirds of it, which is a
+                   slip the navigation has to steer around rather than a
+                   friction to tune away. -->
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
             </ode>
           </friction>
           <contact>

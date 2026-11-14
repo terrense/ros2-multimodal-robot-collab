@@ -91,13 +91,14 @@ Execution behavior:
 
 Skill schemas mark whether an action is `callable`, its `risk`, whether it `requires_confirmation`, and a suggested `timeout_sec`. Sensor outputs such as YOLO detections and OpenPose gesture recognition are marked `callable: false`; the agent may observe their topics indirectly, but should not dispatch them as commands.
 
-## MiniMax M3 Planner
+## Hosted model planner
 
-`minimax_mission_planner.py` adds the model-facing layer:
+`model_mission_planner.py` adds the model-facing layer. DeepSeek and MiniMax
+both speak the OpenAI-compatible protocol, so one script covers both:
 
 ```text
 natural language request
-  -> MiniMax M3
+  -> hosted model (DeepSeek or MiniMax)
   -> mission plan JSON
   -> local SkillRegistry validation
   -> optional ros_tool_executor dry-run / execute
@@ -106,17 +107,17 @@ natural language request
 Set the API key outside git:
 
 ```bash
-export MINIMAX_API_KEY="..."
-export MINIMAX_MODEL="MiniMax-M3"
-export MINIMAX_BASE_URL="https://api.minimax.chat/v1"
+export DEEPSEEK_API_KEY="..."      # or MINIMAX_API_KEY
+export DEEPSEEK_MODEL="deepseek-chat"
+export DEEPSEEK_BASE_URL="https://api.deepseek.com/v1"
 ```
 
-For the mainland MiniMax console, use the base URL shown in your console. Common mainland OpenAI-compatible values are `https://api.minimax.chat/v1` or `https://api.minimaxi.com/v1`; the script keeps this configurable through `MINIMAX_BASE_URL` or `--base-url`.
+For the mainland MiniMax console, use the base URL shown in your console. Common mainland OpenAI-compatible values are `https://api.minimax.chat/v1` or `https://api.minimaxi.com/v1`; the script keeps this configurable through `MINIMAX_BASE_URL` or `--base-url`. `MODEL_PROVIDER` names the provider when more than one key is set.
 
 Generate and validate a plan:
 
 ```bash
-python3 agent_harness/scripts/minimax_mission_planner.py \
+python3 agent_harness/scripts/model_mission_planner.py \
   "deliver the 3mm hex key to station_a for operator_001" \
   --output agent_harness/generated/last_plan.json \
   --dry-run
@@ -131,7 +132,16 @@ python3 agent_harness/scripts/ros_tool_executor.py \
   --timeout-sec 120
 ```
 
+`scripts/nl_mission.sh` does both, in one command.
+
 The planner does not dispatch ROS2 by itself. It only creates a plan that must pass local validation before any robot side effect can happen.
+
+There is a second, smaller use of the same client: `HostedModelPolicy` in
+`agent_harness/agent/policies.py` asks the model for **one decision at a
+time** inside the closed loop, in the place where `StubModelPolicy` sits.
+The model's answer is checked against the capabilities this robot has before
+it becomes a decision, so a model that invents a capability gets a refusal
+rather than a robot moving.
 
 ## ASR/TTS Interaction
 

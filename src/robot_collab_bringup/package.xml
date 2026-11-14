@@ -10,6 +10,9 @@
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <!-- The gz-sim port: the simulator and the bridge that carries its
+       sensors onto ROS topics. -->
+  <exec_depend>gz_ros2_control</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>robot_collab_agent</exec_depend>
   <exec_depend>robot_collab_core</exec_depend>
@@ -19,6 +22,8 @@
   <exec_depend>robot_collab_perception</exec_depend>
   <exec_depend>robot_collab_sim</exec_depend>
   <exec_depend>robot_collab_slam</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
 
   <export>

@@ -61,6 +61,10 @@ class NavSkillServer(Node):
         self.declare_parameter("simulate_arrive_tolerance", 0.15)
         self.declare_parameter("simulate_drive_timeout_sec", 60.0)
         self.declare_parameter("simulate_control_hz", 10.0)
+        # How much the commanded velocity may change per control tick. The
+        # controller imposes the wheel velocities every step, so a step in
+        # the command is a step the chassis has to absorb.
+        self.declare_parameter("simulate_accel_limit", 0.08)
         # The simulator's own account of the robot, so that a drive the
         # odometry reports and the chassis does not show is visible.
         self.declare_parameter("model_states_topic", "/model_states")
@@ -99,6 +103,10 @@ class NavSkillServer(Node):
         )
         self._cmd_vel_topic = str(self.get_parameter("cmd_vel_topic").value)
         self._odom: tuple[float, float, float] | None = None
+        #: The velocity the base was last told to drive at. The command is
+        #: ramped towards the wanted one: see `_publish_cmd_vel`.
+        self._commanded_linear = 0.0
+        self._commanded_angular = 0.0
         self.create_subscription(
             Odometry,
             str(self.get_parameter("odom_topic").value),
@@ -240,7 +248,7 @@ class NavSkillServer(Node):
             if goal_handle.is_cancel_requested:
                 self._stop()
                 return False
-            pose = self._pose()
+            pose = self._steer_pose()
             if pose is None:
                 await rclpy_sleep(self, period)
                 continue
@@ -269,7 +277,7 @@ class NavSkillServer(Node):
             if goal_handle.is_cancel_requested:
                 self._stop()
                 return False
-            pose = self._pose()
+            pose = self._steer_pose()
             if pose is None:
                 await rclpy_sleep(self, period)
                 continue
@@ -288,8 +296,16 @@ class NavSkillServer(Node):
             # first has to rotate on the spot, and rotating on the spot
             # means sliding the wheels sideways: the base cannot do it, and
             # the drive times out with the base pointing the wrong way.
+            #
+            # But a base that drives forward while it turns hard drives
+            # off in the direction it was already pointing: this one left
+            # the tool shelf and climbed the panel that was standing in
+            # front of it, and the drive that followed could not move it
+            # because the base was on its side. So the further off the
+            # heading is, the less the base drives: it turns first, on the
+            # spot, and goes once it is facing the right way.
             alignment = math.cos(error)
-            linear = speed * min(1.0, distance / 0.5) * max(0.35, abs(alignment))
+            linear = speed * min(1.0, distance / 0.5) * abs(alignment) ** 2
             self._publish_cmd_vel(linear, angular)
             self._ticks += 1
             if self._ticks % 10 == 0:
@@ -304,9 +320,26 @@ class NavSkillServer(Node):
         return False
 
     def _publish_cmd_vel(self, linear: float, angular: float) -> None:
+        """Command the base, without slamming the wheels into the new speed.
+
+        The controller imposes the wheel velocities every step, so a command
+        that jumps from zero to full speed is a step the chassis has to
+        absorb: the base pitches, and a base that is turning while it pitches
+        goes over. The command is ramped instead, and the ramp is what a
+        real base's acceleration limit does.
+        """
+        linear = float(linear)
+        angular = float(angular)
+        step = float(self.get_parameter("simulate_accel_limit").value)
+        self._commanded_linear += max(
+            -step, min(step, linear - self._commanded_linear)
+        )
+        self._commanded_angular += max(
+            -step, min(step, angular - self._commanded_angular)
+        )
         twist = Twist()
-        twist.linear.x = float(linear)
-        twist.angular.z = float(angular)
+        twist.linear.x = self._commanded_linear
+        twist.angular.z = self._commanded_angular
         self._cmd_vel.publish(twist)
 
     def _relay_cmd_vel(self, msg: Twist) -> None:
@@ -314,7 +347,13 @@ class NavSkillServer(Node):
         self._cmd_vel.publish(msg)
 
     def _stop(self) -> None:
-        self._publish_cmd_vel(0.0, 0.0)
+        """Stop the base now, not in a few ticks."""
+        self._commanded_linear = 0.0
+        self._commanded_angular = 0.0
+        twist = Twist()
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        self._cmd_vel.publish(twist)
 
     def _on_odom(self, msg: Odometry) -> None:
         position = msg.pose.pose.position
@@ -359,6 +398,20 @@ class NavSkillServer(Node):
         model states is reported at every arrival.
         """
         return self._odom
+
+    def _steer_pose(self) -> tuple[float, float, float] | None:
+        """Where the base is, for the simulated backend to steer by.
+
+        The simulator's account of the chassis. The odometry counts wheel
+        rotation, and the wheels slip in this simulation: the base was
+        steering by the odometry, curving away from the station it was sent
+        to, and arriving somewhere else entirely -- while the navigation
+        reported an arrival. The disagreement between the two accounts is
+        reported at every arrival (`_disagreement`), but a navigation that
+        knows it is wrong and steers by it anyway is a navigation that
+        cannot arrive.
+        """
+        return self._truth if self._truth is not None else self._odom
 
     def _disagreement(self) -> float | None:
         """How far the odometry is from where the chassis actually is."""

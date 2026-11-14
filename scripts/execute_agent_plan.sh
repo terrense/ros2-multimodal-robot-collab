@@ -31,6 +31,10 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 set -u
 
+# The harness is a package in this repository, not an installed ROS package.
+export PYTHONPATH="$ROOT_DIR:${PYTHONPATH:-}"
+export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+
 echo "Executing agent plan through ROS2 harness: $PLAN_PATH"
 python3 agent_harness/scripts/ros_tool_executor.py \
   "$PLAN_PATH" \

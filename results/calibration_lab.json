@@ -125,12 +125,19 @@
           "cancelled": false
         }
       }
-    }
-  ],
-  "unmeasured": [
+    },
     {
       "family": "visual_occlusion",
-      "reason": "no fault produced: the detection is still confident with the occluder in place: the perception stub publishes a fixed detection and does not observe the world, so nothing can occlude it"
+      "successes": 10,
+      "samples": 10,
+      "rate": 1.0,
+      "note": "10/10 samples behaved as L1 predicts",
+      "detail": {
+        "blocked": 0.2199999988079071,
+        "cleared": 0.8799999952316284,
+        "viewpoint": "viewpoint_left"
+      }
     }
-  ]
+  ],
+  "unmeasured": []
 }
