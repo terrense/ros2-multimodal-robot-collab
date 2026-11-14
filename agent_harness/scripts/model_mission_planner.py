@@ -67,6 +67,8 @@ Allowed callable skill actions:
 - system-state.query_state(args: requester)
 
 Valid stations: tool_shelf, station_a, station_b, handover_zone.
+Valid tool ids: hex_key_3mm. The stack publishes exactly this id, and a
+mission that asks for a different one fails with "could not find tool".
 Valid manipulation commands: arm_start, arm_pause, system_stop.
 Do not output markdown. Do not call sensor output skills such as YOLO or OpenPose.
 Prefer the mission-control.deliver_tool action for end-to-end delivery requests.

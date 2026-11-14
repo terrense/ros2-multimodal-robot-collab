@@ -55,7 +55,10 @@ PROVIDERS: dict[str, Provider] = {
     "deepseek": Provider(
         name="deepseek",
         base_url="https://api.deepseek.com/v1",
-        model="deepseek-chat",
+        # The flash model. The pro one is better and costs several times
+        # more, and for planning a mission plan the difference is not
+        # worth the money.
+        model="deepseek-flash",
         key_env="DEEPSEEK_API_KEY",
     ),
 }
