@@ -74,8 +74,10 @@ BRIDGES = (
 #: type, ROS type -- because the two sides have different names, and the
 #: parser does not take that form and the `@` form in one invocation.
 BASE_BRIDGES = (
-    "/diff_drive_controller/cmd_vel@sensor_msgs/msg/Twist@ignition.msgs.Twist",
-    "/diff_drive_controller/odom@nav_msgs/msg/Odometry@ignition.msgs.Odom",
+    # The direction symbol says which way the messages run: "]" is from
+    # ROS to Gazebo, "[" is from Gazebo to ROS.
+    "/diff_drive_controller/cmd_vel@sensor_msgs/msg/Twist]ignition.msgs.Twist",
+    "/diff_drive_controller/odom[nav_msgs/msg/Odometry@ignition.msgs.Odom",
 )
 
 
