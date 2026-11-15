@@ -16,15 +16,14 @@ from the documentation rather than from a running simulator: check them
 with `gz topic -l` once the packages are installed.
 """
 
+import os
 from pathlib import Path
 
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
-    IncludeLaunchDescription,
 )
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -32,6 +31,10 @@ from launch_ros.substitutions import FindPackageShare
 
 #: The repository root, so the spawn script is found wherever the workspace is.
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+PREFIX = (
+    "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor"
+)
 
 #: The Gazebo Transport topics gz-sim gives the robot's sensors, and the
 #: ROS topics the rest of the stack expects. The camera is the one that
@@ -43,44 +46,25 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 #: ROS topics the rest of the stack uses. gz-sim scopes a sensor's topic by
 #: the whole chain it hangs from -- world, model, link, sensor -- so these
 #: names are long, and they are the ones the simulator prints.
+#: The Gazebo Transport topics gz-sim gives the robot's sensors, and the
+#: ROS topics the rest of the stack uses. gz-sim scopes a sensor's topic by
+#: the whole chain it hangs from -- world, model, link, sensor -- so these
+#: names are long, and they are the ones the simulator prints.
+#:
+#: The bridge takes `topic@ROS_type@Ignition_type`: the ROS type first,
+#: then the Gazebo Transport one.
 BRIDGES = (
-    (
-        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/image",
-        "/camera/color/image_raw",
-        "ignition.msgs.Image",
-        "sensor_msgs/msg/Image",
-    ),
-    (
-        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/depth_image",
-        "/camera/depth/image_raw",
-        "ignition.msgs.Image",
-        "sensor_msgs/msg/Image",
-    ),
-    (
-        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/points",
-        "/camera/depth/points",
-        "ignition.msgs.PointCloudPacked",
-        "sensor_msgs/msg/PointCloud2",
-    ),
-    (
-        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/camera_info",
-        "/camera/color/camera_info",
-        "ignition.msgs.CameraInfo",
-        "sensor_msgs/msg/CameraInfo",
-    ),
-    (
-        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/base_imu/imu",
-        "/imu/data",
-        "ignition.msgs.IMU",
-        "sensor_msgs/msg/Imu",
-    ),
-    ("/clock", "/clock", "ignition.msgs.Clock", "rosgraph_msgs/msg/Clock"),
+    f"{PREFIX}/front_rgbd_camera/image@sensor_msgs/msg/Image@ignition.msgs.Image",
+    f"{PREFIX}/front_rgbd_camera/depth_image@sensor_msgs/msg/Image@ignition.msgs.Image",
+    f"{PREFIX}/front_rgbd_camera/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked",
+    f"{PREFIX}/front_rgbd_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo",
+    f"{PREFIX}/base_imu/imu@sensor_msgs/msg/Imu@ignition.msgs.IMU",
+    "/clock@rosgraph_msgs/msg/Clock@ignition.msgs.Clock",
 )
 
 
 def generate_launch_description() -> LaunchDescription:
     use_sim_time = LaunchConfiguration("use_sim_time")
-    gui = LaunchConfiguration("gui")
 
     sim_share = FindPackageShare("robot_collab_sim")
     bringup_share = FindPackageShare("robot_collab_bringup")
@@ -104,16 +88,45 @@ def generate_launch_description() -> LaunchDescription:
         value_type=str,
     )
 
-    gz_sim = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [FindPackageShare("ros_gz_sim"), "launch", "gz_sim.launch.py"]
-            )
-        ),
-        launch_arguments={
-            "gz_args": f"-r -v 4 {world_path}" + (" -g" if gui else " -s"),
-            "on_exit_shutdown": "true",
-        }.items(),
+    # The simulator, started here rather than through ros_gz's launch: that
+    # one takes its arguments as a single string and performs it, and a
+    # world path made of substitutions comes out as the text of the
+    # substitution object.
+    gz_sim = ExecuteProcess(
+        cmd=[
+            "ruby",
+            "/usr/bin/ign",
+            "gazebo",
+            "-s",
+            "-r",
+            "-v",
+            "4",
+            world_path,
+            "--force-version",
+            "6",
+        ],
+        output="screen",
+        additional_env={
+            # gz-sim looks for the ogre2 render engine here, and the Ubuntu
+            # package does not set it. Without it the sensors system waits
+            # for an engine that never arrives and the world never finishes
+            # initializing.
+            "GZ_SIM_RENDER_ENGINE_PATH": os.environ.get(
+                "GZ_SIM_RENDER_ENGINE_PATH", "/opt/gz-render-engine"
+            ),
+            "IGN_GAZEBO_RENDER_ENGINE_PATH": os.environ.get(
+                "IGN_GAZEBO_RENDER_ENGINE_PATH", "/opt/gz-render-engine"
+            ),
+            "LIBGL_ALWAYS_SOFTWARE": os.environ.get(
+                "LIBGL_ALWAYS_SOFTWARE", "1"
+            ),
+            # The controller plugin is a gz-sim system, and gz-sim looks
+            # for systems in this path. The ROS packages put theirs in
+            # /opt/ros/humble/lib, which is not in the default list.
+            "GZ_SIM_SYSTEM_PLUGIN_PATH": os.environ.get(
+                "GZ_SIM_SYSTEM_PLUGIN_PATH", "/opt/ros/humble/lib"
+            ),
+        },
     )
 
     bridge = Node(
@@ -127,14 +140,21 @@ def generate_launch_description() -> LaunchDescription:
                 "bridge.clock": "true",
             }
         ],
-        arguments=[item for group in BRIDGES for item in group],
+        arguments=list(BRIDGES),
         remappings=[],
     )
 
     return LaunchDescription(
         [
             DeclareLaunchArgument("use_sim_time", default_value="true"),
-            DeclareLaunchArgument("gui", default_value="false"),
+            DeclareLaunchArgument(
+                "gui",
+                default_value="false",
+                description=(
+                    "A window. The stack runs headless; a window is what a "
+                    "person asks for on purpose."
+                ),
+            ),
             DeclareLaunchArgument("robot_name", default_value="collab_mobile_base"),
             gz_sim,
             Node(
@@ -151,27 +171,25 @@ def generate_launch_description() -> LaunchDescription:
             # the spawner is what hands the controllers to it.
             ExecuteProcess(
                 cmd=[
-                    "ros2",
-                    "run",
-                    "gz_ros2_control",
-                    "gz_ros2_control",
-                    "--spawner",
-                    "joint_state_broadcaster",
-                    "--controller-manager",
-                    "/controller_manager",
+                    "bash",
+                    "-c",
+                    "until ros2 service list | grep -q /controller_manager; do "
+                    "sleep 2; done; "
+                    "ros2 run gz_ros2_control gz_ros2_control "
+                    "--spawner joint_state_broadcaster "
+                    "--controller-manager /controller_manager",
                 ],
                 output="screen",
             ),
             ExecuteProcess(
                 cmd=[
-                    "ros2",
-                    "run",
-                    "gz_ros2_control",
-                    "gz_ros2_control",
-                    "--spawner",
-                    "diff_drive_controller",
-                    "--controller-manager",
-                    "/controller_manager",
+                    "bash",
+                    "-c",
+                    "until ros2 service list | grep -q /controller_manager; do "
+                    "sleep 2; done; "
+                    "ros2 run gz_ros2_control gz_ros2_control "
+                    "--spawner diff_drive_controller "
+                    "--controller-manager /controller_manager",
                 ],
                 output="screen",
             ),
