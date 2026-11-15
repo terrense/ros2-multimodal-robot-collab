@@ -60,6 +60,11 @@ BRIDGES = (
     f"{PREFIX}/front_rgbd_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo",
     f"{PREFIX}/base_imu/imu@sensor_msgs/msg/Imu@ignition.msgs.IMU",
     "/clock@rosgraph_msgs/msg/Clock@ignition.msgs.Clock",
+    # The base: gz-sim's diff-drive system takes the command on one topic
+    # and answers with its own odometry on another. The navigation keeps
+    # the names it knows; these two bridges are the whole difference.
+    "/diff_drive_controller/cmd_vel@sensor_msgs/msg/Twist]ignition.msgs.Twist",
+    "/odom[nav_msgs/msg/Odometry@ignition.msgs.Odom",
 )
 
 
@@ -125,6 +130,17 @@ def generate_launch_description() -> LaunchDescription:
             # /opt/ros/humble/lib, which is not in the default list.
             "GZ_SIM_SYSTEM_PLUGIN_PATH": os.environ.get(
                 "GZ_SIM_SYSTEM_PLUGIN_PATH", "/opt/ros/humble/lib"
+            ),
+            # The robot description refers to its meshes as
+            # model://velodyne_description/..., and the simulator has to be
+            # told where the models are. A mesh it cannot find is a null
+            # mesh, and a null mesh in the render engine takes the whole
+            # simulator down.
+            "GZ_SIM_RESOURCE_PATH": os.environ.get(
+                "GZ_SIM_RESOURCE_PATH", "/opt/ros/humble/share"
+            ),
+            "GZ_SIM_MODEL_PATH": os.environ.get(
+                "GZ_SIM_MODEL_PATH", "/opt/ros/humble/share"
             ),
         },
     )

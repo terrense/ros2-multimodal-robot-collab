@@ -181,6 +181,35 @@ def _floats(text: str) -> tuple[float, float, float]:
     return (float(parts[0]), float(parts[1]), float(parts[2]))
 
 
+
+#: The Gazebo Classic controller manager, as it is written in the
+#: description. gz-sim does not use it: gz_ros2_control's controller
+#: manager segfaults on ROS 2 Humble the moment it reads the hardware, and
+#: the simulator goes down with it. gz-sim's own diff-drive system drives
+#: the same two joints and needs no controller manager at all.
+_CLASSIC_CONTROLLER = re.compile(
+    r"\s*<gazebo>\s*<plugin[^>]*gazebo_ros2_control.*?</gazebo>",
+    re.DOTALL,
+)
+
+_ROS2_CONTROL = re.compile(
+    r"\s*<ros2_control[ >].*?</ros2_control>",
+    re.DOTALL,
+)
+
+
+def _classic_controller_block(description: str) -> str:
+    """The description without the Gazebo Classic controller manager.
+
+    The `<ros2_control>` block goes with it: gz-sim's diff-drive system
+    drives the wheels itself, and a hardware interface nobody claims is
+    only a way for the simulator to disagree with the robot about what the
+    wheels are doing.
+    """
+    description = _CLASSIC_CONTROLLER.sub("", description)
+    return _ROS2_CONTROL.sub("", description)
+
+
 def render_gz_sim(xacro_path: str) -> str:
     """The robot description, for gz-sim.
 
@@ -195,15 +224,12 @@ def render_gz_sim(xacro_path: str) -> str:
     description serves both simulators.
     """
     description = render(xacro_path)
+    # gz_ros2_control's controller manager segfaults on ROS 2 Humble when
+    # it reads the hardware, and the simulator goes down with it. gz-sim's
+    # own diff-drive system drives the same two joints and needs no
+    # controller manager, so the description leaves the controller to it.
     swapped = (
-        description.replace(
-            'filename="libgazebo_ros2_control.so"',
-            'filename="libgz_ros2_control-system.so"',
-        )
-        .replace(
-            'name="gazebo_ros2_control"',
-            'name="gz_ros2_control::GazeboSimROS2ControlPlugin"',
-        )
+        _classic_controller_block(description)
         .replace(
             "<plugin>gazebo_ros2_control/GazeboSystem</plugin>",
             "<plugin>gz_ros2_control/GazeboSimSystem</plugin>",

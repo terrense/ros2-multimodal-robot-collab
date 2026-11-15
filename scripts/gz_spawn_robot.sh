@@ -29,7 +29,39 @@ echo "# rendering the description for gz-sim"
 python3 -m robot_collab_sim.robot_description gz-sim "$XACRO" >"$URDF"
 
 echo "# converting it to SDF"
-ign sdf -p "$URDF" >"$SDF"
+ign sdf -p "$URDF" >"$SDF.raw"
+
+# gz-sim's diff-drive system drives the two wheel joints. It is a plugin
+# of the model, and a URDF has no place for one, so it goes in here.
+python3 - "$SDF.raw" "$SDF" <<'PYTHON'
+import sys
+
+DIFF_DRIVE = """    <plugin filename="ignition-gazebo6-diff-drive-system"
+            name="gz::sim::systems::DiffDrive">
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.72</wheel_separation>
+      <wheel_radius>0.06</wheel_radius>
+      <frame_id>odom</frame_id>
+      <odom_frame_id>odom</odom_frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <max_angular_acceleration>2.0</max_angular_acceleration>
+    </plugin>
+"""
+
+source, target = sys.argv[1], sys.argv[2]
+text = open(source, encoding="utf-8").read()
+if "<model" not in text:
+    raise SystemExit("the converted SDF has no model in it")
+# The plugin goes just before the model's closing tag.
+index = text.rindex("</model>")
+text = text[:index] + DIFF_DRIVE + text[index:]
+open(target, "w", encoding="utf-8").write(text)
+print("the diff-drive system is in the SDF")
+PYTHON
 
 echo "# waiting for the world"
 for _ in $(seq 1 90); do
