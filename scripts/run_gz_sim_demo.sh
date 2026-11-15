@@ -37,6 +37,15 @@ export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
 export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 export DISPLAY="${DISPLAY:-:0}"
 
+# The render engine. gz-sim looks for it here, and the Ubuntu package does
+# not set it: without it the sensors system waits for an engine that never
+# arrives, and the world never finishes initializing.
+export GZ_SIM_RENDER_ENGINE_PATH="${GZ_SIM_RENDER_ENGINE_PATH:-/opt/gz-render-engine}"
+export IGN_GAZEBO_RENDER_ENGINE_PATH="${IGN_GAZEBO_RENDER_ENGINE_PATH:-$GZ_SIM_RENDER_ENGINE_PATH}"
+# Ogre Next wants a real GL context; the software one is what this machine
+# has.
+export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
+
 # The world is generated: the classic lab world is the source of truth.
 python3 scripts/make_gz_sim_world.py
 

@@ -39,33 +39,37 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 #: (gazebo topic, ros topic, gazebo type, ros type). The point cloud is not
 #: the same message on the two sides: gz-sim publishes a packed cloud and
 #: the stack expects the unpacked one, so the bridge converts it.
+#: The Gazebo Transport topics gz-sim gives the robot's sensors, and the
+#: ROS topics the rest of the stack uses. gz-sim scopes a sensor's topic by
+#: the whole chain it hangs from -- world, model, link, sensor -- so these
+#: names are long, and they are the ones the simulator prints.
 BRIDGES = (
     (
-        "/collab_lab/collab_mobile_base/base_footprint/front_rgbd_camera/image",
+        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/image",
         "/camera/color/image_raw",
         "ignition.msgs.Image",
         "sensor_msgs/msg/Image",
     ),
     (
-        "/collab_lab/collab_mobile_base/base_footprint/front_rgbd_camera/depth_image",
+        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/depth_image",
         "/camera/depth/image_raw",
         "ignition.msgs.Image",
         "sensor_msgs/msg/Image",
     ),
     (
-        "/collab_lab/collab_mobile_base/base_footprint/front_rgbd_camera/points",
+        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/points",
         "/camera/depth/points",
         "ignition.msgs.PointCloudPacked",
         "sensor_msgs/msg/PointCloud2",
     ),
     (
-        "/collab_lab/collab_mobile_base/base_footprint/front_rgbd_camera/camera_info",
+        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/camera_info",
         "/camera/color/camera_info",
         "ignition.msgs.CameraInfo",
         "sensor_msgs/msg/CameraInfo",
     ),
     (
-        "/collab_lab/collab_mobile_base/base_footprint/base_imu/imu",
+        "/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/base_imu/imu",
         "/imu/data",
         "ignition.msgs.IMU",
         "sensor_msgs/msg/Imu",

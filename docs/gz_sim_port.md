@@ -117,6 +117,29 @@ running it:
   are dropped from the description (gz-sim would try to load them as
   systems and fail on every start).
 
+## What it took to make the camera work
+
+Three things, none of them obvious, all of them now in the repository:
+
+- **the sensors system has to be declared in the world.** Gazebo Classic's
+  camera plugin brought its own sensor with it; in gz-sim the sensor is a
+  system of the world, and a world without it advertises the camera's
+  topics and never publishes a frame.
+- **the render engine lives in a directory of its own.** gz-sim looks for
+  it in  (or ),
+  which the Ubuntu package does not set. Left unset, the sensors system
+  waits for an engine that never arrives and the world never finishes
+  initializing. The engine plugin itself sits in
+  with everything else, and the plugin loader scans a whole directory --
+  so it is symlinked into  and that is what the
+  environment points at.
+- **the world's create service comes from the user-commands system**, which
+  has to be in the world as well, or nothing can be spawned into it.
+
+With those three in place the camera publishes an image, a depth image, a
+point cloud and the camera info, and the point cloud is what the detector
+reads.
+
 ## What is still open
 
 - **the depth camera publishes only an image.** The sensor's topics are

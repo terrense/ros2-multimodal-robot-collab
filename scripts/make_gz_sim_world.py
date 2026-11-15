@@ -32,7 +32,21 @@ CLASSIC_STATE_PLUGIN = """    <plugin name="gazebo_ros_state" filename="libgazeb
 
 GZ_STATE_PLUGIN = """    <!-- gz-sim publishes the world's state itself; the Classic state plugin
          has no counterpart here. The ROS side gets the model states from
-         the bridged world-state topic. -->"""
+         the bridged world-state topic.
+
+         The sensors system is what renders the cameras and the lidars. In
+         Gazebo Classic the camera plugin brought its own sensor with it;
+         in gz-sim the sensor is a system of the world, and a world without
+         it advertises the camera's topics and never publishes a frame. -->
+    <plugin filename="ignition-gazebo6-sensors-system"
+            name="gz::sim::systems::Sensors">
+    </plugin>
+    <!-- The user-commands system is what provides the world's create
+         service: without it the robot cannot be spawned into the world at
+         all. -->
+    <plugin filename="ignition-gazebo6-user-commands-system"
+            name="gz::sim::systems::UserCommands">
+    </plugin>"""
 
 CLASSIC_PHYSICS = """    <physics name="default_physics" default="0" type="ode">
       <max_step_size>0.001</max_step_size>
