@@ -63,8 +63,19 @@ BRIDGES = (
     # The base: gz-sim's diff-drive system takes the command on one topic
     # and answers with its own odometry on another. The navigation keeps
     # the names it knows; these two bridges are the whole difference.
-    "/diff_drive_controller/cmd_vel@sensor_msgs/msg/Twist]ignition.msgs.Twist",
-    "/odom[nav_msgs/msg/Odometry@ignition.msgs.Odom",
+)
+
+#: The base: gz-sim's diff-drive system takes the command on one topic
+#: and answers with its own odometry on another. The navigation keeps the
+#: names it knows; these two bridges are the whole difference between the
+#: two simulators.
+#:
+#: These are in the positional form -- gazebo topic, ROS topic, gazebo
+#: type, ROS type -- because the two sides have different names, and the
+#: parser does not take that form and the `@` form in one invocation.
+BASE_BRIDGES = (
+    "/diff_drive_controller/cmd_vel@sensor_msgs/msg/Twist@ignition.msgs.Twist",
+    "/diff_drive_controller/odom@nav_msgs/msg/Odometry@ignition.msgs.Odom",
 )
 
 
@@ -160,6 +171,14 @@ def generate_launch_description() -> LaunchDescription:
         remappings=[],
     )
 
+    base_bridge = Node(
+        package="ros_gz_bridge",
+        executable="parameter_bridge",
+        name="gz_base_bridge",
+        output="screen",
+        arguments=list(BASE_BRIDGES),
+    )
+
     return LaunchDescription(
         [
             DeclareLaunchArgument("use_sim_time", default_value="true"),
@@ -210,6 +229,7 @@ def generate_launch_description() -> LaunchDescription:
                 output="screen",
             ),
             bridge,
+            base_bridge,
             # The robot is spawned into the world rather than loaded with
             # it: gz-sim parses the URDF and the controller manager comes up
             # with the robot.
