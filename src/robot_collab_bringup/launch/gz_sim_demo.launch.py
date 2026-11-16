@@ -82,13 +82,9 @@ BASE_BRIDGE_COMMAND = {
     "direction": "ROS_TO_GZ",
 }
 
-BASE_BRIDGE_ODOM = {
-    "gz_topic_name": "/diff_drive_controller/odom",
-    "ros_topic_name": "/diff_drive_controller/odom",
-    "gz_type_name": "ignition.msgs.Odometry",
-    "ros_type_name": "nav_msgs/msg/Odometry",
-    "direction": "GZ_TO_ROS",
-}
+BASE_BRIDGE_ODOM = (
+    "/diff_drive_controller/odom[nav_msgs/msg/Odometry@ignition.msgs.Odometry",
+)
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -187,10 +183,10 @@ def generate_launch_description() -> LaunchDescription:
 
     base_odom_bridge = Node(
         package="ros_gz_bridge",
-        executable="bridge_node",
+        executable="parameter_bridge",
         name="gz_base_odom_bridge",
         output="screen",
-        parameters=[BASE_BRIDGE_ODOM],
+        arguments=list(BASE_BRIDGE_ODOM),
     )
 
     return LaunchDescription(
