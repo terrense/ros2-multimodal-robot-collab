@@ -241,14 +241,9 @@ def generate_launch_description() -> LaunchDescription:
             bridge,
             base_command_bridge,
             base_odom_bridge,
-            # The robot is spawned into the world rather than loaded with
-            # it: gz-sim parses the URDF and the controller manager comes up
-            # with the robot.
-            ExecuteProcess(
-                cmd=["bash", str(REPO_ROOT / "scripts" / "gz_spawn_robot.sh")],
-                output="screen",
-                cwd=str(REPO_ROOT),
-            ),
+            # The robot is in the world file: the world's diff-drive system
+            # is configured before anything is spawned into the world, and
+            # the joints it commands have to be there already.
             Node(
                 package="robot_collab_perception",
                 executable="tool_detector_node",

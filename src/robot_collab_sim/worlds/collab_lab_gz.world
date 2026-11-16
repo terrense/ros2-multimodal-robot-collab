@@ -238,5 +238,636 @@
         <collision name="collision"><geometry><box><size>0.2 6.0 1.6</size></box></geometry></collision>
       </link>
     </model>
-  </world>
+  <model name='collab_mobile_base'>
+    <plugin filename="ignition-gazebo6-diff-drive-system"
+            name="ignition::gazebo::systems::DiffDrive">
+      <topic>/diff_drive_controller/cmd_vel</topic>
+      <odom_topic>/diff_drive_controller/odom</odom_topic>
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.72</wheel_separation>
+      <wheel_radius>0.06</wheel_radius>
+      <frame_id>odom</frame_id>
+      <odom_frame_id>odom</odom_frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <max_angular_acceleration>2.0</max_angular_acceleration>
+    </plugin>
+
+    <link name='base_footprint'>
+      <inertial>
+        <pose>0.08133797625404011 -0.05462929092181671 0.4722413013480571 0 0 0</pose>
+        <mass>55.756625226823928</mass>
+        <inertia>
+          <ixx>15.014229645138011</ixx>
+          <ixy>0.20883881489332271</ixy>
+          <ixz>-1.2925252343583009</ixz>
+          <iyy>15.5713324554354</iyy>
+          <iyz>1.5165887953482129</iyz>
+          <izz>2.700763184135857</izz>
+        </inertia>
+      </inertial>
+      <collision name='base_footprint_fixed_joint_lump__base_link_collision'>
+        <pose>0.1 0 0.155 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.5 0.6 0.13</size>
+          </box>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__camera_link_collision_1'>
+        <pose>0.3906 0 0.2225 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.02505 0.09 0.025</size>
+          </box>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_base_link_collision_2'>
+        <pose>0.15 0 0.33 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/base_link.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link1_collision_3'>
+        <pose>0.15 0 0.5065 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link1.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link2_collision_4'>
+        <pose>0.15 0 0.5065 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link2.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link3_collision_5'>
+        <pose>0.1500022296354978 5.551115123125783e-17 1.113499999995905 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link3.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link4_collision_6'>
+        <pose>0.1500036144338218 -0.1909999999987114 1.68149999999465 -1.570796326781404 -7.346410206697372e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link4.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link5_collision_7'>
+        <pose>0.1500045327350977 -0.1910000000003981 1.806499999991277 3.673218595773815e-06 -7.346410206845488e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link5.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link6_collision_8'>
+        <pose>0.1500041345625896 -0.2993999999989354 1.806500398168173 -1.570796326781404 -7.346410206697375e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link6.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__front_caster_link_collision_9'>
+        <pose>0.34 0 0.03999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.035000000000000003</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode>
+              <mu>0.01</mu>
+              <mu2>0.01</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__lidar_link_collision_10'>
+        <pose>0.3 0 0.27 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.055</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__velodyne_base_link_collision_11'>
+        <pose>-0.15 0 0.48585 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.0717</length>
+            <radius>0.0516</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__velodyne_collision_12'>
+        <pose>-0.15 0 0.4877 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='base_footprint_fixed_joint_lump__base_link_visual'>
+        <pose>0 0 0.11 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.8 0.62 0.22</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Blue</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+          <diffuse>0.125 0.425 0.9 1</diffuse>
+          <ambient>0.125 0.425 0.9 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__camera_link_visual_1'>
+        <pose>0.3949 0 0.2225 1.570796326794896 0 1.570796326794896</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://realsense2_description/meshes/d435.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_base_link_visual_2'>
+        <pose>0.15 0 0.33 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/base_link.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link1_visual_3'>
+        <pose>0.15 0 0.5065 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link1.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link2_visual_4'>
+        <pose>0.15 0 0.5065 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link2.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link3_visual_5'>
+        <pose>0.1500022296354978 5.551115123125783e-17 1.113499999995905 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link3.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link4_visual_6'>
+        <pose>0.1500036144338218 -0.1909999999987114 1.68149999999465 -1.570796326781404 -7.346410206697372e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link4.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link5_visual_7'>
+        <pose>0.1500045327350977 -0.1910000000003981 1.806499999991277 3.673218595773815e-06 -7.346410206845488e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link5.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link6_visual_8'>
+        <pose>0.1500041345625896 -0.2993999999989354 1.806500398168173 -1.570796326781404 -7.346410206697375e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link6.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__front_caster_link_visual_9'>
+        <pose>0.34 0 0.03999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.035000000000000003</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>0.5625 0.5625 0.6 1</diffuse>
+          <ambient>0.5625 0.5625 0.6 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__lidar_link_visual_10'>
+        <pose>0.3 0 0.27 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.055</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.025 0.025 0.03125 1</diffuse>
+          <ambient>0.025 0.025 0.03125 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__velodyne_base_link_visual_11'>
+        <pose>-0.15 0 0.45 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://velodyne_description/meshes/VLP16_base_1.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__velodyne_base_link_visual_12'>
+        <pose>-0.15 0 0.45 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://velodyne_description/meshes/VLP16_base_2.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__velodyne_visual_13'>
+        <pose>-0.15 0 0.45 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://velodyne_description/meshes/VLP16_scan.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <sensor name='front_rgbd_camera' type='rgbd_camera'>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <update_rate>5</update_rate>
+        <camera>
+          <horizontal_fov>1.518</horizontal_fov>
+          <image>
+            <width>320</width>
+            <height>240</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.050000000000000003</near>
+            <far>8</far>
+          </clip>
+          <depth_camera>
+            <clip>
+              <near>0.050000000000000003</near>
+              <far>8</far>
+            </clip>
+            <output>depths</output>
+          </depth_camera>
+        </camera>
+        <pose>0.3906 0.0175 0.2225 0 -0 0</pose>
+      </sensor>
+      <sensor name='base_imu' type='imu'>
+        <always_on>true</always_on>
+        <update_rate>100</update_rate>
+        <pose>0 0 0.17 0 -0 0</pose>
+      </sensor>
+      <sensor name='front_lidar' type='ray'>
+        <always_on>true</always_on>
+        <visualize>true</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.1415899999999999</min_angle>
+              <max_angle>3.1415899999999999</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.080000000000000002</min>
+            <max>8</max>
+            <resolution>0.01</resolution>
+          </range>
+        </ray>
+        <pose>0.3 0 0.27 0 -0 0</pose>
+      </sensor>
+      <sensor name='velodyne-VLP16' type='ray'>
+        <visualize>false</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>720</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.1415926535897931</min_angle>
+              <max_angle>3.1415926535897931</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>16</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.26179938779914941</min_angle>
+              <max_angle>0.26179938779914941</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.29999999999999999</min>
+            <max>51</max>
+            <resolution>0.001</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0</stddev>
+          </noise>
+        </ray>
+        <pose>-0.15 0 0.4877 0 -0 0</pose>
+      </sensor>
+    </link>
+    <joint name='left_wheel_joint' type='revolute'>
+      <pose relative_to='base_footprint'>0 0.36 0.06 0 0 0</pose>
+      <parent>base_footprint</parent>
+      <child>left_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-10000000000000000</lower>
+          <upper>10000000000000000</upper>
+        </limit>
+        <dynamics>
+          <damping>0.01</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='left_wheel_link'>
+      <pose relative_to='left_wheel_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>3</mass>
+        <inertia>
+          <ixx>0.0032000000000000002</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0054000000000000003</iyy>
+          <iyz>0</iyz>
+          <izz>0.0032000000000000002</izz>
+        </inertia>
+      </inertial>
+      <collision name='left_wheel_link_collision'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='left_wheel_link_visual'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Black</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+          <diffuse>0.0375 0.0375 0.04375 1</diffuse>
+          <ambient>0.0375 0.0375 0.04375 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name='right_wheel_joint' type='revolute'>
+      <pose relative_to='base_footprint'>0 -0.36 0.06 0 0 0</pose>
+      <parent>base_footprint</parent>
+      <child>right_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-10000000000000000</lower>
+          <upper>10000000000000000</upper>
+        </limit>
+        <dynamics>
+          <damping>0.01</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='right_wheel_link'>
+      <pose relative_to='right_wheel_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>3</mass>
+        <inertia>
+          <ixx>0.0032000000000000002</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0054000000000000003</iyy>
+          <iyz>0</iyz>
+          <izz>0.0032000000000000002</izz>
+        </inertia>
+      </inertial>
+      <collision name='right_wheel_link_collision'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='right_wheel_link_visual'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Black</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+          <diffuse>0.0375 0.0375 0.04375 1</diffuse>
+          <ambient>0.0375 0.0375 0.04375 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <frame name='camera_link_joint' attached_to='camera_bottom_screw_frame'>
+      <pose>0.0106 0.0175 0.0125 0 -0 0</pose>
+    </frame>
+    <frame name='camera_link' attached_to='camera_link_joint'/>
+    <frame name='camera_joint' attached_to='base_link'>
+      <pose>0.38 0 0.1 0 -0 0</pose>
+    </frame>
+    <frame name='camera_bottom_screw_frame' attached_to='camera_joint'/>
+    <frame name='dobot_joint6' attached_to='dobot_Link5'>
+      <pose>0 0.1084 0 -1.5708 0 0</pose>
+    </frame>
+    <frame name='dobot_Link6' attached_to='dobot_joint6'/>
+    <frame name='dobot_joint5' attached_to='dobot_Link4'>
+      <pose>0 -0.125 0 1.5708 -0 0</pose>
+    </frame>
+    <frame name='dobot_Link5' attached_to='dobot_joint5'/>
+    <frame name='dobot_joint4' attached_to='dobot_Link3'>
+      <pose>-0.568 0 0.191 0 0 -1.5708</pose>
+    </frame>
+    <frame name='dobot_Link4' attached_to='dobot_joint4'/>
+    <frame name='dobot_joint3' attached_to='dobot_Link2'>
+      <pose>-0.607 0 0 0 -0 0</pose>
+    </frame>
+    <frame name='dobot_Link3' attached_to='dobot_joint3'/>
+    <frame name='dobot_joint2' attached_to='dobot_Link1'>
+      <pose>0 0 0 -1.57079 1.57079 3.14159</pose>
+    </frame>
+    <frame name='dobot_Link2' attached_to='dobot_joint2'/>
+    <frame name='dobot_joint1' attached_to='dobot_base_link'>
+      <pose>0 0 0.1765 0 -0 0</pose>
+    </frame>
+    <frame name='dobot_Link1' attached_to='dobot_joint1'/>
+    <frame name='dobot_mount' attached_to='base_link'>
+      <pose>0.15 0 0.22 0 -0 0</pose>
+    </frame>
+    <frame name='dobot_base_link' attached_to='dobot_mount'/>
+    <frame name='front_caster_joint' attached_to='base_link'>
+      <pose>0.34 0 -0.07 0 -0 0</pose>
+    </frame>
+    <frame name='front_caster_link' attached_to='front_caster_joint'/>
+    <frame name='imu_joint' attached_to='base_link'>
+      <pose>0 0 0.06 0 -0 0</pose>
+    </frame>
+    <frame name='imu_link' attached_to='imu_joint'/>
+    <frame name='lidar_joint' attached_to='base_link'>
+      <pose>0.3 0 0.16 0 -0 0</pose>
+    </frame>
+    <frame name='lidar_link' attached_to='lidar_joint'/>
+    <frame name='velodyne_base_scan_joint' attached_to='velodyne_base_link'>
+      <pose>0 0 0.0377 0 -0 0</pose>
+    </frame>
+    <frame name='velodyne' attached_to='velodyne_base_scan_joint'/>
+    <frame name='velodyne_base_mount_joint' attached_to='base_link'>
+      <pose>-0.15 0 0.34 0 -0 0</pose>
+    </frame>
+    <frame name='velodyne_base_link' attached_to='velodyne_base_mount_joint'/>
+    <frame name='base_footprint_joint' attached_to='base_footprint'>
+      <pose>0 0 0.11 0 -0 0</pose>
+    </frame>
+    <frame name='base_link' attached_to='base_footprint_joint'/>
+  </model>
+</world>
 </sdf>
