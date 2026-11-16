@@ -159,6 +159,8 @@ def generate_launch_description() -> LaunchDescription:
         executable="parameter_bridge",
         name="gz_sensor_bridge",
         output="screen",
+        respawn=True,
+        respawn_delay=10.0,
         parameters=[
             {
                 "bridge.all": "false",
@@ -175,6 +177,11 @@ def generate_launch_description() -> LaunchDescription:
         name="gz_base_command_bridge",
         output="screen",
         arguments=list(BASE_BRIDGE_COMMAND),
+        # The simulator needs a minute to load its world, and the topic the
+        # command travels on only exists once it has. A bridge that starts
+        # too early gives up, so it starts again until it works.
+        respawn=True,
+        respawn_delay=10.0,
     )
 
     base_odom_bridge = Node(
@@ -183,6 +190,8 @@ def generate_launch_description() -> LaunchDescription:
         name="gz_base_odom_bridge",
         output="screen",
         arguments=list(BASE_BRIDGE_ODOM),
+        respawn=True,
+        respawn_delay=10.0,
     )
 
     return LaunchDescription(
