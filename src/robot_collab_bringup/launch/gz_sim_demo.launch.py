@@ -67,18 +67,28 @@ BRIDGES = (
 
 #: The base: gz-sim's diff-drive system takes the command on one topic
 #: and answers with its own odometry on another. The navigation keeps the
-#: names it knows; these two bridges are the whole difference between the
-#: two simulators.
+#: topic names it knows, and these two bridges are the whole difference
+#: between the two simulators.
 #:
-#: These are in the positional form -- gazebo topic, ROS topic, gazebo
-#: type, ROS type -- because the two sides have different names, and the
-#: parser does not take that form and the `@` form in one invocation.
-BASE_BRIDGES = (
-    # The direction symbol says which way the messages run: "]" is from
-    # ROS to Gazebo, "[" is from Gazebo to ROS.
-    "/diff_drive_controller/cmd_vel@sensor_msgs/msg/Twist]ignition.msgs.Twist",
-    "/diff_drive_controller/odom[nav_msgs/msg/Odometry@ignition.msgs.Odom",
-)
+#: `bridge_node` rather than `parameter_bridge`: the parameter one carries
+#: one topic name for both sides, and the command has only one side with
+#: messages on it (the Gazebo side is a subscription), so the direction
+#: from Gazebo to ROS cannot be created and the bridge fails as a whole.
+BASE_BRIDGE_COMMAND = {
+    "gz_topic_name": "/diff_drive_controller/cmd_vel",
+    "ros_topic_name": "/diff_drive_controller/cmd_vel",
+    "gz_type_name": "ignition.msgs.Twist",
+    "ros_type_name": "geometry_msgs/msg/Twist",
+    "direction": "ROS_TO_GZ",
+}
+
+BASE_BRIDGE_ODOM = {
+    "gz_topic_name": "/diff_drive_controller/odom",
+    "ros_topic_name": "/diff_drive_controller/odom",
+    "gz_type_name": "ignition.msgs.Odom",
+    "ros_type_name": "nav_msgs/msg/Odometry",
+    "direction": "GZ_TO_ROS",
+}
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -173,12 +183,20 @@ def generate_launch_description() -> LaunchDescription:
         remappings=[],
     )
 
-    base_bridge = Node(
+    base_command_bridge = Node(
         package="ros_gz_bridge",
-        executable="parameter_bridge",
-        name="gz_base_bridge",
+        executable="bridge_node",
+        name="gz_base_command_bridge",
         output="screen",
-        arguments=list(BASE_BRIDGES),
+        parameters=[BASE_BRIDGE_COMMAND],
+    )
+
+    base_odom_bridge = Node(
+        package="ros_gz_bridge",
+        executable="bridge_node",
+        name="gz_base_odom_bridge",
+        output="screen",
+        parameters=[BASE_BRIDGE_ODOM],
     )
 
     return LaunchDescription(
@@ -231,7 +249,8 @@ def generate_launch_description() -> LaunchDescription:
                 output="screen",
             ),
             bridge,
-            base_bridge,
+            base_command_bridge,
+            base_odom_bridge,
             # The robot is spawned into the world rather than loaded with
             # it: gz-sim parses the URDF and the controller manager comes up
             # with the robot.
