@@ -47,8 +47,8 @@ import sys
 
 DIFF_DRIVE = """    <plugin filename="ignition-gazebo6-diff-drive-system"
             name="ignition::gazebo::systems::DiffDrive">
-      <topic>/diff_drive_controller/cmd_vel</topic>
-      <odom_topic>/diff_drive_controller/odom</odom_topic>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
       <left_joint>left_wheel_joint</left_joint>
       <right_joint>right_wheel_joint</right_joint>
       <wheel_separation>0.72</wheel_separation>

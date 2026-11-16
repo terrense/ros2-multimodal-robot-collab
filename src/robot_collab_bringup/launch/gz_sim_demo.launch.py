@@ -74,16 +74,12 @@ BRIDGES = (
 #: one topic name for both sides, and the command has only one side with
 #: messages on it (the Gazebo side is a subscription), so the direction
 #: from Gazebo to ROS cannot be created and the bridge fails as a whole.
-BASE_BRIDGE_COMMAND = {
-    "gz_topic_name": "/diff_drive_controller/cmd_vel",
-    "ros_topic_name": "/diff_drive_controller/cmd_vel",
-    "gz_type_name": "ignition.msgs.Twist",
-    "ros_type_name": "geometry_msgs/msg/Twist",
-    "direction": "ROS_TO_GZ",
-}
+BASE_BRIDGE_COMMAND = (
+    "/world/collab_lab/model/collab_mobile_base/cmd_vel@sensor_msgs/msg/Twist]ignition.msgs.Twist",
+)
 
 BASE_BRIDGE_ODOM = (
-    "/diff_drive_controller/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry",
+    "/world/collab_lab/model/collab_mobile_base/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry",
 )
 
 
@@ -175,10 +171,10 @@ def generate_launch_description() -> LaunchDescription:
 
     base_command_bridge = Node(
         package="ros_gz_bridge",
-        executable="bridge_node",
+        executable="parameter_bridge",
         name="gz_base_command_bridge",
         output="screen",
-        parameters=[BASE_BRIDGE_COMMAND],
+        arguments=list(BASE_BRIDGE_COMMAND),
     )
 
     base_odom_bridge = Node(
@@ -267,8 +263,8 @@ def generate_launch_description() -> LaunchDescription:
                     params,
                     {
                         "use_sim_time": use_sim_time,
-                        "cmd_vel_topic": "/diff_drive_controller/cmd_vel",
-                        "odom_topic": "/diff_drive_controller/odom",
+                        "cmd_vel_topic": "/world/collab_lab/model/collab_mobile_base/cmd_vel",
+                        "odom_topic": "/world/collab_lab/model/collab_mobile_base/odom",
                     },
                 ],
             ),
