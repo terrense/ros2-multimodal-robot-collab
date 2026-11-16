@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>robot_collab_gz_bridge</name>
+  <version>0.1.0</version>
+  <description>
+    Carries the base's velocity command from ROS 2 onto the Gazebo
+    Transport, so that gz-sim's diff-drive system can be driven by the
+    navigation the way Gazebo Classic's controller manager drives it.
+  </description>
+  <maintainer email="maintainer@example.com">maintainer</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>ignition-transport11</depend>
+  <depend>ignition-msgs5</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

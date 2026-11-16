@@ -24,7 +24,12 @@ from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
 )
-from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -74,17 +79,7 @@ BRIDGES = (
 #: one topic name for both sides, and the command has only one side with
 #: messages on it (the Gazebo side is a subscription), so the direction
 #: from Gazebo to ROS cannot be created and the bridge fails as a whole.
-BASE_BRIDGE_COMMAND = {
-    "gz_topic_name": "/diff_drive_controller/cmd_vel",
-    "ros_topic_name": "/diff_drive_controller/cmd_vel",
-    "gz_topic": "/diff_drive_controller/cmd_vel",
-    "ros_topic": "/diff_drive_controller/cmd_vel",
-    "gz_type_name": "ignition.msgs.Twist",
-    "ros_type_name": "geometry_msgs/msg/Twist",
-    "gz_type": "ignition.msgs.Twist",
-    "ros_type": "geometry_msgs/msg/Twist",
-    "direction": "ROS_TO_GZ",
-}
+
 
 BASE_BRIDGE_ODOM = (
     "/diff_drive_controller/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry",
@@ -99,6 +94,7 @@ def generate_launch_description() -> LaunchDescription:
     xacro_path = PathJoinSubstitution(
         [sim_share, "urdf", "collab_mobile_base.urdf.xacro"]
     )
+    gui = LaunchConfiguration("gui")
     world_path = PathJoinSubstitution(
         [sim_share, "worlds", "collab_lab_gz.world"]
     )
@@ -125,11 +121,13 @@ def generate_launch_description() -> LaunchDescription:
             "ruby",
             "/usr/bin/ign",
             "gazebo",
-            "-s",
             "-r",
             "-v",
             "4",
             world_path,
+            PythonExpression(
+                ["'-g' if '", gui, "' == 'true' else '-s'"]
+            ),
             "--force-version",
             "6",
         ],
@@ -179,17 +177,21 @@ def generate_launch_description() -> LaunchDescription:
         remappings=[],
     )
 
-    base_command_bridge = Node(
-        package="ros_gz_bridge",
-        executable="bridge_node",
-        name="gz_base_command_bridge",
+    # The command. The bridge will not carry it: the Gazebo topic has a
+    # subscriber and no publisher, and the bridge looks the topic's type up
+    # before it starts. The forwarder publishes the message itself, so it
+    # needs no lookup.
+    base_command_forwarder = Node(
+        package="robot_collab_gz_bridge",
+        executable="twist_forwarder",
+        name="gz_twist_forwarder",
         output="screen",
-        parameters=[BASE_BRIDGE_COMMAND],
-        # The simulator needs a minute to load its world, and the topic the
-        # command travels on only exists once it has. A bridge that starts
-        # too early gives up, so it starts again until it works.
-        respawn=True,
-        respawn_delay=10.0,
+        parameters=[
+            {
+                "gz_topic": "/diff_drive_controller/cmd_vel",
+                "ros_topic": "/diff_drive_controller/cmd_vel",
+            }
+        ],
     )
 
     base_odom_bridge = Node(
@@ -252,7 +254,7 @@ def generate_launch_description() -> LaunchDescription:
                 output="screen",
             ),
             bridge,
-            base_command_bridge,
+            base_command_forwarder,
             base_odom_bridge,
             # The robot is in the world file: the world's diff-drive system
             # is configured before anything is spawned into the world, and
