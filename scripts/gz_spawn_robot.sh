@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Put the robot into a running gz-sim world.
 #
+#   scripts/gz_spawn_robot.sh [world_name]
+#
 # The lab world holds the furniture; the robot is spawned into it, the way
 # the Gazebo Classic launch spawns it. gz-sim parses URDF, so the
-# description is rendered with the gz-sim controller plugin and converted
-# to SDF before it is handed to the world's create service.
+# description is rendered with the gz-sim flavour and converted to SDF
+# before it is handed to the world's create service.
 #
-#   scripts/gz_spawn_robot.sh [world_name]
+# The diff-drive system that drives the wheels is a system of the world
+# and lives in the world file, not here.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,6 +24,8 @@ source /opt/ros/humble/setup.bash
 source "$REPO/install/setup.bash"
 set -u
 
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
 XACRO="$REPO/install/robot_collab_sim/share/robot_collab_sim/urdf/collab_mobile_base.urdf.xacro"
 URDF=/tmp/${NAME}_gz.urdf
 SDF=/tmp/${NAME}_gz.sdf
@@ -30,9 +35,13 @@ python3 -m robot_collab_sim.robot_description gz-sim "$XACRO" >"$URDF"
 
 echo "# converting it to SDF"
 ign sdf -p "$URDF" >"$SDF.raw"
+# Fortress reads SDF 1.8; the converter writes the newest it knows.
+sed -i "s/version='1.9'/version='1.8'/" "$SDF.raw"
 
-# gz-sim's diff-drive system drives the two wheel joints. It is a plugin
-# of the model, and a URDF has no place for one, so it goes in here.
+# The diff-drive system drives the robot's two wheels. It is a plugin of
+# the model -- a system of the world would be configured before the robot
+# is spawned and would find no joints to drive -- and a URDF has no place
+# for one, so it goes in here.
 python3 - "$SDF.raw" "$SDF" <<'PYTHON'
 import sys
 
@@ -56,11 +65,14 @@ source, target = sys.argv[1], sys.argv[2]
 text = open(source, encoding="utf-8").read()
 if "<model" not in text:
     raise SystemExit("the converted SDF has no model in it")
-# The plugin goes just before the model's closing tag.
-index = text.rindex("</model>")
-text = text[:index] + DIFF_DRIVE + text[index:]
+# The plugin goes first in the model: the parser reads a model's children
+# in order, and a plugin that comes after the links is one it does not
+# get to.
+marker = "<model name='collab_mobile_base'>"
+index = text.index(marker) + len(marker)
+text = text[:index] + "\n" + DIFF_DRIVE + text[index:]
 open(target, "w", encoding="utf-8").write(text)
-print("the diff-drive system is in the SDF")
+print("the diff-drive system is in the model")
 PYTHON
 
 echo "# waiting for the world"
