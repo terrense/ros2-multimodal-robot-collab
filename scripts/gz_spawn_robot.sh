@@ -37,7 +37,7 @@ python3 - "$SDF.raw" "$SDF" <<'PYTHON'
 import sys
 
 DIFF_DRIVE = """    <plugin filename="ignition-gazebo6-diff-drive-system"
-            name="gz::sim::systems::DiffDrive">
+            name="ignition::gazebo::systems::DiffDrive">
       <topic>/diff_drive_controller/cmd_vel</topic>
       <odom_topic>/diff_drive_controller/odom</odom_topic>
       <left_joint>left_wheel_joint</left_joint>

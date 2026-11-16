@@ -148,12 +148,6 @@ def generate_launch_description() -> LaunchDescription:
             "LIBGL_ALWAYS_SOFTWARE": os.environ.get(
                 "LIBGL_ALWAYS_SOFTWARE", "1"
             ),
-            # The controller plugin is a gz-sim system, and gz-sim looks
-            # for systems in this path. The ROS packages put theirs in
-            # /opt/ros/humble/lib, which is not in the default list.
-            "GZ_SIM_SYSTEM_PLUGIN_PATH": os.environ.get(
-                "GZ_SIM_SYSTEM_PLUGIN_PATH", "/opt/ros/humble/lib"
-            ),
             # The robot description refers to its meshes as
             # model://velodyne_description/..., and the simulator has to be
             # told where the models are. A mesh it cannot find is a null

@@ -251,6 +251,24 @@ def render_gz_sim(xacro_path: str) -> str:
         # if the camera block says what the depth camera sees. Without it
         # the sensor is a plain camera, and the detector has no cloud to
         # read.
+        # A cheaper camera. gz-sim renders with the software rasteriser
+        # here, and at 15 Hz in 640x480 the simulation cannot keep up with
+        # real time: the world never finishes a step, the state service
+        # times out, and the diff-drive system never publishes.
+        .replace(
+            """      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>15</update_rate>""",
+            """      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>5</update_rate>""",
+        )
+        .replace(
+            """          <width>640</width>
+          <height>480</height>""",
+            """          <width>320</width>
+          <height>240</height>""",
+        )
         .replace(
             """        </clip>
       </camera>""",
