@@ -85,7 +85,7 @@ BASE_BRIDGE_COMMAND = {
 BASE_BRIDGE_ODOM = {
     "gz_topic_name": "/diff_drive_controller/odom",
     "ros_topic_name": "/diff_drive_controller/odom",
-    "gz_type_name": "ignition.msgs.Odom",
+    "gz_type_name": "ignition.msgs.Odometry",
     "ros_type_name": "nav_msgs/msg/Odometry",
     "direction": "GZ_TO_ROS",
 }

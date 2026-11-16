@@ -64,7 +64,7 @@ print("the diff-drive system is in the SDF")
 PYTHON
 
 echo "# waiting for the world"
-for _ in $(seq 1 90); do
+for _ in $(seq 1 240); do
   if ign service -l 2>/dev/null | grep -q "/world/${WORLD}/create"; then
     break
   fi
@@ -75,5 +75,5 @@ echo "# spawning ${NAME} into ${WORLD}"
 ign service -s "/world/${WORLD}/create" \
   --reqtype ignition.msgs.EntityFactory \
   --reptype ignition.msgs.Boolean \
-  --timeout 500 \
+  --timeout 120000 \
   --req "name: \"${NAME}\" sdf_filename: \"${SDF}\" pose: {position: {x: 0, y: 0, z: 0.05}}"

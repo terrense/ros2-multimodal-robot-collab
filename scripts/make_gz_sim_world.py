@@ -54,10 +54,10 @@ CLASSIC_PHYSICS = """    <physics name="default_physics" default="0" type="ode">
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>"""
 
-GZ_PHYSICS = """    <physics name="1ms" type="ignored">
-      <max_step_size>0.001</max_step_size>
+GZ_PHYSICS = """    <physics name="2ms" type="ignored">
+      <max_step_size>0.002</max_step_size>
       <real_time_factor>1.0</real_time_factor>
-      <real_time_update_rate>1000</real_time_update_rate>
+      <real_time_update_rate>500</real_time_update_rate>
     </physics>"""
 
 
