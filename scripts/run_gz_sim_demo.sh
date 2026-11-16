@@ -46,6 +46,13 @@ export IGN_GAZEBO_RENDER_ENGINE_PATH="${IGN_GAZEBO_RENDER_ENGINE_PATH:-$GZ_SIM_R
 # has.
 export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
 
+# Gazebo Transport finds its peers by multicast, and WSL's mirrored network
+# does not carry it: the bridge says "Network is unreachable" and nothing
+# arrives, while the same transport carries the camera's images. One
+# address, no multicast.
+export GZ_IP="${GZ_IP:-$(hostname -I | awk '{print \$1}')}"
+export IGN_IP="${IGN_IP:-$GZ_IP}"
+
 # The world is generated: the classic lab world is the source of truth.
 python3 scripts/make_gz_sim_world.py
 

@@ -83,7 +83,7 @@ BASE_BRIDGE_COMMAND = {
 }
 
 BASE_BRIDGE_ODOM = (
-    "/diff_drive_controller/odom[nav_msgs/msg/Odometry@ignition.msgs.Odometry",
+    "/diff_drive_controller/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry",
 )
 
 
