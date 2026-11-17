@@ -1,7 +1,0 @@
-docs: the gz-sim section says what the port can do
-
-The table of differences between the two simulators grows a row: the
-base in gz-sim pivots on the spot and the one in Gazebo Classic slides,
-so the navigation asks and the launch answers.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
