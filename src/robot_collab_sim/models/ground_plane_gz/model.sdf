@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<!--
+  The workcell's floor, for gz-sim.
+
+  Gazebo Classic's floor carries its contact parameters in the `<ode>`
+  element, and gz-sim's bullet engine does not read that element: it reads
+  its own. The floor of the two simulators is therefore two files, because
+  one file with both engines' parameters in it is a file whose schema
+  neither simulator owns.
+
+  The friction is the same number as the Classic floor's (1.0 across and
+  1.0 along), so the two floors grip the wheels the same way.
+-->
+<sdf version="1.6">
+  <model name="ground_plane">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>100 100</size>
+          </plane>
+        </geometry>
+        <surface>
+          <friction>
+            <mu>1.0</mu>
+            <mu2>1.0</mu2>
+            <bullet>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+              <friction>0.5</friction>
+              <friction2>0.5</friction2>
+            </bullet>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="visual">
+        <cast_shadows>false</cast_shadows>
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>100 100</size>
+          </plane>
+        </geometry>
+        <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.5 0.5 0.5 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

@@ -45,10 +45,19 @@ GZ_STATE_PLUGIN = """    <!-- gz-sim publishes the world's state itself; the Cla
          has no counterpart here. The ROS side gets the model states from
          the bridged world-state topic.
 
+         The physics system is what moves anything. A world without it
+         loads, spawns the robot, publishes the camera's frames and does
+         nothing at all: the wheels turn in the diff drive's own numbers
+         and the chassis stands still. The physics engine itself is chosen
+         by the <physics> element below, not by this plugin.
+
          The sensors system is what renders the cameras and the lidars. In
          Gazebo Classic the camera plugin brought its own sensor with it;
          in gz-sim the sensor is a system of the world, and a world without
          it advertises the camera's topics and never publishes a frame. -->
+    <plugin filename="ignition-gazebo6-physics-system"
+            name="ignition::gazebo::systems::Physics">
+    </plugin>
     <plugin filename="ignition-gazebo6-sensors-system"
             name="gz::sim::systems::Sensors">
     </plugin>
@@ -57,6 +66,12 @@ GZ_STATE_PLUGIN = """    <!-- gz-sim publishes the world's state itself; the Cla
          all. -->
     <plugin filename="ignition-gazebo6-user-commands-system"
             name="gz::sim::systems::UserCommands">
+    </plugin>
+    <!-- The scene broadcaster is what the window shows. A server without
+         it simulates perfectly and a window connected to it shows nothing
+         at all: there is no scene to draw. -->
+    <plugin filename="ignition-gazebo6-scene-broadcaster-system"
+            name="ignition::gazebo::systems::SceneBroadcaster">
     </plugin>"""
 
 CLASSIC_PHYSICS = """    <physics name="default_physics" default="0" type="ode">
@@ -65,7 +80,11 @@ CLASSIC_PHYSICS = """    <physics name="default_physics" default="0" type="ode">
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>"""
 
-GZ_PHYSICS = """    <physics name="2ms" type="ignored">
+GZ_PHYSICS = """    <!-- The engine is bullet. gz-sim reads the physics element itself, and
+         "ignored" is not a fast engine: it is the absence of one, and a
+         world without an engine holds every model still while the camera
+         renders it perfectly. -->
+    <physics name="2ms" type="bullet">
       <max_step_size>0.002</max_step_size>
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>500</real_time_update_rate>
@@ -101,6 +120,22 @@ DIFF_DRIVE = """    <plugin filename="ignition-gazebo6-diff-drive-system"
       <child_frame_id>base_footprint</child_frame_id>
       <max_linear_acceleration>1.0</max_linear_acceleration>
       <max_angular_acceleration>2.0</max_angular_acceleration>
+    </plugin>
+"""
+
+
+POSE_PUBLISHER = """    <plugin filename="ignition-gazebo6-pose-publisher-system"
+            name="ignition::gazebo::systems::PosePublisher">
+      <!-- One message with every pose in it. Without this the publisher
+           sends one pose per entity, one after the other, and a reader
+           that wants the model and its links has to collect them itself. -->
+      <use_pose_vector_msg>true</use_pose_vector_msg>
+      <publish_model_pose>true</publish_model_pose>
+      <publish_link_pose>true</publish_link_pose>
+      <publish_nested_model_pose>true</publish_nested_model_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
     </plugin>
 """
 
@@ -142,7 +177,7 @@ def robot_model() -> str:
     # get to.
     marker = "<model name='collab_mobile_base'>"
     index = model.index(marker) + len(marker)
-    return model[:index] + "\n" + DIFF_DRIVE + model[index:]
+    return model[:index] + "\n" + DIFF_DRIVE + POSE_PUBLISHER + model[index:]
 
 
 def main(argv: list[str]) -> int:
@@ -160,7 +195,9 @@ def main(argv: list[str]) -> int:
             raise SystemExit(f"the lab world does not have {what} as written")
         text = text.replace(old, new)
     # gz-sim resolves a model URI against the resource path, not against the
-    # world file, so the floor gets an absolute path.
+    # world file, so the floor gets an absolute path. It is the bullet
+    # floor: the Classic one carries its contact parameters for ODE, and
+    # gz-sim's engine does not read that element.
     floor = (
         REPO_ROOT
         / "install"
@@ -168,7 +205,7 @@ def main(argv: list[str]) -> int:
         / "share"
         / "robot_collab_sim"
         / "models"
-        / "ground_plane"
+        / "ground_plane_gz"
     )
     text = text.replace("<uri>../models/ground_plane</uri>", f"<uri>{floor}</uri>")
     # The robot is in the world, so that the world's diff-drive system has

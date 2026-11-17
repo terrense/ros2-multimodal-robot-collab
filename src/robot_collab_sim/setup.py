@@ -20,6 +20,8 @@ setup(
         (f"share/{package_name}/models/ground_plane", glob("models/ground_plane/*.sdf")),
         # gz-sim wants a model.config next to the model's SDF.
         (f"share/{package_name}/models/ground_plane", glob("models/ground_plane/model.config")),
+        # The gz-sim floor: bullet's contact parameters, not ODE's.
+        (f"share/{package_name}/models/ground_plane_gz", glob("models/ground_plane_gz/*")),
         (f"share/{package_name}/meshes/dobot_cr10", glob("meshes/dobot_cr10/*")),
     ],
     install_requires=["setuptools"],

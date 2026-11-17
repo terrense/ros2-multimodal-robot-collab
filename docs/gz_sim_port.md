@@ -5,23 +5,16 @@ runtime is the same, the contract is the same and the calibration is the
 same; what changes is the simulator underneath and the plugins that talk to
 it.
 
-**This is a port that has not been run yet.** It was written against the
-gz-sim (ros_gz) documentation, and the packages it needs are not installed
-on this machine. Everything below that says "verified" was run; everything
-else is what the documentation says, and the first run is where it gets
-checked.
+**This port has been run.** Everything below that says *verified* was
+measured on this machine, and the numbers in it are what the stack
+actually printed. What is not ported is in its own section, at the end,
+and it is not dressed up.
 
 ## What it needs
 
 ```bash
 sudo apt-get install -y --no-install-recommends ros-humble-ros-gz gz-fortress
-sudo apt-get install -y --no-install-recommends ros-humble-gz-ros2-control
 ```
-
-The second one is the controller plugin gz-sim drives the wheels with. The
-`ros-humble-ros-gz` metapackage does not include it, and without it the
-base spawns with no motors: the simulator loads the description and says
-`Failed to load system plugin [libgz_ros2_control.so]`.
 
 Then:
 
@@ -41,11 +34,14 @@ with "Unable to create request".
 
 | Gazebo Classic | gz-sim | Why |
 |---|---|---|
-| `libgazebo_ros2_control.so` | `libgz_ros2_control.so` | gz-sim has its own controller plugin, and the hardware interface is `gz_ros2_control/GazeboSimSystem` |
-| `libgazebo_ros_state.so` | `gz-sim-state-publisher-system` | the state publisher is a *system* in gz-sim, not a plugin |
-| `<physics type="ode">` | `<physics type="ignored">` | gz-sim has its own default physics and says so |
+| `libgazebo_ros2_control.so` | gz-sim's own `DiffDrive` system | `gz_ros2_control`'s Fortress build reads the controllers out of the server's own state and takes the whole simulator down with it (`ControllerManager::read` segfaults) |
+| `libgazebo_ros_state.so` | the pose publisher system, plus a node of our own | the state publisher is a *system* in gz-sim, not a plugin, and it publishes on the Gazebo Transport |
+| `<physics type="ode">` | `<physics type="bullet">` plus the physics plugin | gz-sim's physics is a plugin too, and `type="ignored"` is not a fast engine: it is the absence of one |
 | sensors publish on ROS topics | sensors publish on Gazebo Transport | `ros_gz_bridge` carries them across |
 | the world file is the source | the world file is **generated** | `scripts/make_gz_sim_world.py` writes `collab_lab_gz.world` from `collab_lab.world`, so the two labs cannot drift apart |
+
+The engine that runs in the end is DART: gz-sim reads the `<physics>`
+element itself, and the plugin loads the engine it finds first.
 
 ## How the pieces are shared
 
@@ -63,46 +59,91 @@ with "Unable to create request".
 ## The bridge
 
 gz-sim's sensors publish on the Gazebo Transport; the stack expects ROS
-topics. The bridge in `src/robot_collab_bringup/launch/gz_sim_demo.launch.py`
-carries:
+topics. gz-sim scopes a sensor's topic by the whole chain it hangs from —
+world, model, link, sensor — so the Gazebo side's names are long, and the
+ROS side keeps the names the rest of the stack knows:
 
 | Gazebo Transport | ROS |
 |---|---|
-| `/collab_mobile_base/front_rgbd_camera/image` | `/camera/color/image_raw` |
-| `/collab_mobile_base/front_rgbd_camera/depth_image` | `/camera/depth/image_raw` |
-| `/collab_mobile_base/front_rgbd_camera/points` | `/camera/depth/points` |
-| `/collab_mobile_base/front_rgbd_camera/camera_info` | `/camera/color/camera_info` |
-| `/collab_mobile_base/imu` | `/imu/data` |
+| `/world/collab_lab/model/collab_mobile_base/link/base_footprint/sensor/front_rgbd_camera/image` | `/camera/color/image_raw` |
+| `.../front_rgbd_camera/depth_image` | `/camera/depth/image_raw` |
+| `.../front_rgbd_camera/points` | `/camera/depth/points` |
+| `.../front_rgbd_camera/camera_info` | `/camera/color/camera_info` |
+| `.../base_imu/imu` | `/imu/data` |
 | `/clock` | `/clock` |
+| `/diff_drive_controller/odom` | `/diff_drive_controller/odom` |
 
-**These names are the one thing here that was written from documentation
-rather than from a running simulator.** The first thing to check is
-`gz topic -l` while the simulator is up; if the names differ, the bridge
-table is the only thing that has to change.
+The bridge is one-way, and that is not a detail: the bridge's form is
+`topic@ROS_type[GZ_type`, and the bracket is the direction. A bridge
+without one carries messages both ways, and a bridge that publishes on the
+Gazebo clock's topic is a second publisher on it — enough for the
+simulator to move its clock to another topic, where nobody is listening.
+With the clock missing, every node with `use_sim_time` freezes and the
+navigation waits for a timer that never fires.
 
-## What is not ported yet
+## The command, and the truth
 
-- the 2D laser (`/scan`) — gz-sim has no ray sensor, and the navigation
-  does not use the scan for anything that is measured (scan matching is
-  off);
-- the Velodyne's points — the official description carries a Gazebo Classic
-  plugin, so it needs a gz-sim lidar block;
-- the workshop scene's arms, which are spawned by a script.
+Two things do not come from the bridge, and both are nodes of this
+repository's own (`src/robot_collab_gz_bridge`):
+
+- **the command** (`twist_forwarder`). gz-sim's diff-drive system takes
+  its command on a Gazebo Transport topic that has a subscriber and no
+  publisher, and the bridge looks a topic's type up before it starts — so
+  it finds no type and refuses the topic. The forwarder publishes the
+  message itself, which needs no lookup.
+- **the truth** (`gz_pose_to_model_states`). Gazebo Classic's state plugin
+  published `/gazebo/model_states` and `/link_states`; gz-sim's pose
+  publisher is a system of the world, and it has to be attached to a
+  *model* — a world-level pose publisher fails with "PosePublisher plugin
+  should be attached to a model entity". It also has to be told to publish
+  a vector (`use_pose_vector_msg`), or it publishes one pose per entity,
+  one after the other. The node turns that vector into the two messages
+  the rest of the stack reads, with the names Gazebo Classic gave them.
+
+## The window
+
+The window is a **separate process**: `ign gazebo -g` means *the GUI only*.
+A launch that passes `-g` to the one simulator process gets a window with
+no server behind it — a black rectangle that asks for the list of worlds
+for as long as it is open. The server runs headless (`-s`) and the GUI
+(`-g`) connects to it over the transport.
+
+The world also needs the scene broadcaster: a server without it simulates
+perfectly and a window connected to it shows nothing, because there is no
+scene to draw.
+
+WSLg's clipboard bridge takes the GUI down when the Windows clipboard
+changes under it (a crash in `QClipboard::emitChanged`). The window is
+started with a respawn, so it comes back.
 
 ## What is verified
 
+Measured on this machine, with the numbers the stack printed:
+
 - the world generator produces a world that differs from the classic one in
-  exactly three places (`scripts/make_gz_sim_world.py` refuses to run if
-  the classic world does not have them as written);
-- **the world loads in gz-sim** — no errors, no missing models;
-- **the robot spawns into it** and is in the world's model list;
-- the description renders for both simulators, and the gz-sim one names
-  gz-sim's controller plugin and nothing else;
+  exactly the places it says (`scripts/make_gz_sim_world.py` refuses to run
+  if the classic world does not have them as written);
+- **the world loads in gz-sim** with a physics engine, and the robot
+  spawns into it;
+- **the camera publishes** an image, a depth image, a point cloud and the
+  camera info; the IMU publishes; the clock reaches ROS (1129 messages in
+  5 s);
+- **the base drives.** The command goes from the navigation, through the
+  forwarder, onto the Gazebo Transport, into the diff-drive system, and the
+  wheels turn: the odom counts 4.58 m of a commanded 25 s drive;
+- **the navigation drives the base to a station.** Asking for
+  `tool_shelf` puts the chassis at (1.15, -0.66) with the station at
+  (1.25, -0.75); asking for `station_a` puts it at (3.06, 0.38) with the
+  station at (3.20, 0.40). The odometry and the chassis agree to 0.014 m
+  on that drive;
+- **the window shows the world** and the robot in it, and the base drives
+  while it is up;
 - the classic stack is unaffected: the same description, the same world,
   the same calibration.
 
-Three things gz-sim refuses that Gazebo Classic accepts, all found by
-running it:
+## Three things gz-sim refuses that Gazebo Classic accepts
+
+All found by running it:
 
 - **an inertia that breaks the triangle inequality.** The wheels' inertia
   had `izz + ixx < iyy`; Gazebo Classic loads it, gz-sim refuses the link
@@ -117,35 +158,41 @@ running it:
   are dropped from the description (gz-sim would try to load them as
   systems and fail on every start).
 
-## What it took to make the camera work
+## What the navigation had to learn
 
-Three things, none of them obvious, all of them now in the repository:
+Two things the base could not do, both found by driving it in gz-sim and
+both fixed in `nav_skill_server.py` (the same file the classic stack
+uses):
 
-- **the sensors system has to be declared in the world.** Gazebo Classic's
-  camera plugin brought its own sensor with it; in gz-sim the sensor is a
-  system of the world, and a world without it advertises the camera's
-  topics and never publishes a frame.
-- **the render engine lives in a directory of its own.** gz-sim looks for
-  it in  (or ),
-  which the Ubuntu package does not set. Left unset, the sensors system
-  waits for an engine that never arrives and the world never finishes
-  initializing. The engine plugin itself sits in
-  with everything else, and the plugin loader scans a whole directory --
-  so it is symlinked into  and that is what the
-  environment points at.
-- **the world's create service comes from the user-commands system**, which
-  has to be in the world as well, or nothing can be spawned into it.
+- **a station behind the base.** The base turns by driving in an arc, so
+  a forward command with a hard turn makes it drive in a circle and come
+  back to where it started. A station more than 100 degrees off is now
+  reached by backing up while turning, which is what a wheeled robot with
+  no sideways grip has to do.
+- **"not moving" meant "not getting closer".** The base that is turning on
+  the spot has not gone anywhere, and the old detector called that stuck —
+  so it backed up, into the crate behind it, and stayed there. The
+  detector now measures the length of the path and the turn, and a base
+  that is turning is turning, not stuck.
 
-With those three in place the camera publishes an image, a depth image, a
-point cloud and the camera info, and the point cloud is what the detector
-reads.
+## What is not ported yet
 
-## What is still open
-
-- **the depth camera publishes only an image.** The sensor's topics are
-  named and the description asks for a point cloud, but the cloud does not
-  appear. The next thing to look at is the render engine: a sensor that
-  cannot render publishes nothing.
-- **the base has no motors** until `ros-humble-gz-ros2-control` is
-  installed.
-- the 2D lidar and the VLP-16's points, as above.
+- **the workshop scene's arms.** They are spawned by a script, and their
+  joints need a controller: `gz_ros2_control` is the one that is available,
+  and it takes the simulator down. gz-sim's own joint controller systems
+  would do the job, but the bridge from the ROS trajectory commands to the
+  Gazebo Transport is not written.
+- **the arms' joints in the lab scene** — the arm on the chassis is
+  carried along as part of the base's description and is not driven.
+- **the 2D lidar (`/scan`)** — gz-sim has no ray sensor, and the
+  navigation does not use the scan for anything that is measured (scan
+  matching is off).
+- **the Velodyne's points** — the official description carries a Gazebo
+  Classic plugin, so it needs a gz-sim lidar block.
+- **the navigation cannot route around the workbench.** The drive is a
+  straight line to the station, and the bench at (2.65, -0.55) stands
+  between the tool shelf and `station_b`. The stations the calibration
+  uses (`tool_shelf` and `station_a`) are clear of it, and the drive to
+  `station_b` fails with the base against the bench. This is the classic
+  stack's limitation too: the navigation is a wall follower, not a
+  planner, and it says so.

@@ -24,6 +24,7 @@ from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
 )
+from launch.conditions import IfCondition
 from launch.substitutions import (
     Command,
     LaunchConfiguration,
@@ -44,31 +45,36 @@ PREFIX = (
 #: The Gazebo Transport topics gz-sim gives the robot's sensors, and the
 #: ROS topics the rest of the stack expects. The camera is the one that
 #: matters: the detector reads its point cloud.
-#: (gazebo topic, ros topic, gazebo type, ros type). The point cloud is not
-#: the same message on the two sides: gz-sim publishes a packed cloud and
-#: the stack expects the unpacked one, so the bridge converts it.
-#: The Gazebo Transport topics gz-sim gives the robot's sensors, and the
-#: ROS topics the rest of the stack uses. gz-sim scopes a sensor's topic by
-#: the whole chain it hangs from -- world, model, link, sensor -- so these
-#: names are long, and they are the ones the simulator prints.
-#: The Gazebo Transport topics gz-sim gives the robot's sensors, and the
-#: ROS topics the rest of the stack uses. gz-sim scopes a sensor's topic by
-#: the whole chain it hangs from -- world, model, link, sensor -- so these
-#: names are long, and they are the ones the simulator prints.
 #:
-#: The bridge takes `topic@ROS_type@Ignition_type`: the ROS type first,
-#: then the Gazebo Transport one.
+#: gz-sim scopes a sensor's topic by the whole chain it hangs from --
+#: world, model, link, sensor -- so these names are long, and they are the
+#: ones the simulator prints. The ROS side keeps the names the rest of the
+#: stack knows, and the remappings below are what does that.
+#:
+#: The bridge takes `topic@ROS_type[GZ_type`: the ROS type first, then the
+#: Gazebo Transport one, and the bracket says which way the messages go.
+#: One way only: a bridge that carries messages both ways publishes on the
+#: Gazebo topic as well, and a second publisher on the clock's topic is
+#: enough to make the simulator move its clock to another topic, where
+#: nobody is listening.
 BRIDGES = (
-    f"{PREFIX}/front_rgbd_camera/image@sensor_msgs/msg/Image@ignition.msgs.Image",
-    f"{PREFIX}/front_rgbd_camera/depth_image@sensor_msgs/msg/Image@ignition.msgs.Image",
-    f"{PREFIX}/front_rgbd_camera/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked",
-    f"{PREFIX}/front_rgbd_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo",
-    f"{PREFIX}/base_imu/imu@sensor_msgs/msg/Imu@ignition.msgs.IMU",
-    "/clock@rosgraph_msgs/msg/Clock@ignition.msgs.Clock",
-    # The base: gz-sim's diff-drive system takes the command on one topic
-    # and answers with its own odometry on another. The navigation keeps
-    # the names it knows; these two bridges are the whole difference.
+    f"{PREFIX}/front_rgbd_camera/image@sensor_msgs/msg/Image[ignition.msgs.Image",
+    f"{PREFIX}/front_rgbd_camera/depth_image@sensor_msgs/msg/Image[ignition.msgs.Image",
+    f"{PREFIX}/front_rgbd_camera/points@sensor_msgs/msg/PointCloud2[ignition.msgs.PointCloudPacked",
+    f"{PREFIX}/front_rgbd_camera/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo",
+    f"{PREFIX}/base_imu/imu@sensor_msgs/msg/Imu[ignition.msgs.IMU",
+    "/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock",
 )
+
+#: The ROS side of the same bridges: the names the rest of the stack uses,
+#: so that the same nodes work in either simulator.
+REMAPPINGS = [
+    (f"{PREFIX}/front_rgbd_camera/image", "/camera/color/image_raw"),
+    (f"{PREFIX}/front_rgbd_camera/depth_image", "/camera/depth/image_raw"),
+    (f"{PREFIX}/front_rgbd_camera/points", "/camera/depth/points"),
+    (f"{PREFIX}/front_rgbd_camera/camera_info", "/camera/color/camera_info"),
+    (f"{PREFIX}/base_imu/imu", "/imu/data"),
+]
 
 #: The base: gz-sim's diff-drive system takes the command on one topic
 #: and answers with its own odometry on another. The navigation keeps the
@@ -116,6 +122,11 @@ def generate_launch_description() -> LaunchDescription:
     # one takes its arguments as a single string and performs it, and a
     # world path made of substitutions comes out as the text of the
     # substitution object.
+    #
+    # The server runs headless, always. The window is a *separate* process:
+    # gz-sim's `-g` means "the GUI only", and a window with no server
+    # behind it is a black rectangle that asks for the list of worlds for
+    # as long as it is open.
     gz_sim = ExecuteProcess(
         cmd=[
             "ruby",
@@ -125,9 +136,7 @@ def generate_launch_description() -> LaunchDescription:
             "-v",
             "4",
             world_path,
-            PythonExpression(
-                ["'-g' if '", gui, "' == 'true' else '-s'"]
-            ),
+            "-s",
             "--force-version",
             "6",
         ],
@@ -160,6 +169,34 @@ def generate_launch_description() -> LaunchDescription:
         },
     )
 
+    # The window. A process of its own: it connects to the server over the
+    # Gazebo Transport and shows the world the server is running. Without a
+    # window the stack runs the same way; the window is what a person asks
+    # for on purpose.
+    gz_gui = ExecuteProcess(
+        cmd=["ruby", "/usr/bin/ign", "gazebo", "-g"],
+        output="screen",
+        # The window is restarted if it dies. WSLg's clipboard bridge takes
+        # the GUI down when the Windows clipboard changes under it, and a
+        # window that does not come back is a window the person has lost.
+        respawn=True,
+        respawn_delay=3.0,
+        additional_env={
+            "GZ_SIM_RENDER_ENGINE_PATH": os.environ.get(
+                "GZ_SIM_RENDER_ENGINE_PATH", "/opt/gz-render-engine"
+            ),
+            "IGN_GAZEBO_RENDER_ENGINE_PATH": os.environ.get(
+                "IGN_GAZEBO_RENDER_ENGINE_PATH", "/opt/gz-render-engine"
+            ),
+            "LIBGL_ALWAYS_SOFTWARE": os.environ.get(
+                "LIBGL_ALWAYS_SOFTWARE", "1"
+            ),
+        },
+        condition=IfCondition(
+            PythonExpression(["'true' if '", gui, "' == 'true' else 'false'"])
+        ),
+    )
+
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -174,7 +211,7 @@ def generate_launch_description() -> LaunchDescription:
             }
         ],
         arguments=list(BRIDGES),
-        remappings=[],
+        remappings=REMAPPINGS,
     )
 
     # The command. The bridge will not carry it: the Gazebo topic has a
@@ -217,6 +254,7 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument("robot_name", default_value="collab_mobile_base"),
             gz_sim,
+            gz_gui,
             Node(
                 package="robot_state_publisher",
                 executable="robot_state_publisher",
@@ -227,35 +265,29 @@ def generate_launch_description() -> LaunchDescription:
                     {"robot_description": robot_description},
                 ],
             ),
-            # gz-sim's controller manager lives in the server process, and
-            # the spawner is what hands the controllers to it.
-            ExecuteProcess(
-                cmd=[
-                    "bash",
-                    "-c",
-                    "until ros2 service list | grep -q /controller_manager; do "
-                    "sleep 2; done; "
-                    "ros2 run gz_ros2_control gz_ros2_control "
-                    "--spawner joint_state_broadcaster "
-                    "--controller-manager /controller_manager",
-                ],
-                output="screen",
-            ),
-            ExecuteProcess(
-                cmd=[
-                    "bash",
-                    "-c",
-                    "until ros2 service list | grep -q /controller_manager; do "
-                    "sleep 2; done; "
-                    "ros2 run gz_ros2_control gz_ros2_control "
-                    "--spawner diff_drive_controller "
-                    "--controller-manager /controller_manager",
-                ],
-                output="screen",
-            ),
+            # No controller manager: gz_ros2_control's Fortress build reads
+            # the controllers out of the server's own state and takes the
+            # simulator down with it. The base is driven by gz-sim's own
+            # diff-drive system, which is in the world file.
             bridge,
             base_command_forwarder,
             base_odom_bridge,
+            # The world's ground truth. Gazebo Classic published it from a
+            # plugin; in gz-sim it is a system of the world, and this node
+            # is what puts it back on the topics the stack reads.
+            Node(
+                package="robot_collab_gz_bridge",
+                executable="gz_pose_to_model_states",
+                name="gz_pose_to_model_states",
+                output="screen",
+                parameters=[
+                    {
+                        "gz_topic": "/model/collab_mobile_base/pose",
+                        "model_states_topic": "/model_states",
+                        "link_states_topic": "/link_states",
+                    }
+                ],
+            ),
             # The robot is in the world file: the world's diff-drive system
             # is configured before anything is spawned into the world, and
             # the joints it commands have to be there already.

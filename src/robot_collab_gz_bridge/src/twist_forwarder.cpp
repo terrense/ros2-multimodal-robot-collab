@@ -55,6 +55,13 @@ public:
           out.mutable_angular()->set_y(message.angular.y);
           out.mutable_angular()->set_z(message.angular.z);
           this->publisher_.Publish(out);
+          this->count_++;
+          if (this->count_ == 1 || this->count_ % 50 == 0)
+          {
+            RCLCPP_INFO(
+                this->get_logger(),
+                "carried %d commands onto the Gazebo topic", this->count_);
+          }
         });
     RCLCPP_INFO(
         this->get_logger(),
@@ -66,6 +73,7 @@ private:
   ignition::transport::Node transport_;
   ignition::transport::v11::Node::Publisher publisher_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr subscription_;
+  int count_ = 0;
 };
 
 }  // namespace robot_collab_gz_bridge

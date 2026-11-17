@@ -15,6 +15,17 @@ set -o pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 1
 
+# "--gui" is the short way of asking for the window; anything else is
+# passed to the launch as it is.
+ARGS=()
+for argument in "$@"; do
+  if [ "$argument" = "--gui" ]; then
+    ARGS+=("gui:=true")
+  else
+    ARGS+=("$argument")
+  fi
+done
+
 if [ ! -f /opt/ros/humble/setup.bash ]; then
   echo "ROS2 Humble is missing. Install it first." >&2
   exit 1
@@ -50,7 +61,7 @@ export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
 # does not carry it: the bridge says "Network is unreachable" and nothing
 # arrives, while the same transport carries the camera's images. One
 # address, no multicast.
-export GZ_IP="${GZ_IP:-$(hostname -I | awk '{print \$1}')}"
+export GZ_IP="${GZ_IP:-$(hostname -I | awk '{print $1}')}"
 export IGN_IP="${IGN_IP:-$GZ_IP}"
 
 # The world is generated: the classic lab world is the source of truth.
@@ -58,15 +69,16 @@ python3 scripts/make_gz_sim_world.py
 
 LOG=/tmp/gz_sim_demo.log
 : >"$LOG"
-setsid nohup ros2 launch robot_collab_bringup gz_sim_demo.launch.py "$@" >"$LOG" 2>&1 &
+setsid nohup ros2 launch robot_collab_bringup gz_sim_demo.launch.py "${ARGS[@]}" >"$LOG" 2>&1 &
 
 echo "gz-sim launch started; log: $LOG"
 for i in $(seq 1 60); do
-  if pgrep -f gzserver >/dev/null 2>&1; then
+  # The server in gz-sim is `ign gazebo`, not gzserver.
+  if pgrep -f 'ign gazebo' >/dev/null 2>&1; then
     echo "gz sim up after ${i}s"
     break
   fi
   sleep 1
 done
 
-echo "stop with: pkill -f gz_sim_demo.launch.py"
+echo "stop with: bash scripts/stop_gz_sim_demo.sh"

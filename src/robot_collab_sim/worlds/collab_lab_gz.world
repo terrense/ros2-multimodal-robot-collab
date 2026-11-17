@@ -1,7 +1,11 @@
 <?xml version="1.0"?>
 <sdf version="1.8">
   <world name="collab_lab">
-    <physics name="2ms" type="ignored">
+    <!-- The engine is bullet. gz-sim reads the physics element itself, and
+         "ignored" is not a fast engine: it is the absence of one, and a
+         world without an engine holds every model still while the camera
+         renders it perfectly. -->
+    <physics name="2ms" type="bullet">
       <max_step_size>0.002</max_step_size>
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>500</real_time_update_rate>
@@ -13,10 +17,19 @@
          has no counterpart here. The ROS side gets the model states from
          the bridged world-state topic.
 
+         The physics system is what moves anything. A world without it
+         loads, spawns the robot, publishes the camera's frames and does
+         nothing at all: the wheels turn in the diff drive's own numbers
+         and the chassis stands still. The physics engine itself is chosen
+         by the <physics> element below, not by this plugin.
+
          The sensors system is what renders the cameras and the lidars. In
          Gazebo Classic the camera plugin brought its own sensor with it;
          in gz-sim the sensor is a system of the world, and a world without
          it advertises the camera's topics and never publishes a frame. -->
+    <plugin filename="ignition-gazebo6-physics-system"
+            name="ignition::gazebo::systems::Physics">
+    </plugin>
     <plugin filename="ignition-gazebo6-sensors-system"
             name="gz::sim::systems::Sensors">
     </plugin>
@@ -26,12 +39,18 @@
     <plugin filename="ignition-gazebo6-user-commands-system"
             name="gz::sim::systems::UserCommands">
     </plugin>
+    <!-- The scene broadcaster is what the window shows. A server without
+         it simulates perfectly and a window connected to it shows nothing
+         at all: there is no scene to draw. -->
+    <plugin filename="ignition-gazebo6-scene-broadcaster-system"
+            name="ignition::gazebo::systems::SceneBroadcaster">
+    </plugin>
 
     <!-- This workspace's own floor. Gazebo's stock one has a contact
          stiffness the solver cannot carry under a wheeled robot whose wheel
          velocities are imposed every step. -->
     <include>
-      <uri>/mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/models/ground_plane</uri>
+      <uri>/mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/models/ground_plane_gz</uri>
     </include>
     <!-- The sun, inline. gz-sim has no `model://sun` to find without the
          fuel models, and a workcell without a light is a workcell the
@@ -252,6 +271,19 @@
       <child_frame_id>base_footprint</child_frame_id>
       <max_linear_acceleration>1.0</max_linear_acceleration>
       <max_angular_acceleration>2.0</max_angular_acceleration>
+    </plugin>
+    <plugin filename="ignition-gazebo6-pose-publisher-system"
+            name="ignition::gazebo::systems::PosePublisher">
+      <!-- One message with every pose in it. Without this the publisher
+           sends one pose per entity, one after the other, and a reader
+           that wants the model and its links has to collect them itself. -->
+      <use_pose_vector_msg>true</use_pose_vector_msg>
+      <publish_model_pose>true</publish_model_pose>
+      <publish_link_pose>true</publish_link_pose>
+      <publish_nested_model_pose>true</publish_nested_model_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
     </plugin>
 
     <link name='base_footprint'>

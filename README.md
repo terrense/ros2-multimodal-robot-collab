@@ -219,13 +219,33 @@ bash scripts/run_gz_sim_demo.sh            # 无窗口
 bash scripts/run_gz_sim_demo.sh --gui      # 带窗口
 ```
 
+**这个移植跑起来了**，实测过的：
+
+| | 测到的 |
+|---|---|
+| 底盘 | 导航说往哪开，底盘就往哪开：`tool_shelf` 停在 (1.15, -0.66)（工位在 (1.25, -0.75)），`station_a` 停在 (3.06, 0.38)（工位在 (3.20, 0.40)），这一趟里程计和车体差 0.014 m |
+| 相机 | 图像、深度、点云、camera_info 都有，IMU 有，时钟有（5 秒 1129 帧） |
+| 窗口 | `ign gazebo -g` 单独一个进程连到服务器上，场景看得见，机器人也看得见 |
+
 机器人描述只有一份（`robot_description.py gz-sim` 把 Classic 的控制器插件换成
 gz-sim 的那个），实验场景也是一份（`scripts/make_gz_sim_world.py` 从 classic 的
 world 生成 gz-sim 的 world，两者不会漂移）。传感器在 gz-sim 里发的是 Gazebo
-Transport 的话题，由 `ros_gz_bridge` 搬到 ROS 的话题上。
+Transport 的话题，由 `ros_gz_bridge` 搬到 ROS 的话题上；ROS 那边的名字跟
+Classic 一样（`/camera/depth/points`、`/imu/data`……），所以下游的节点一个都不用改。
 
-**这个移植还没跑过** —— 写它的时候 gz-sim 的包还没装上。哪些跑过了、哪些还是
-照着文档写的、第一次跑要检查什么，都写在 [`docs/gz_sim_port.md`](docs/gz_sim_port.md)。
+和 Classic 不一样的地方，都是 gz-sim 自己的机制造成的：
+
+| | Classic | gz-sim |
+|---|---|---|
+| 底盘驱动 | `ros2_control` + `diff_drive_controller` | gz-sim 自带的 `DiffDrive` 系统 + 本仓库的转发节点（`gz_ros2_control` 在 Humble/Fortress 上会把服务器带崩） |
+| 位姿真值 | `gazebo_ros_state` 插件 | gz-sim 的位姿发布系统 + 本仓库的 `gz_pose_to_model_states`（转成老话题 `/model_states`、`/link_states`） |
+| 物理 | ODE | DART |
+| 窗口 | Classic GUI | `ign gazebo -g`（`-g` 是"只有 GUI"，服务器另起一个进程 `-s`） |
+
+**还没搬完的**：车间场景的三台机械臂（关节要控制器，而可用的 `gz_ros2_control`
+会把服务器带崩）、2D 激光、Velodyne 的点云；导航绕不过工位旁边那张工作台
+（直线路径撞上去，Classic 也一样）。哪些跑过、哪些还没跑、为什么，
+都写在 [`docs/gz_sim_port.md`](docs/gz_sim_port.md)。
 
 ---
 
