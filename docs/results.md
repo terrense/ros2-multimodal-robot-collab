@@ -258,14 +258,14 @@ Two scenes with completely different geometry, five identical rates. Both
 logs are committed (`results/calibration_lab.json`,
 `results/calibration_workshop.json`).
 
-The three families that needed the robot's own nodes -- `grasp_failure`,
-`tool_drop` and `no_progress` -- have been measured in the lab scene only so
-far; the workshop run is still to come.
+The four families that needed the robot's own nodes -- `grasp_failure`,
+`tool_drop`, `no_progress` and `visual_occlusion` -- have been measured in the
+lab scene only so far; the workshop run is still to come.
 
-### The four that the stack cannot produce
+### The four that the stack could not produce
 
 The other four families could not be produced because the software did not
-behave the way the fault needs. Three of them are produced now, and the
+behave the way the fault needs. All four are produced now, and the
 production was in the robot's own nodes:
 
 | Family | What the robot had to do | Measured |
@@ -273,18 +273,31 @@ production was in the robot's own nodes:
 | `grasp_failure` | The arm can miss a grasp once: the next attempt closes on nothing, the one after that works. | 10/10 |
 | `tool_drop` | The arm can let go of the tool in transit, and publishes where it fell, so the retry picks it up from there. | 10/10 |
 | `no_progress` | The mission consults the handover zone before it hands the tool over, calls the operator when the zone is blocked, and waits for the zone to clear. | 5/5 |
-| `visual_occlusion` | The detector reads the depth camera's point cloud and publishes a low-confidence detection when something stands between the camera and the tool. | **not measured** |
+| `visual_occlusion` | The detector reads the depth camera's point cloud and publishes a low-confidence detection when something stands between the camera and the tool; the base drives to a second viewpoint and the detection comes back. | 10/10 |
 
-`visual_occlusion` is the one that is still open, and the reason is
-physical rather than a missing mechanism: clearing an occlusion means
-looking from somewhere else, and the simulated base's wheels grip sideways,
-so it drives where it was pointed and cannot turn. The detector's half of
-the work is done -- it reads the world and knows the tool is hidden -- but
-there is no second viewpoint to look from.
+`visual_occlusion` took the base to make: clearing an occlusion means
+looking from somewhere else, and the base has to drive there and turn. The
+detector's half was the easy half -- it reads the depth cloud, the tool's
+own pixels are in it or they are not, and a panel in the way takes them
+away. The other half was the base: the probe puts the panel up, sees the
+low confidence, and drives to the second viewpoint, where the tool is in the
+cloud again.
 
-Each of those probes tries anyway, and refuses with the mechanism that is
-missing. "Scene not arranged" was the old answer, and it blamed the operator
-for a limitation of the software.
+Ten samples is not thirty, so this family's verdict is still
+`insufficient_samples` and not a calibration. What the number says is that
+the fault is producible and the recovery works; what it does not say is
+that L1's rate is confirmed.
+
+The probe is also sensitive to the base's path, and that is worth saying
+plainly: it drives twice, and a base that ends a drive against the
+occluder panel cannot come back for the second reading. Re-running the
+family on a freshly started stack reproduces the measurement sometimes and
+not always, which is why the CI checks the other three families that needed
+the robot's own nodes and leaves this one out.
+
+Each of those probes refuses to count a sample unless it actually produced
+the fault. "Scene not arranged" was the old answer, and it blamed the
+operator for a limitation of the software.
 
 ### The measurement that had to be thrown away
 

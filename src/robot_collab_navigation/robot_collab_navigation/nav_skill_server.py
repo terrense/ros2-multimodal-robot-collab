@@ -84,6 +84,22 @@ class NavSkillServer(Node):
         # never moved.
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
         self.declare_parameter("odom_topic", "/odom")
+        # Can the base pivot on the spot?
+        #
+        # A differential drive can, and that is the whole point of it: a
+        # station behind the robot is reached by turning on the spot and
+        # driving off. A base whose wheels grip sideways cannot, and has
+        # to drive an arc to turn around -- which is slower, and takes it
+        # away from where it was, but it is the only way it has.
+        #
+        # The two simulators' bases are not the same, and the difference is
+        # in the wheel model rather than in the robot: the one that slides
+        # has to drive the arc, and the one that pivots turns on the spot.
+        # So this is a property the launch states, not one the navigation
+        # guesses. With it off, the behaviour is the one the classic
+        # stack's measurements were taken with.
+        self.declare_parameter("pivot_capable", False)
+        self._pivot_capable = bool(self.get_parameter("pivot_capable").value)
         self._stations = self._load_station_registry()
         self._robot_model = str(self.get_parameter("robot_model").value)
         self._truth: tuple[float, float, float] | None = None
@@ -313,16 +329,15 @@ class NavSkillServer(Node):
             alignment = math.cos(error)
             linear = speed * min(1.0, distance / 0.5) * abs(alignment) ** 2
 
-            # A station behind the base is a different problem. The base
-            # turns by driving in an arc, so a forward command with a hard
-            # turn makes it drive in a circle: it comes back to where it
-            # started, facing the other way, and the drive times out with
-            # the station exactly as far away as it was. Backing up while
-            # turning is what a wheeled robot with no sideways grip has to
-            # do to turn around, and it is what this one does.
-            if abs(error) > math.radians(100.0):
-                linear = -0.25
-                angular = max(-1.0, min(1.0, 2.0 * error))
+            # A station behind the base. A base that pivots turns on the
+            # spot and drives off; a base that cannot pivot has to drive an
+            # arc, and the arc is what the alignment term above asks for.
+            # Asking a pivoting base to drive that arc instead is asking it
+            # to go in a circle: it comes back to where it started, facing
+            # the other way, and the station is exactly as far away as it
+            # was.
+            if self._pivot_capable and abs(error) > math.radians(100.0):
+                linear = 0.0
 
             # An obstacle in the way. The base was asked to go somewhere and
             # it is not going: it is against a crate, or a wall, or the
@@ -339,14 +354,8 @@ class NavSkillServer(Node):
             # a wall and a free path.
             stuck = self._stuck_against(x, y, yaw)
             if stuck:
-                if self._detour_until <= time.monotonic():
-                    # The sign changes when a detour *starts*, and not every
-                    # time the base is found to be stuck: the base is found
-                    # to be stuck several times a second, and a sign that
-                    # changes that often is a base that wiggles in place
-                    # instead of turning away.
-                    self._detour_sign = 1.0 if self._detour_sign >= 0 else -1.0
                 self._detour_until = time.monotonic() + 2.5
+                self._detour_sign = 1.0 if self._detour_sign >= 0 else -1.0
                 self.get_logger().warn(
                     f"[DRIVE] not moving at ({x:.2f}, {y:.2f}); "
                     "turning away and trying again"
@@ -378,19 +387,11 @@ class NavSkillServer(Node):
         half: a base that was told to go somewhere and has not moved is
         against something.
 
-        Two things count as not moving, and only both of them together mean
-        stuck. The distance is the length of the path and not the distance
-        from where the base was: a base that is turning on the spot travels
-        plenty and gets nowhere, and calling that "not moving" stops the
-        very turn that would have got it somewhere. And a base that has
-        turned is turning, not stuck: the wheels are driving and the
-        chassis is answering, and the turn is what gets it out of a place
-        it cannot drive out of.
-
-        The threshold for "has turned" is small, because this base turns
-        badly: it scrubs its wheels rather than pivoting, and it turns at
-        a fraction of the rate it is told to. A base that is jammed cannot
-        turn at all, and that is the difference the threshold is about.
+        A base that pivots has not gone anywhere while it turns, and it is
+        not stuck: the wheels are driving, the chassis is answering, and
+        the turn is what gets it to a station that is behind it. So a
+        pivoting base is told apart from a stuck one by the yaw: a base
+        that is jammed cannot turn at all.
         """
         now = time.monotonic()
         self._progress.append((now, x, y, yaw))
@@ -398,15 +399,16 @@ class NavSkillServer(Node):
             self._progress.pop(0)
         if len(self._progress) < 5:
             return False
-        travelled = 0.0
-        for before, after in zip(self._progress, self._progress[1:], strict=False):
-            travelled += math.hypot(after[1] - before[1], after[2] - before[2])
+        first = self._progress[0]
+        travelled = math.hypot(x - first[1], y - first[2])
+        if travelled >= 0.05:
+            return False
+        if not self._pivot_capable:
+            return True
         turned = abs(
-            (self._progress[-1][3] - self._progress[0][3] + math.pi)
-            % (2.0 * math.pi)
-            - math.pi
+            (self._progress[-1][3] - first[3] + math.pi) % (2.0 * math.pi) - math.pi
         )
-        return travelled < 0.05 and turned < 0.05
+        return turned < 0.05
 
     def _publish_cmd_vel(self, linear: float, angular: float) -> None:
         """Command the base, without slamming the wheels into the new speed.

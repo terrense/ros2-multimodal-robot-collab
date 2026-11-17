@@ -316,6 +316,11 @@ def generate_launch_description() -> LaunchDescription:
                         "use_sim_time": use_sim_time,
                         "cmd_vel_topic": "/diff_drive_controller/cmd_vel",
                         "odom_topic": "/diff_drive_controller/odom",
+                        # The base in gz-sim pivots on the spot: the
+                        # wheels grip and the chassis answers. A station
+                        # behind it is reached by turning there and
+                        # driving off.
+                        "pivot_capable": True,
                     },
                 ],
             ),

@@ -136,6 +136,10 @@ Measured on this machine, with the numbers the stack printed:
   (1.25, -0.75); asking for `station_a` puts it at (3.06, 0.38) with the
   station at (3.20, 0.40). The odometry and the chassis agree to 0.014 m
   on that drive;
+- **the navigation turns the base around.** Asking for `viewpoint_left`,
+  which is behind the base, puts it at (0.00, 2.28) with the station at
+  (0.00, 2.40) — the base pivots on the spot and drives off, which is
+  what the `pivot_capable` parameter is for;
 - **the window shows the world** and the robot in it, and the base drives
   while it is up;
 - the classic stack is unaffected: the same description, the same world,
@@ -166,14 +170,17 @@ uses):
 
 - **a station behind the base.** The base turns by driving in an arc, so
   a forward command with a hard turn makes it drive in a circle and come
-  back to where it started. A station more than 100 degrees off is now
-  reached by backing up while turning, which is what a wheeled robot with
-  no sideways grip has to do.
-- **"not moving" meant "not getting closer".** The base that is turning on
-  the spot has not gone anywhere, and the old detector called that stuck —
-  so it backed up, into the crate behind it, and stayed there. The
-  detector now measures the length of the path and the turn, and a base
-  that is turning is turning, not stuck.
+  back to where it started. In gz-sim the base's wheels grip and it *can*
+  rotate on the spot, and asking it to drive the arc instead is asking it
+  to go in a circle. So the navigation asks whether the base can pivot
+  (`pivot_capable`), and the launch states it: the gz-sim launch says yes,
+  the classic launch says no, and with it off the behaviour is the one the
+  classic stack's measurements were taken with.
+- **a base that is pivoting is not stuck.** It has not gone anywhere while
+  it turns, and the old detector called that stuck — so it backed up, into
+  the crate behind it, and stayed there. A pivoting base is told apart
+  from a jammed one by its yaw: a base that is jammed cannot turn at all,
+  and the detour is for that.
 
 ## What is not ported yet
 
