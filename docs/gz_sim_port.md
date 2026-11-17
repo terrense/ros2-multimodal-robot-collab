@@ -114,7 +114,9 @@ scene to draw.
 
 WSLg's clipboard bridge takes the GUI down when the Windows clipboard
 changes under it (a crash in `QClipboard::emitChanged`). The window is
-started with a respawn, so it comes back.
+not restarted when that happens: a window that comes back on its own is a
+window the person cannot get rid of, and the stack runs perfectly well
+without it. `scripts/run_gz_sim_demo.sh --gui` opens it again.
 
 ## What is verified
 

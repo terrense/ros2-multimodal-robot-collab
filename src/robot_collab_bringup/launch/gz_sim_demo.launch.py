@@ -176,11 +176,12 @@ def generate_launch_description() -> LaunchDescription:
     gz_gui = ExecuteProcess(
         cmd=["ruby", "/usr/bin/ign", "gazebo", "-g"],
         output="screen",
-        # The window is restarted if it dies. WSLg's clipboard bridge takes
-        # the GUI down when the Windows clipboard changes under it, and a
-        # window that does not come back is a window the person has lost.
-        respawn=True,
-        respawn_delay=3.0,
+        # No respawn. A window that comes back on its own is a window the
+        # person cannot get rid of: they close it and it opens again, and
+        # again, and again. Closing the window closes the window. If the
+        # GUI dies on WSLg's clipboard bridge, the stack keeps running
+        # without it and the window is brought back by starting the stack
+        # again with `--gui`.
         additional_env={
             "GZ_SIM_RENDER_ENGINE_PATH": os.environ.get(
                 "GZ_SIM_RENDER_ENGINE_PATH", "/opt/gz-render-engine"
