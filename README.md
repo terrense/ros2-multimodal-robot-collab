@@ -241,6 +241,7 @@ Classic 一样（`/camera/depth/points`、`/imu/data`……），所以下游的
 | 位姿真值 | `gazebo_ros_state` 插件 | gz-sim 的位姿发布系统 + 本仓库的 `gz_pose_to_model_states`（转成老话题 `/model_states`、`/link_states`） |
 | 物理 | ODE | DART |
 | 窗口 | Classic GUI | `ign gazebo -g`（`-g` 是"只有 GUI"，服务器另起一个进程 `-s`） |
+| 原地掉头 | 不能（轮子横向打滑，只能走弧线） | 能（导航参数 `pivot_capable`，Classic 那套保持默认关闭，已测数字不变） |
 
 **还没搬完的**：车间场景的三台机械臂（关节要控制器，而可用的 `gz_ros2_control`
 会把服务器带崩）、2D 激光、Velodyne 的点云；导航绕不过工位旁边那张工作台
