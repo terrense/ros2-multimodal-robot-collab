@@ -41,7 +41,7 @@ CLASSIC_STATE_PLUGIN = """    <plugin name="gazebo_ros_state" filename="libgazeb
       <update_rate>30.0</update_rate>
     </plugin>"""
 
-GZ_STATE_PLUGIN = """    <!-- gz-sim publishes the world's state itself; the Classic state plugin
+GZ_PLUGINS = """    <!-- gz-sim publishes the world's state itself; the Classic state plugin
          has no counterpart here. The ROS side gets the model states from
          the bridged world-state topic.
 
@@ -73,6 +73,9 @@ GZ_STATE_PLUGIN = """    <!-- gz-sim publishes the world's state itself; the Cla
     <plugin filename="ignition-gazebo6-scene-broadcaster-system"
             name="ignition::gazebo::systems::SceneBroadcaster">
     </plugin>"""
+
+#: The name the lab generator used before the workshop one joined it.
+GZ_STATE_PLUGIN = GZ_PLUGINS
 
 CLASSIC_PHYSICS = """    <physics name="default_physics" default="0" type="ode">
       <max_step_size>0.001</max_step_size>
@@ -140,6 +143,45 @@ POSE_PUBLISHER = """    <plugin filename="ignition-gazebo6-pose-publisher-system
 """
 
 
+def home_pose() -> str:
+    """Where the robot stands in the world: the home station's pose.
+
+    The classic stack spawns the robot at the home station's heading, so
+    that it starts looking at the tool shelf: a camera that starts
+    pointing at a wall sees nothing, and the measurement that needs the
+    robot to look at the tool would answer a question nobody asked. The
+    registry is the same one the classic launch reads.
+    """
+    registry = (
+        REPO_ROOT
+        / "install"
+        / "robot_collab_bringup"
+        / "share"
+        / "robot_collab_bringup"
+        / "config"
+        / "stations.yaml"
+    )
+    if not registry.exists():
+        registry = (
+            REPO_ROOT
+            / "src"
+            / "robot_collab_bringup"
+            / "config"
+            / "stations.yaml"
+        )
+    try:
+        import yaml
+
+        data = yaml.safe_load(registry.read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001 - the world is generated either way
+        data = {}
+    pose = ((data.get("stations") or {}).get("home") or {}).get("pose") or {}
+    return (
+        f"{float(pose.get('x', 0.0))} {float(pose.get('y', 0.0))} 0 "
+        f"0 0 {float(pose.get('yaw', 0.0))}"
+    )
+
+
 def robot_model() -> str:
     """The robot, as an SDF model, with the diff-drive system in it.
 
@@ -177,7 +219,12 @@ def robot_model() -> str:
     # get to.
     marker = "<model name='collab_mobile_base'>"
     index = model.index(marker) + len(marker)
-    return model[:index] + "\n" + DIFF_DRIVE + POSE_PUBLISHER + model[index:]
+    model = model[:index] + "\n" + DIFF_DRIVE + POSE_PUBLISHER + model[index:]
+    # And the robot stands where the classic stack spawns it: at the home
+    # station, looking at the tool shelf.
+    pose = f"    <pose>{home_pose()}</pose>\n"
+    index = model.index(marker) + len(marker)
+    return model[:index] + "\n" + pose + model[index:]
 
 
 def main(argv: list[str]) -> int:

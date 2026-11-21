@@ -166,6 +166,13 @@ Measured on this machine, with the numbers the stack printed:
   to the shelf, the arm picks the tool, the base drives to `station_a`
   and hands the tool over — the plan dispatched by
   `agent_harness/scripts/ros_tool_executor.py`, on the gz-sim stack;
+- **the workshop scene is there too**, with the three official arms:
+  `bash scripts/run_gz_sim_demo.sh --workshop` writes
+  `workshop_gz.world` from the classic one and puts the arms in it — they
+  are static models, so a static model needs no controller to be placed,
+  and they stand where the classic stack spawns them (the KUKA at
+  (-2.6, -1.8, 0.42), the FANUC at (-2.6, 1.8, 0.42)). The mission runs
+  there as well;
 - the classic stack is unaffected: the same description, the same world,
   the same calibration.
 
@@ -208,13 +215,6 @@ uses):
 
 ## What is not ported yet
 
-- **the workshop scene.** gz-sim runs the lab — the obstacles, the tool
-  shelf, the stations — and not the workshop with the three official arms
-  and the workbench. The scene is generated (`scripts/generate_workshop_world.py`
-  writes `workshop.world`), so the port is the same substitution the lab
-  port does, plus putting the arms in the world instead of spawning them
-  with a script: the arms are static models, and a static model does not
-  need a controller to be placed.
 - **the arms' joints.** In the classic stack the arms are props too —
   their joints are locked and the arm server simulates the manipulation —
   so nothing is lost by the arms standing still in gz-sim as well. What

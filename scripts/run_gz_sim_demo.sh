@@ -15,12 +15,17 @@ set -o pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 1
 
-# "--gui" is the short way of asking for the window; anything else is
-# passed to the launch as it is.
+# "--gui" is the short way of asking for the window, "--workshop" for the
+# workcell with the three official arms; anything else is passed to the
+# launch as it is.
 ARGS=()
+WORKSHOP=0
 for argument in "$@"; do
   if [ "$argument" = "--gui" ]; then
     ARGS+=("gui:=true")
+  elif [ "$argument" = "--workshop" ]; then
+    WORKSHOP=1
+    ARGS+=("world:=workshop_gz.world")
   else
     ARGS+=("$argument")
   fi
@@ -64,8 +69,19 @@ export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
 export GZ_IP="${GZ_IP:-$(hostname -I | awk '{print $1}')}"
 export IGN_IP="${IGN_IP:-$GZ_IP}"
 
-# The world is generated: the classic lab world is the source of truth.
-python3 scripts/make_gz_sim_world.py
+# The world is generated: the classic world is the source of truth.
+if [ "$WORKSHOP" = "1" ]; then
+  # The workshop's arms are the official descriptions, rendered into static
+  # SDFs; the world holds them, because the robot has to be in the world
+  # file too (the diff-drive system is configured before anything is
+  # spawned into it).
+  ARM_DIR=/tmp/workshop_arms
+  mkdir -p "$ARM_DIR"
+  bash scripts/spawn_workshop_arms.sh --render-only "$ARM_DIR" >/dev/null || exit 1
+  python3 scripts/make_gz_sim_workshop_world.py "$ARM_DIR" || exit 1
+else
+  python3 scripts/make_gz_sim_world.py
+fi
 
 LOG=/tmp/gz_sim_demo.log
 : >"$LOG"

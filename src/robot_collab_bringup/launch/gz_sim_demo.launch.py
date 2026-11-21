@@ -104,9 +104,8 @@ def generate_launch_description() -> LaunchDescription:
         [sim_share, "urdf", "collab_mobile_base.urdf.xacro"]
     )
     gui = LaunchConfiguration("gui")
-    world_path = PathJoinSubstitution(
-        [sim_share, "worlds", "collab_lab_gz.world"]
-    )
+    world = LaunchConfiguration("world")
+    world_path = PathJoinSubstitution([sim_share, "worlds", world])
     params = PathJoinSubstitution([bringup_share, "config", "demo_params.yaml"])
 
     # The description gz-sim is given: the same robot, asking for gz-sim's
@@ -272,6 +271,14 @@ def generate_launch_description() -> LaunchDescription:
                 ),
             ),
             DeclareLaunchArgument("robot_name", default_value="collab_mobile_base"),
+            DeclareLaunchArgument(
+                "world",
+                default_value="collab_lab_gz.world",
+                description=(
+                    "The world file, in the sim package's worlds directory: "
+                    "the lab, or the workshop with the three official arms."
+                ),
+            ),
             gz_sim,
             gz_gui,
             Node(

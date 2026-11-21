@@ -1,0 +1,4234 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="collab_workshop">
+    <!-- The engine is bullet. gz-sim reads the physics element itself, and
+         "ignored" is not a fast engine: it is the absence of one, and a
+         world without an engine holds every model still while the camera
+         renders it perfectly. -->
+    <physics name="2ms" type="bullet">
+      <max_step_size>0.002</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>500</real_time_update_rate>
+    </physics>
+
+    <!-- gz-sim publishes the world's state itself; the Classic state plugin
+         has no counterpart here. The ROS side gets the model states from
+         the bridged world-state topic.
+
+         The physics system is what moves anything. A world without it
+         loads, spawns the robot, publishes the camera's frames and does
+         nothing at all: the wheels turn in the diff drive's own numbers
+         and the chassis stands still. The physics engine itself is chosen
+         by the <physics> element below, not by this plugin.
+
+         The sensors system is what renders the cameras and the lidars. In
+         Gazebo Classic the camera plugin brought its own sensor with it;
+         in gz-sim the sensor is a system of the world, and a world without
+         it advertises the camera's topics and never publishes a frame. -->
+    <plugin filename="ignition-gazebo6-physics-system"
+            name="ignition::gazebo::systems::Physics">
+    </plugin>
+    <plugin filename="ignition-gazebo6-sensors-system"
+            name="gz::sim::systems::Sensors">
+    </plugin>
+    <!-- The user-commands system is what provides the world's create
+         service: without it the robot cannot be spawned into the world at
+         all. -->
+    <plugin filename="ignition-gazebo6-user-commands-system"
+            name="gz::sim::systems::UserCommands">
+    </plugin>
+    <!-- The scene broadcaster is what the window shows. A server without
+         it simulates perfectly and a window connected to it shows nothing
+         at all: there is no scene to draw. -->
+    <plugin filename="ignition-gazebo6-scene-broadcaster-system"
+            name="ignition::gazebo::systems::SceneBroadcaster">
+    </plugin>
+
+    <include><uri>/mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/models/ground_plane_gz</uri></include>
+    <!-- The sun, inline. gz-sim has no `model://sun` to find without the
+         fuel models, and a workcell without a light is a workcell the
+         cameras cannot see anything in. -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+    <model name="wall_north">
+      <pose>0 4.1 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>10.4 0.2 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>10.4 0.2 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_south">
+      <pose>0 -4.1 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>10.4 0.2 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>10.4 0.2 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_west">
+      <pose>-5.1 0 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 8.4 3.0</size></box></geometry>
+          <material><ambient>0.72 0.72 0.75 1</ambient><diffuse>0.72 0.72 0.75 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 8.4 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_east_a">
+      <pose>5.1 -2.85 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 2.7 3.0</size></box></geometry>
+          <material><ambient>0.88 0.88 0.9 1</ambient><diffuse>0.88 0.88 0.9 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 2.7 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_east_b">
+      <pose>5.1 2.85 1.5 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 2.7 3.0</size></box></geometry>
+          <material><ambient>0.88 0.88 0.9 1</ambient><diffuse>0.88 0.88 0.9 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 2.7 3.0</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_east_lintel">
+      <pose>5.1 0 2.7 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.2 3.0 0.6</size></box></geometry>
+          <material><ambient>0.66 0.66 0.69 1</ambient><diffuse>0.66 0.66 0.69 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.2 3.0 0.6</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="east_a_tile_0_1">
+      <pose>4.98 -3.525 0.3749999999999999 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_0_3">
+      <pose>4.98 -2.625 0.3749999999999999 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_0_5">
+      <pose>4.98 -1.725 0.3749999999999999 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_1_0">
+      <pose>4.98 -3.975 0.8249999999999998 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_1_2">
+      <pose>4.98 -3.075 0.8249999999999998 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_1_4">
+      <pose>4.98 -2.1750000000000003 0.8249999999999998 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_2_1">
+      <pose>4.98 -3.525 1.275 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_2_3">
+      <pose>4.98 -2.625 1.275 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_2_5">
+      <pose>4.98 -1.725 1.275 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_3_0">
+      <pose>4.98 -3.975 1.725 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_3_2">
+      <pose>4.98 -3.075 1.725 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_3_4">
+      <pose>4.98 -2.1750000000000003 1.725 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_4_1">
+      <pose>4.98 -3.525 2.175 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_4_3">
+      <pose>4.98 -2.625 2.175 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_4_5">
+      <pose>4.98 -1.725 2.175 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_5_0">
+      <pose>4.98 -3.975 2.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_5_2">
+      <pose>4.98 -3.075 2.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_a_tile_5_4">
+      <pose>4.98 -2.1750000000000003 2.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_0_1">
+      <pose>4.98 2.175 0.3749999999999999 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_0_3">
+      <pose>4.98 3.075 0.3749999999999999 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_0_5">
+      <pose>4.98 3.975 0.3749999999999999 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_1_0">
+      <pose>4.98 1.725 0.8249999999999998 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_1_2">
+      <pose>4.98 2.625 0.8249999999999998 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_1_4">
+      <pose>4.98 3.525 0.8249999999999998 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_2_1">
+      <pose>4.98 2.175 1.275 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_2_3">
+      <pose>4.98 3.075 1.275 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_2_5">
+      <pose>4.98 3.975 1.275 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_3_0">
+      <pose>4.98 1.725 1.725 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_3_2">
+      <pose>4.98 2.625 1.725 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_3_4">
+      <pose>4.98 3.525 1.725 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_4_1">
+      <pose>4.98 2.175 2.175 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_4_3">
+      <pose>4.98 3.075 2.175 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_4_5">
+      <pose>4.98 3.975 2.175 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_5_0">
+      <pose>4.98 1.725 2.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_5_2">
+      <pose>4.98 2.625 2.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="east_b_tile_5_4">
+      <pose>4.98 3.525 2.625 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.45 0.45</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_0_0_0">
+      <pose>4.97 -1.5450000000000002 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_0_1_0">
+      <pose>4.97 -1.5450000000000002 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_0_2_0">
+      <pose>4.97 -1.5450000000000002 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_0_3_0">
+      <pose>4.97 -1.5450000000000002 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_0_4_0">
+      <pose>4.97 -1.5450000000000002 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_0_4_1">
+      <pose>4.97 -1.6350000000000002 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_0_4_2">
+      <pose>4.97 -1.725 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_0_0">
+      <pose>4.97 -1.8150000000000002 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_0_1">
+      <pose>4.97 -1.9050000000000002 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_0_2">
+      <pose>4.97 -1.995 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_1_0">
+      <pose>4.97 -1.8150000000000002 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_1_2">
+      <pose>4.97 -1.995 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_2_0">
+      <pose>4.97 -1.8150000000000002 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_2_1">
+      <pose>4.97 -1.9050000000000002 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_2_2">
+      <pose>4.97 -1.995 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_3_0">
+      <pose>4.97 -1.8150000000000002 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_3_2">
+      <pose>4.97 -1.995 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_4_0">
+      <pose>4.97 -1.8150000000000002 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_1_4_2">
+      <pose>4.97 -1.995 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.67 0.049 1</ambient><diffuse>0.98 0.67 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_0_0">
+      <pose>4.97 -2.0850000000000004 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_0_1">
+      <pose>4.97 -2.1750000000000003 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_1_0">
+      <pose>4.97 -2.0850000000000004 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_1_2">
+      <pose>4.97 -2.265 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_2_0">
+      <pose>4.97 -2.0850000000000004 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_2_1">
+      <pose>4.97 -2.1750000000000003 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_2_2">
+      <pose>4.97 -2.265 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_3_0">
+      <pose>4.97 -2.0850000000000004 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_3_2">
+      <pose>4.97 -2.265 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_4_0">
+      <pose>4.97 -2.0850000000000004 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_2_4_1">
+      <pose>4.97 -2.1750000000000003 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.98 0.049 1</ambient><diffuse>0.67 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_0_0">
+      <pose>4.97 -2.3550000000000004 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_0_1">
+      <pose>4.97 -2.4450000000000003 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_0_2">
+      <pose>4.97 -2.535 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_1_0">
+      <pose>4.97 -2.3550000000000004 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_1_2">
+      <pose>4.97 -2.535 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_2_0">
+      <pose>4.97 -2.3550000000000004 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_2_2">
+      <pose>4.97 -2.535 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_3_0">
+      <pose>4.97 -2.3550000000000004 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_3_2">
+      <pose>4.97 -2.535 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_4_0">
+      <pose>4.97 -2.3550000000000004 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_4_1">
+      <pose>4.97 -2.4450000000000003 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_3_4_2">
+      <pose>4.97 -2.535 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_0_0">
+      <pose>4.97 -2.625 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_0_1">
+      <pose>4.97 -2.7150000000000003 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_1_0">
+      <pose>4.97 -2.625 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_1_2">
+      <pose>4.97 -2.805 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_2_0">
+      <pose>4.97 -2.625 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_2_1">
+      <pose>4.97 -2.7150000000000003 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_3_0">
+      <pose>4.97 -2.625 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_4_4_0">
+      <pose>4.97 -2.625 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.98 0.67 1</ambient><diffuse>0.049 0.98 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_0_0">
+      <pose>4.97 -2.895 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_0_1">
+      <pose>4.97 -2.9850000000000003 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_0_2">
+      <pose>4.97 -3.075 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_1_0">
+      <pose>4.97 -2.895 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_1_2">
+      <pose>4.97 -3.075 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_2_0">
+      <pose>4.97 -2.895 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_2_1">
+      <pose>4.97 -2.9850000000000003 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_2_2">
+      <pose>4.97 -3.075 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_3_0">
+      <pose>4.97 -2.895 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_3_2">
+      <pose>4.97 -3.075 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_4_0">
+      <pose>4.97 -2.895 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_5_4_2">
+      <pose>4.97 -3.075 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.67 0.98 1</ambient><diffuse>0.049 0.67 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_6_0_0">
+      <pose>4.97 -3.165 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_6_0_1">
+      <pose>4.97 -3.255 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_6_0_2">
+      <pose>4.97 -3.3449999999999998 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_6_1_1">
+      <pose>4.97 -3.255 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_6_2_1">
+      <pose>4.97 -3.255 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_6_3_1">
+      <pose>4.97 -3.255 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_6_4_1">
+      <pose>4.97 -3.255 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_0_0">
+      <pose>4.97 -3.435 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_0_1">
+      <pose>4.97 -3.5250000000000004 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_0_2">
+      <pose>4.97 -3.615 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_1_0">
+      <pose>4.97 -3.435 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_1_2">
+      <pose>4.97 -3.615 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_2_0">
+      <pose>4.97 -3.435 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_2_2">
+      <pose>4.97 -3.615 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_3_0">
+      <pose>4.97 -3.435 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_3_2">
+      <pose>4.97 -3.615 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_4_0">
+      <pose>4.97 -3.435 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_4_1">
+      <pose>4.97 -3.5250000000000004 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_7_4_2">
+      <pose>4.97 -3.615 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.67 0.049 0.98 1</ambient><diffuse>0.67 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_0_0">
+      <pose>4.97 -3.705 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_0_1">
+      <pose>4.97 -3.795 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_1_0">
+      <pose>4.97 -3.705 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_1_2">
+      <pose>4.97 -3.8850000000000007 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_2_0">
+      <pose>4.97 -3.705 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_2_1">
+      <pose>4.97 -3.795 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_3_0">
+      <pose>4.97 -3.705 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_8_4_0">
+      <pose>4.97 -3.705 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.67 1</ambient><diffuse>0.98 0.049 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_0_0">
+      <pose>4.97 -3.9749999999999996 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_0_2">
+      <pose>4.97 -4.155 1.775 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_1_0">
+      <pose>4.97 -3.9749999999999996 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_1_2">
+      <pose>4.97 -4.155 1.685 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_2_0">
+      <pose>4.97 -3.9749999999999996 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_2_1">
+      <pose>4.97 -4.0649999999999995 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_2_2">
+      <pose>4.97 -4.155 1.595 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_3_2">
+      <pose>4.97 -4.155 1.505 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_4_0">
+      <pose>4.97 -3.9749999999999996 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_4_1">
+      <pose>4.97 -4.0649999999999995 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="lab_letter_9_4_2">
+      <pose>4.97 -4.155 1.415 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.09 0.09</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_0_0">
+      <pose>4.97 4.050000000000001 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_0_1">
+      <pose>4.97 3.93 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_0_2">
+      <pose>4.97 3.8100000000000005 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_1_0">
+      <pose>4.97 4.050000000000001 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_2_0">
+      <pose>4.97 4.050000000000001 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_2_1">
+      <pose>4.97 3.93 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_3_0">
+      <pose>4.97 4.050000000000001 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_0_4_0">
+      <pose>4.97 4.050000000000001 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_0_0">
+      <pose>4.97 3.6900000000000004 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_0_1">
+      <pose>4.97 3.5700000000000003 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_0_2">
+      <pose>4.97 3.45 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_1_0">
+      <pose>4.97 3.6900000000000004 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_1_2">
+      <pose>4.97 3.45 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_2_0">
+      <pose>4.97 3.6900000000000004 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_2_1">
+      <pose>4.97 3.5700000000000003 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_2_2">
+      <pose>4.97 3.45 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_3_0">
+      <pose>4.97 3.6900000000000004 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_3_2">
+      <pose>4.97 3.45 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_4_0">
+      <pose>4.97 3.6900000000000004 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_1_4_2">
+      <pose>4.97 3.45 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.98 0.049 1</ambient><diffuse>0.98 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_0_0">
+      <pose>4.97 3.33 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_0_1">
+      <pose>4.97 3.2100000000000004 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_0_2">
+      <pose>4.97 3.0900000000000003 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_1_0">
+      <pose>4.97 3.33 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_2_0">
+      <pose>4.97 3.33 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_3_0">
+      <pose>4.97 3.33 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_4_0">
+      <pose>4.97 3.33 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_4_1">
+      <pose>4.97 3.2100000000000004 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_2_4_2">
+      <pose>4.97 3.0900000000000003 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.049 1</ambient><diffuse>0.049 0.98 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_3_0_0">
+      <pose>4.97 2.97 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.98 1</ambient><diffuse>0.049 0.98 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_3_0_1">
+      <pose>4.97 2.85 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.98 1</ambient><diffuse>0.049 0.98 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_3_0_2">
+      <pose>4.97 2.7300000000000004 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.98 1</ambient><diffuse>0.049 0.98 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_3_1_1">
+      <pose>4.97 2.85 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.98 1</ambient><diffuse>0.049 0.98 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_3_2_1">
+      <pose>4.97 2.85 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.98 1</ambient><diffuse>0.049 0.98 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_3_3_1">
+      <pose>4.97 2.85 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.98 1</ambient><diffuse>0.049 0.98 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_3_4_1">
+      <pose>4.97 2.85 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.98 0.98 1</ambient><diffuse>0.049 0.98 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_0_0">
+      <pose>4.97 2.6100000000000003 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_0_1">
+      <pose>4.97 2.49 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_0_2">
+      <pose>4.97 2.37 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_1_0">
+      <pose>4.97 2.6100000000000003 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_1_2">
+      <pose>4.97 2.37 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_2_0">
+      <pose>4.97 2.6100000000000003 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_2_2">
+      <pose>4.97 2.37 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_3_0">
+      <pose>4.97 2.6100000000000003 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_3_2">
+      <pose>4.97 2.37 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_4_0">
+      <pose>4.97 2.6100000000000003 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_4_1">
+      <pose>4.97 2.49 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_4_4_2">
+      <pose>4.97 2.37 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.049 0.049 0.98 1</ambient><diffuse>0.049 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_0_0">
+      <pose>4.97 2.2500000000000004 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_0_1">
+      <pose>4.97 2.1300000000000003 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_1_0">
+      <pose>4.97 2.2500000000000004 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_1_2">
+      <pose>4.97 2.0100000000000002 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_2_0">
+      <pose>4.97 2.2500000000000004 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_2_1">
+      <pose>4.97 2.1300000000000003 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_3_0">
+      <pose>4.97 2.2500000000000004 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_5_4_0">
+      <pose>4.97 2.2500000000000004 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.98 1</ambient><diffuse>0.98 0.049 0.98 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_0_0">
+      <pose>4.97 1.8900000000000001 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_0_2">
+      <pose>4.97 1.65 1.85 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_1_0">
+      <pose>4.97 1.8900000000000001 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_1_2">
+      <pose>4.97 1.65 1.73 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_2_0">
+      <pose>4.97 1.8900000000000001 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_2_1">
+      <pose>4.97 1.77 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_2_2">
+      <pose>4.97 1.65 1.61 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_3_2">
+      <pose>4.97 1.65 1.4900000000000002 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_4_0">
+      <pose>4.97 1.8900000000000001 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_4_1">
+      <pose>4.97 1.77 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="fac_letter_6_4_2">
+      <pose>4.97 1.65 1.37 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.12 0.12</size></box></geometry>
+          <material><ambient>0.98 0.049 0.049 1</ambient><diffuse>0.98 0.049 0.049 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_0_1">
+      <pose>-4.98 -1.2 0.7 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_0_3">
+      <pose>-4.98 -0.39999999999999986 0.7 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_0_5">
+      <pose>-4.98 0.39999999999999997 0.7 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_0_7">
+      <pose>-4.98 1.2000000000000002 0.7 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_1_0">
+      <pose>-4.98 -1.6 1.1 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_1_2">
+      <pose>-4.98 -0.8 1.1 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_1_4">
+      <pose>-4.98 5.551115123125783e-17 1.1 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_1_6">
+      <pose>-4.98 0.8000000000000003 1.1 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_1_8">
+      <pose>-4.98 1.6 1.1 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_2_1">
+      <pose>-4.98 -1.2 1.5 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_2_3">
+      <pose>-4.98 -0.39999999999999986 1.5 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_2_5">
+      <pose>-4.98 0.39999999999999997 1.5 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_2_7">
+      <pose>-4.98 1.2000000000000002 1.5 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_3_0">
+      <pose>-4.98 -1.6 1.9000000000000001 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_3_2">
+      <pose>-4.98 -0.8 1.9000000000000001 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_3_4">
+      <pose>-4.98 5.551115123125783e-17 1.9000000000000001 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_3_6">
+      <pose>-4.98 0.8000000000000003 1.9000000000000001 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_3_8">
+      <pose>-4.98 1.6 1.9000000000000001 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_4_1">
+      <pose>-4.98 -1.2 2.3000000000000003 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_4_3">
+      <pose>-4.98 -0.39999999999999986 2.3000000000000003 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_4_5">
+      <pose>-4.98 0.39999999999999997 2.3000000000000003 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="calib_tile_4_7">
+      <pose>-4.98 1.2000000000000002 2.3000000000000003 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.4 0.4</size></box></geometry>
+          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <!-- kuka_kr10: table for an arm spawned from its official URDF -->
+    <model name="kuka_kr10_table">
+      <pose>-2.6 -1.8 0.375 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>2.4 1.4 0.06</size></box></geometry>
+          <material><ambient>0.38 0.22 0.1 1</ambient><diffuse>0.38 0.22 0.1 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>2.4 1.4 0.06</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_0">
+      <pose>-3.7 -2.4 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_1">
+      <pose>-3.7 -1.2000000000000002 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_2">
+      <pose>-1.5 -2.4 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="kuka_kr10_leg_3">
+      <pose>-1.5 -1.2000000000000002 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <!-- fanuc_m10: table for an arm spawned from its official URDF -->
+    <model name="fanuc_m10_table">
+      <pose>-2.6 1.8 0.375 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>2.4 1.4 0.06</size></box></geometry>
+          <material><ambient>0.85 0.76 0.6 1</ambient><diffuse>0.85 0.76 0.6 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>2.4 1.4 0.06</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_0">
+      <pose>-3.7 1.2000000000000002 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_1">
+      <pose>-3.7 2.4 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_2">
+      <pose>-1.5 1.2000000000000002 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="fanuc_m10_leg_3">
+      <pose>-1.5 2.4 0.1875 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.08 0.375</size></box></geometry>
+          <material><ambient>0.25 0.2 0.15 1</ambient><diffuse>0.25 0.2 0.15 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.08 0.375</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_top">
+      <pose>2.6 2.4 0.375 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.6 1.0 0.06</size></box></geometry>
+          <material><ambient>0.42 0.28 0.16 1</ambient><diffuse>0.42 0.28 0.16 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>1.6 1.0 0.06</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_0">
+      <pose>1.9000000000000001 2.0 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.07 0.07 0.36</size></box></geometry>
+          <material><ambient>0.3 0.2 0.1 1</ambient><diffuse>0.3 0.2 0.1 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.07 0.07 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_1">
+      <pose>1.9000000000000001 2.8 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.07 0.07 0.36</size></box></geometry>
+          <material><ambient>0.3 0.2 0.1 1</ambient><diffuse>0.3 0.2 0.1 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.07 0.07 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_2">
+      <pose>3.3 2.0 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.07 0.07 0.36</size></box></geometry>
+          <material><ambient>0.3 0.2 0.1 1</ambient><diffuse>0.3 0.2 0.1 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.07 0.07 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="tool_bench_leg_3">
+      <pose>3.3 2.8 0.18 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.07 0.07 0.36</size></box></geometry>
+          <material><ambient>0.3 0.2 0.1 1</ambient><diffuse>0.3 0.2 0.1 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.07 0.07 0.36</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="toolbox">
+      <pose>2.35 2.25 0.47 0 0 0.2</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.36 0.2 0.14</size></box></geometry>
+          <material><ambient>0.75 0.1 0.1 1</ambient><diffuse>0.75 0.1 0.1 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.36 0.2 0.14</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="toolbox_lid">
+      <pose>2.35 2.25 0.55 0 0 0.2</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.36 0.2 0.02</size></box></geometry>
+          <material><ambient>0.6 0.08 0.08 1</ambient><diffuse>0.6 0.08 0.08 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.36 0.2 0.02</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wrench_handle">
+      <pose>2.75 2.3 0.42 0 0 0.4</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.16 0.012</size></box></geometry>
+          <material><ambient>0.7 0.7 0.72 1</ambient><diffuse>0.7 0.7 0.72 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.02 0.16 0.012</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wrench_jaw_a">
+      <pose>2.82 2.25 0.42 0 0 0.4</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.03 0.02</size></box></geometry>
+          <material><ambient>0.7 0.7 0.72 1</ambient><diffuse>0.7 0.7 0.72 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.02 0.03 0.02</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="wrench_jaw_b">
+      <pose>2.82 2.36 0.42 0 0 0.4</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.02 0.03 0.02</size></box></geometry>
+          <material><ambient>0.7 0.7 0.72 1</ambient><diffuse>0.7 0.7 0.72 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.02 0.03 0.02</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="hammer_handle">
+      <pose>2.05 2.38 0.45 0 0 0.5</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.012</radius><length>0.26</length></cylinder></geometry>
+          <material><ambient>0.55 0.35 0.15 1</ambient><diffuse>0.55 0.35 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="hammer_head">
+      <pose>2.12 2.42 0.45 0 0 0.5</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.08 0.04 0.04</size></box></geometry>
+          <material><ambient>0.3 0.3 0.32 1</ambient><diffuse>0.3 0.3 0.32 1</diffuse></material>
+        </visual>
+        <collision name="collision"><geometry><box><size>0.08 0.04 0.04</size></box></geometry></collision>
+      </link>
+    </model>
+    <model name="screwdriver_handle">
+      <pose>2.15 2.25 0.44 0 0 1.1</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.015</radius><length>0.09</length></cylinder></geometry>
+          <material><ambient>0.9 0.75 0.1 1</ambient><diffuse>0.9 0.75 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="screwdriver_shaft">
+      <pose>2.15 2.31 0.44 0 0 1.1</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.004</radius><length>0.13</length></cylinder></geometry>
+          <material><ambient>0.75 0.75 0.78 1</ambient><diffuse>0.75 0.75 0.78 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <!-- The task's stations, shared with the lab world -->
+    <model name="tool_shelf_marker">
+      <pose>1.25 -0.75 0.15 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.45 0.35 0.3</size></box></geometry>
+          <material><ambient>0.1 0.42 0.8 1</ambient><diffuse>0.1 0.42 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="station_a_marker">
+      <pose>3.2 0.4 0.05 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.18</radius><length>0.1</length></cylinder></geometry>
+          <material><ambient>0.0 0.55 0.28 1</ambient><diffuse>0.0 0.55 0.28 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="station_b_marker">
+      <pose>4.15 -1.1 0.05 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.18</radius><length>0.1</length></cylinder></geometry>
+          <material><ambient>0.78 0.35 0.05 1</ambient><diffuse>0.78 0.35 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handover_zone_marker">
+      <pose>2.1 1.35 0.03 0 0 0.0</pose>
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.55 0.55 0.06</size></box></geometry>
+          <material><ambient>0.65 0.12 0.52 1</ambient><diffuse>0.65 0.12 0.52 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="workshop_overhead_camera">
+      <pose>2.0 0 7.0 0 1.25 3.1416</pose>
+      <static>true</static>
+      <link name="camera_link">
+        <visual name="body">
+          <geometry><box><size>0.12 0.10 0.10</size></box></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+        <sensor name="overhead_camera" type="camera">
+          <always_on>true</always_on>
+          <visualize>false</visualize>
+          <update_rate>10</update_rate>
+          <camera>
+            <horizontal_fov>1.9</horizontal_fov>
+            <image><width>1280</width><height>720</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>30.0</far></clip>
+          </camera>
+          <plugin name="overhead_camera_controller" filename="libgazebo_ros_camera.so">
+            <ros><namespace>/</namespace></ros>
+            <camera_name>workshop/overhead</camera_name>
+            <frame_name>overhead_camera_link</frame_name>
+          </plugin>
+        </sensor>
+      </link>
+    </model>
+  <sdf version='1.7'>
+  <model name='fanuc'>
+    <static>true</static>
+    <link name='base_link'>
+      <inertial>
+        <pose>-2.6 1.8 0.42 0 0 0</pose>
+        <mass>2</mass>
+        <inertia>
+          <ixx>0.12125</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.12125</iyy>
+          <iyz>0</iyz>
+          <izz>0.02</izz>
+        </inertia>
+      </inertial>
+      <collision name='base_link_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/collision/base_link.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='base_link_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/visual/base_link.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/DarkGrey</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_1' type='revolute'>
+      <pose relative_to='base_link'>0 0 0.45 0 -0 0</pose>
+      <parent>base_link</parent>
+      <child>link_1</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-3.14</lower>
+          <upper>3.14</upper>
+          <effort>0</effort>
+          <velocity>3.67</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_1'>
+      <pose relative_to='joint_1'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_1_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/collision/link_1.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_1_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/visual/link_1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Green</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_2' type='revolute'>
+      <pose relative_to='link_1'>0.15 0 0 0 -0 0</pose>
+      <parent>link_1</parent>
+      <child>link_2</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.57</lower>
+          <upper>2.79</upper>
+          <effort>0</effort>
+          <velocity>3.32</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_2'>
+      <pose relative_to='joint_2'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_2_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/collision/link_2.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_2_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/visual/link_2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Green</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_3' type='revolute'>
+      <pose relative_to='link_2'>0 0 0.6 0 -0 0</pose>
+      <parent>link_2</parent>
+      <child>link_3</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-3.14</lower>
+          <upper>4.61</upper>
+          <effort>0</effort>
+          <velocity>3.67</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_3'>
+      <pose relative_to='joint_3'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_3_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/collision/link_3.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_3_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/visual/link_3.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Green</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_4' type='revolute'>
+      <pose relative_to='link_3'>0 0 0.2 0 -0 0</pose>
+      <parent>link_3</parent>
+      <child>link_4</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-3.31</lower>
+          <upper>3.31</upper>
+          <effort>0</effort>
+          <velocity>6.98</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_4'>
+      <pose relative_to='joint_4'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_4_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/collision/link_4.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_4_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/visual/link_4.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Green</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_5' type='revolute'>
+      <pose relative_to='link_4'>0.64 0 0 0 -0 0</pose>
+      <parent>link_4</parent>
+      <child>link_5</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-3.31</lower>
+          <upper>3.31</upper>
+          <effort>0</effort>
+          <velocity>6.98</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_5'>
+      <pose relative_to='joint_5'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_5_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/collision/link_5.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_5_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/visual/link_5.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Green</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_6' type='revolute'>
+      <pose relative_to='link_5'>0.1 0 0 0 -0 0</pose>
+      <parent>link_5</parent>
+      <child>link_6</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-6.28</lower>
+          <upper>6.28</upper>
+          <effort>0</effort>
+          <velocity>10.47</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_6'>
+      <pose relative_to='joint_6'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>2</mass>
+        <inertia>
+          <ixx>0.02</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.02</iyy>
+          <iyz>0</iyz>
+          <izz>0.02</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_6_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/collision/link_6.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_6_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///opt/ros/humble/share/moveit_resources_fanuc_description/meshes/visual/link_6.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Green</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
+
+<sdf version='1.7'>
+  <model name='kuka_kr10r1100sixx'>
+    <static>true</static>
+    <link name='base_link'>
+      <inertial>
+        <pose>-2.6 -1.8 0.42 0 0 0</pose>
+        <mass>2</mass>
+        <inertia>
+          <ixx>0.02</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.02</iyy>
+          <iyz>0</iyz>
+          <izz>0.02</izz>
+        </inertia>
+      </inertial>
+      <collision name='base_link_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/collision/base_link.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='base_link_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/visual/base_link.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Black</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_a1' type='revolute'>
+      <pose relative_to='base_link'>0 0 0.4 0 -0 0</pose>
+      <parent>base_link</parent>
+      <child>link_1</child>
+      <axis>
+        <xyz>0 0 -1</xyz>
+        <limit>
+          <lower>-2.96706</lower>
+          <upper>2.96706</upper>
+          <effort>0</effort>
+          <velocity>5.23599</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_1'>
+      <pose relative_to='joint_a1'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_1_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/collision/link_1.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_1_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/visual/link_1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Orange</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_a2' type='revolute'>
+      <pose relative_to='link_1'>0.025 0 0 0 -1.4 0</pose>
+      <parent>link_1</parent>
+      <child>link_2</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-3.31613</lower>
+          <upper>0.785398</upper>
+          <effort>0</effort>
+          <velocity>3.92699</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_2'>
+      <pose relative_to='joint_a2'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_2_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/collision/link_2.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_2_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/visual/link_2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Orange</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_a3' type='revolute'>
+      <pose relative_to='link_2'>0.56 0 0 3.14159 1.24159 3.14159</pose>
+      <parent>link_2</parent>
+      <child>link_3</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-2.0944</lower>
+          <upper>2.72271</upper>
+          <effort>0</effort>
+          <velocity>3.92699</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_3'>
+      <pose relative_to='joint_a3'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_3_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/collision/link_3.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_3_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/visual/link_3.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Orange</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_a4' type='revolute'>
+      <pose relative_to='link_3'>0 0 0.035 0 -0 0</pose>
+      <parent>link_3</parent>
+      <child>link_4</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-3.22886</lower>
+          <upper>3.22886</upper>
+          <effort>0</effort>
+          <velocity>6.6497</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_4'>
+      <pose relative_to='joint_a4'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_4_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/collision/link_4.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_4_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/visual/link_4.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Orange</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_a5' type='revolute'>
+      <pose relative_to='link_4'>0.515 0 0 0 -0.9 0</pose>
+      <parent>link_4</parent>
+      <child>link_5</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-2.0944</lower>
+          <upper>2.0944</upper>
+          <effort>0</effort>
+          <velocity>5.42797</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_5'>
+      <pose relative_to='joint_a5'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_5_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/collision/link_5.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_5_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/visual/link_5.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Orange</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint_a6' type='revolute'>
+      <pose relative_to='link_5'>0.08 0 0 0 -0 0</pose>
+      <parent>link_5</parent>
+      <child>link_6</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-6.10865</lower>
+          <upper>6.10865</upper>
+          <effort>0</effort>
+          <velocity>8.58702</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link_6'>
+      <pose relative_to='joint_a6'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>3</mass>
+        <inertia>
+          <ixx>0.03</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.03</iyy>
+          <iyz>0</iyz>
+          <izz>0.03</izz>
+        </inertia>
+      </inertial>
+      <collision name='link_6_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/collision/link_6.stl</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='link_6_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///tmp/xacro_tree/kuka_experimental/kuka_kr10_support/meshes/kr10r1100sixx/visual/link_6.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Orange</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
+
+<model name='collab_mobile_base'>
+    <pose>0.0 0.0 0 0 0 -0.54</pose>
+
+    <plugin filename="ignition-gazebo6-diff-drive-system"
+            name="ignition::gazebo::systems::DiffDrive">
+      <topic>/diff_drive_controller/cmd_vel</topic>
+      <odom_topic>/diff_drive_controller/odom</odom_topic>
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.72</wheel_separation>
+      <wheel_radius>0.06</wheel_radius>
+      <frame_id>odom</frame_id>
+      <odom_frame_id>odom</odom_frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <max_angular_acceleration>2.0</max_angular_acceleration>
+    </plugin>
+    <plugin filename="ignition-gazebo6-pose-publisher-system"
+            name="ignition::gazebo::systems::PosePublisher">
+      <!-- One message with every pose in it. Without this the publisher
+           sends one pose per entity, one after the other, and a reader
+           that wants the model and its links has to collect them itself. -->
+      <use_pose_vector_msg>true</use_pose_vector_msg>
+      <publish_model_pose>true</publish_model_pose>
+      <publish_link_pose>true</publish_link_pose>
+      <publish_nested_model_pose>true</publish_nested_model_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+    </plugin>
+
+    <link name='base_footprint'>
+      <inertial>
+        <pose>0.08133797625404011 -0.05462929092181671 0.4722413013480571 0 0 0</pose>
+        <mass>55.756625226823928</mass>
+        <inertia>
+          <ixx>15.014229645138011</ixx>
+          <ixy>0.20883881489332271</ixy>
+          <ixz>-1.2925252343583009</ixz>
+          <iyy>15.5713324554354</iyy>
+          <iyz>1.5165887953482129</iyz>
+          <izz>2.700763184135857</izz>
+        </inertia>
+      </inertial>
+      <collision name='base_footprint_fixed_joint_lump__base_link_collision'>
+        <pose>0.1 0 0.155 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.5 0.6 0.13</size>
+          </box>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__camera_link_collision_1'>
+        <pose>0.3906 0 0.2225 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.02505 0.09 0.025</size>
+          </box>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_base_link_collision_2'>
+        <pose>0.15 0 0.33 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/base_link.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link1_collision_3'>
+        <pose>0.15 0 0.5065 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link1.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link2_collision_4'>
+        <pose>0.15 0 0.5065 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link2.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link3_collision_5'>
+        <pose>0.1500022296354978 5.551115123125783e-17 1.113499999995905 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link3.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link4_collision_6'>
+        <pose>0.1500036144338218 -0.1909999999987114 1.68149999999465 -1.570796326781404 -7.346410206697372e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link4.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link5_collision_7'>
+        <pose>0.1500045327350977 -0.1910000000003981 1.806499999991277 3.673218595773815e-06 -7.346410206845488e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link5.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__dobot_Link6_collision_8'>
+        <pose>0.1500041345625896 -0.2993999999989354 1.806500398168173 -1.570796326781404 -7.346410206697375e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link6.STL</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__front_caster_link_collision_9'>
+        <pose>0.34 0 0.03999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.035000000000000003</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode>
+              <mu>0.01</mu>
+              <mu2>0.01</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__lidar_link_collision_10'>
+        <pose>0.3 0 0.27 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.055</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__velodyne_base_link_collision_11'>
+        <pose>-0.15 0 0.48585 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.0717</length>
+            <radius>0.0516</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__velodyne_collision_12'>
+        <pose>-0.15 0 0.4877 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='base_footprint_fixed_joint_lump__base_link_visual'>
+        <pose>0 0 0.11 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.8 0.62 0.22</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Blue</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+          <diffuse>0.125 0.425 0.9 1</diffuse>
+          <ambient>0.125 0.425 0.9 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__camera_link_visual_1'>
+        <pose>0.3949 0 0.2225 1.570796326794896 0 1.570796326794896</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://realsense2_description/meshes/d435.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_base_link_visual_2'>
+        <pose>0.15 0 0.33 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/base_link.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link1_visual_3'>
+        <pose>0.15 0 0.5065 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link1.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link2_visual_4'>
+        <pose>0.15 0 0.5065 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link2.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link3_visual_5'>
+        <pose>0.1500022296354978 5.551115123125783e-17 1.113499999995905 0 1.570796326794897 -1.570796326794897</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link3.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link4_visual_6'>
+        <pose>0.1500036144338218 -0.1909999999987114 1.68149999999465 -1.570796326781404 -7.346410206697372e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link4.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link5_visual_7'>
+        <pose>0.1500045327350977 -0.1910000000003981 1.806499999991277 3.673218595773815e-06 -7.346410206845488e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link5.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__dobot_Link6_visual_8'>
+        <pose>0.1500041345625896 -0.2993999999989354 1.806500398168173 -1.570796326781404 -7.346410206697375e-06 3.14158898038469</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>file:///mnt/d/study_claudecode/ros2-multimodal-robot-collab-main/install/robot_collab_sim/share/robot_collab_sim/meshes/dobot_cr10/Link6.STL</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__front_caster_link_visual_9'>
+        <pose>0.34 0 0.03999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.035000000000000003</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>0.5625 0.5625 0.6 1</diffuse>
+          <ambient>0.5625 0.5625 0.6 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__lidar_link_visual_10'>
+        <pose>0.3 0 0.27 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.055</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.025 0.025 0.03125 1</diffuse>
+          <ambient>0.025 0.025 0.03125 1</ambient>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__velodyne_base_link_visual_11'>
+        <pose>-0.15 0 0.45 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://velodyne_description/meshes/VLP16_base_1.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__velodyne_base_link_visual_12'>
+        <pose>-0.15 0 0.45 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://velodyne_description/meshes/VLP16_base_2.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__velodyne_visual_13'>
+        <pose>-0.15 0 0.45 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://velodyne_description/meshes/VLP16_scan.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <sensor name='front_rgbd_camera' type='rgbd_camera'>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <update_rate>5</update_rate>
+        <camera>
+          <horizontal_fov>1.518</horizontal_fov>
+          <image>
+            <width>320</width>
+            <height>240</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.050000000000000003</near>
+            <far>8</far>
+          </clip>
+          <depth_camera>
+            <clip>
+              <near>0.050000000000000003</near>
+              <far>8</far>
+            </clip>
+            <output>depths</output>
+          </depth_camera>
+        </camera>
+        <pose>0.3906 0.0175 0.2225 0 -0 0</pose>
+      </sensor>
+      <sensor name='base_imu' type='imu'>
+        <always_on>true</always_on>
+        <update_rate>100</update_rate>
+        <pose>0 0 0.17 0 -0 0</pose>
+      </sensor>
+      <sensor name='front_lidar' type='ray'>
+        <always_on>true</always_on>
+        <visualize>true</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.1415899999999999</min_angle>
+              <max_angle>3.1415899999999999</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.080000000000000002</min>
+            <max>8</max>
+            <resolution>0.01</resolution>
+          </range>
+        </ray>
+        <pose>0.3 0 0.27 0 -0 0</pose>
+      </sensor>
+      <sensor name='velodyne-VLP16' type='ray'>
+        <visualize>false</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>720</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.1415926535897931</min_angle>
+              <max_angle>3.1415926535897931</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>16</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.26179938779914941</min_angle>
+              <max_angle>0.26179938779914941</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.29999999999999999</min>
+            <max>51</max>
+            <resolution>0.001</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0</stddev>
+          </noise>
+        </ray>
+        <pose>-0.15 0 0.4877 0 -0 0</pose>
+      </sensor>
+    </link>
+    <joint name='left_wheel_joint' type='revolute'>
+      <pose relative_to='base_footprint'>0 0.36 0.06 0 0 0</pose>
+      <parent>base_footprint</parent>
+      <child>left_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-10000000000000000</lower>
+          <upper>10000000000000000</upper>
+        </limit>
+        <dynamics>
+          <damping>0.01</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='left_wheel_link'>
+      <pose relative_to='left_wheel_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>3</mass>
+        <inertia>
+          <ixx>0.0032000000000000002</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0054000000000000003</iyy>
+          <iyz>0</iyz>
+          <izz>0.0032000000000000002</izz>
+        </inertia>
+      </inertial>
+      <collision name='left_wheel_link_collision'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='left_wheel_link_visual'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Black</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+          <diffuse>0.0375 0.0375 0.04375 1</diffuse>
+          <ambient>0.0375 0.0375 0.04375 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name='right_wheel_joint' type='revolute'>
+      <pose relative_to='base_footprint'>0 -0.36 0.06 0 0 0</pose>
+      <parent>base_footprint</parent>
+      <child>right_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-10000000000000000</lower>
+          <upper>10000000000000000</upper>
+        </limit>
+        <dynamics>
+          <damping>0.01</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='right_wheel_link'>
+      <pose relative_to='right_wheel_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>3</mass>
+        <inertia>
+          <ixx>0.0032000000000000002</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0054000000000000003</iyy>
+          <iyz>0</iyz>
+          <izz>0.0032000000000000002</izz>
+        </inertia>
+      </inertial>
+      <collision name='right_wheel_link_collision'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='right_wheel_link_visual'>
+        <pose>0 0 0 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.044999999999999998</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Black</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+          <diffuse>0.0375 0.0375 0.04375 1</diffuse>
+          <ambient>0.0375 0.0375 0.04375 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <frame name='camera_link_joint' attached_to='camera_bottom_screw_frame'>
+      <pose>0.0106 0.0175 0.0125 0 -0 0</pose>
+    </frame>
+    <frame name='camera_link' attached_to='camera_link_joint'/>
+    <frame name='camera_joint' attached_to='base_link'>
+      <pose>0.38 0 0.1 0 -0 0</pose>
+    </frame>
+    <frame name='camera_bottom_screw_frame' attached_to='camera_joint'/>
+    <frame name='dobot_joint6' attached_to='dobot_Link5'>
+      <pose>0 0.1084 0 -1.5708 0 0</pose>
+    </frame>
+    <frame name='dobot_Link6' attached_to='dobot_joint6'/>
+    <frame name='dobot_joint5' attached_to='dobot_Link4'>
+      <pose>0 -0.125 0 1.5708 -0 0</pose>
+    </frame>
+    <frame name='dobot_Link5' attached_to='dobot_joint5'/>
+    <frame name='dobot_joint4' attached_to='dobot_Link3'>
+      <pose>-0.568 0 0.191 0 0 -1.5708</pose>
+    </frame>
+    <frame name='dobot_Link4' attached_to='dobot_joint4'/>
+    <frame name='dobot_joint3' attached_to='dobot_Link2'>
+      <pose>-0.607 0 0 0 -0 0</pose>
+    </frame>
+    <frame name='dobot_Link3' attached_to='dobot_joint3'/>
+    <frame name='dobot_joint2' attached_to='dobot_Link1'>
+      <pose>0 0 0 -1.57079 1.57079 3.14159</pose>
+    </frame>
+    <frame name='dobot_Link2' attached_to='dobot_joint2'/>
+    <frame name='dobot_joint1' attached_to='dobot_base_link'>
+      <pose>0 0 0.1765 0 -0 0</pose>
+    </frame>
+    <frame name='dobot_Link1' attached_to='dobot_joint1'/>
+    <frame name='dobot_mount' attached_to='base_link'>
+      <pose>0.15 0 0.22 0 -0 0</pose>
+    </frame>
+    <frame name='dobot_base_link' attached_to='dobot_mount'/>
+    <frame name='front_caster_joint' attached_to='base_link'>
+      <pose>0.34 0 -0.07 0 -0 0</pose>
+    </frame>
+    <frame name='front_caster_link' attached_to='front_caster_joint'/>
+    <frame name='imu_joint' attached_to='base_link'>
+      <pose>0 0 0.06 0 -0 0</pose>
+    </frame>
+    <frame name='imu_link' attached_to='imu_joint'/>
+    <frame name='lidar_joint' attached_to='base_link'>
+      <pose>0.3 0 0.16 0 -0 0</pose>
+    </frame>
+    <frame name='lidar_link' attached_to='lidar_joint'/>
+    <frame name='velodyne_base_scan_joint' attached_to='velodyne_base_link'>
+      <pose>0 0 0.0377 0 -0 0</pose>
+    </frame>
+    <frame name='velodyne' attached_to='velodyne_base_scan_joint'/>
+    <frame name='velodyne_base_mount_joint' attached_to='base_link'>
+      <pose>-0.15 0 0.34 0 -0 0</pose>
+    </frame>
+    <frame name='velodyne_base_link' attached_to='velodyne_base_mount_joint'/>
+    <frame name='base_footprint_joint' attached_to='base_footprint'>
+      <pose>0 0 0.11 0 -0 0</pose>
+    </frame>
+    <frame name='base_link' attached_to='base_footprint_joint'/>
+  </model>
+</world>
+</sdf>

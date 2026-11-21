@@ -215,8 +215,9 @@ Gazebo Classic 之外还有 gz-sim：同一套机器人、同一个运行时、�
 
 ```bash
 sudo apt-get install -y --no-install-recommends ros-humble-ros-gz gz-fortress
-bash scripts/run_gz_sim_demo.sh            # 无窗口
-bash scripts/run_gz_sim_demo.sh --gui      # 带窗口
+bash scripts/run_gz_sim_demo.sh                # 无窗口
+bash scripts/run_gz_sim_demo.sh --gui          # 带窗口
+bash scripts/run_gz_sim_demo.sh --workshop     # 车间场景（三台官方机械臂都在里面）
 ```
 
 **这个移植跑起来了**，实测过的：
@@ -244,8 +245,8 @@ Classic 一样（`/camera/depth/points`、`/imu/data`……），所以下游的
 | 窗口 | Classic GUI | `ign gazebo -g`（`-g` 是"只有 GUI"，服务器另起一个进程 `-s`） |
 | 原地掉头 | 不能（轮子横向打滑，只能走弧线） | 能（导航参数 `pivot_capable`，Classic 那套保持默认关闭，已测数字不变） |
 
-**还没搬完的**：车间场景（带三台官方机械臂的那个）整体还没进 gz-sim；
-机械臂的关节也没接（可用的 `gz_ros2_control` 会把服务器带崩）；
+**还没搬完的**：机械臂的关节没接（可用的 `gz_ros2_control` 会把服务器带崩，
+Classic 里机械臂本来就是"道具"——关节锁死，动作由 arm server 模拟）；
 2D 激光、Velodyne 的点云；导航绕不过工位旁边那张工作台
 （直线路径撞上去，Classic 也一样）。哪些跑过、哪些还没跑、为什么，
 都写在 [`docs/gz_sim_port.md`](docs/gz_sim_port.md)。

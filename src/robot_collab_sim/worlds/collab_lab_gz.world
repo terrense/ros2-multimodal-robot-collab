@@ -258,6 +258,8 @@
       </link>
     </model>
   <model name='collab_mobile_base'>
+    <pose>0.0 0.0 0 0 0 -0.54</pose>
+
     <plugin filename="ignition-gazebo6-diff-drive-system"
             name="ignition::gazebo::systems::DiffDrive">
       <topic>/diff_drive_controller/cmd_vel</topic>
