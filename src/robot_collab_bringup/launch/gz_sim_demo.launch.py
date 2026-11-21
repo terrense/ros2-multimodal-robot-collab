@@ -67,11 +67,14 @@ BRIDGES = (
 )
 
 #: The ROS side of the same bridges: the names the rest of the stack uses,
-#: so that the same nodes work in either simulator.
+#: so that the same nodes work in either simulator. The depth cloud is the
+#: one exception: it comes out of gz-sim in the sensor's convention and in
+#: the simulator's frame naming, and the converter puts it into the
+#: convention the rest of the stack reads it in.
 REMAPPINGS = [
     (f"{PREFIX}/front_rgbd_camera/image", "/camera/color/image_raw"),
     (f"{PREFIX}/front_rgbd_camera/depth_image", "/camera/depth/image_raw"),
-    (f"{PREFIX}/front_rgbd_camera/points", "/camera/depth/points"),
+    (f"{PREFIX}/front_rgbd_camera/points", "/gz/depth/points"),
     (f"{PREFIX}/front_rgbd_camera/camera_info", "/camera/color/camera_info"),
     (f"{PREFIX}/base_imu/imu", "/imu/data"),
 ]
@@ -198,6 +201,21 @@ def generate_launch_description() -> LaunchDescription:
         ),
     )
 
+    # The depth cloud, in the convention the rest of the stack reads it in.
+    gz_cloud_converter = Node(
+        package="robot_collab_perception",
+        executable="gz_cloud_converter",
+        name="gz_cloud_converter",
+        output="screen",
+        parameters=[
+            {
+                "input_topic": "/gz/depth/points",
+                "output_topic": "/camera/depth/points",
+                "frame_id": "camera_link",
+            }
+        ],
+    )
+
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -271,6 +289,7 @@ def generate_launch_description() -> LaunchDescription:
             # simulator down with it. The base is driven by gz-sim's own
             # diff-drive system, which is in the world file.
             bridge,
+            gz_cloud_converter,
             base_command_forwarder,
             base_odom_bridge,
             # The world's ground truth. Gazebo Classic published it from a
@@ -339,6 +358,60 @@ def generate_launch_description() -> LaunchDescription:
                 package="robot_collab_core",
                 executable="mission_state_machine",
                 name="mission_state_machine",
+                output="screen",
+                parameters=[
+                    params,
+                    {"use_sim_time": use_sim_time},
+                ],
+            ),
+            # The rest of the stack, so that this is the same stack and not
+            # a part of it: the operator's identity, the workcell monitor
+            # the mission asks whether the handover zone is free, and the
+            # three gateways the human and the agent come in through.
+            Node(
+                package="robot_collab_perception",
+                executable="face_auth_node",
+                name="face_auth_node",
+                output="screen",
+                parameters=[
+                    params,
+                    {"use_sim_time": use_sim_time},
+                ],
+            ),
+            Node(
+                package="robot_collab_perception",
+                executable="zone_occupancy_node",
+                name="zone_occupancy_node",
+                output="screen",
+                parameters=[
+                    params,
+                    {"use_sim_time": use_sim_time},
+                ],
+            ),
+            Node(
+                package="robot_collab_perception",
+                executable="gesture_recognizer_node",
+                name="gesture_recognizer_node",
+                output="screen",
+                parameters=[
+                    params,
+                    {"use_sim_time": use_sim_time},
+                ],
+            ),
+            Node(
+                package="robot_collab_hri",
+                executable="voice_gateway_node",
+                name="voice_gateway_node",
+                output="screen",
+                parameters=[
+                    params,
+                    {"use_sim_time": use_sim_time},
+                ],
+            ),
+            Node(
+                package="robot_collab_agent",
+                executable="agent_gateway_node",
+                name="agent_gateway_node",
                 output="screen",
                 parameters=[
                     params,

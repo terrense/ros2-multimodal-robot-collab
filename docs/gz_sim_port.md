@@ -81,6 +81,19 @@ simulator to move its clock to another topic, where nobody is listening.
 With the clock missing, every node with `use_sim_time` freezes and the
 navigation waits for a timer that never fires.
 
+**The depth cloud is the one thing the bridge cannot carry across.** The
+two simulators publish the same sensor in different conventions: Gazebo
+Classic's camera plugin publishes the cloud in the optical convention (z
+forward, x right, y down) and gz-sim publishes it in the sensor's (x
+forward, y left, z up), under the simulator's own frame name, which is not
+a frame the transform tree has. A detector that asks "is the tool in
+there?" reads one convention and gets the answer for the other: the tool
+is three quarters of a metre from where the cloud says it is, and it is
+never visible. Nothing fails; the detector says the tool is not there,
+forever. So `gz_cloud_converter` puts the cloud into the convention the
+stack reads it in and republishes it under the camera link's name, and
+the stack does not change.
+
 ## The command, and the truth
 
 Two things do not come from the bridge, and both are nodes of this
@@ -144,6 +157,15 @@ Measured on this machine, with the numbers the stack printed:
   what the `pivot_capable` parameter is for;
 - **the window shows the world** and the robot in it, and the base drives
   while it is up;
+- **the whole stack is there, not a part of it**: the operator's identity,
+  the workcell monitor the mission asks about the handover zone, and the
+  three gateways. The first version of the launch had only the four
+  nodes the base needs, and the mission stopped at its first step
+  because nothing was answering `/skills/verify_operator`.
+- **a mission runs end to end**: the operator is verified, the base drives
+  to the shelf, the arm picks the tool, the base drives to `station_a`
+  and hands the tool over — the plan dispatched by
+  `agent_harness/scripts/ros_tool_executor.py`, on the gz-sim stack;
 - the classic stack is unaffected: the same description, the same world,
   the same calibration.
 
@@ -186,13 +208,20 @@ uses):
 
 ## What is not ported yet
 
-- **the workshop scene's arms.** They are spawned by a script, and their
-  joints need a controller: `gz_ros2_control` is the one that is available,
-  and it takes the simulator down. gz-sim's own joint controller systems
-  would do the job, but the bridge from the ROS trajectory commands to the
-  Gazebo Transport is not written.
-- **the arms' joints in the lab scene** — the arm on the chassis is
-  carried along as part of the base's description and is not driven.
+- **the workshop scene.** gz-sim runs the lab — the obstacles, the tool
+  shelf, the stations — and not the workshop with the three official arms
+  and the workbench. The scene is generated (`scripts/generate_workshop_world.py`
+  writes `workshop.world`), so the port is the same substitution the lab
+  port does, plus putting the arms in the world instead of spawning them
+  with a script: the arms are static models, and a static model does not
+  need a controller to be placed.
+- **the arms' joints.** In the classic stack the arms are props too —
+  their joints are locked and the arm server simulates the manipulation —
+  so nothing is lost by the arms standing still in gz-sim as well. What
+  is lost is the chance to drive them: `gz_ros2_control` is the controller
+  that is available and it takes the simulator down, and gz-sim's own
+  joint controller systems would do the job, but the bridge from the ROS
+  trajectory commands to the Gazebo Transport is not written.
 - **the 2D lidar (`/scan`)** — gz-sim has no ray sensor, and the
   navigation does not use the scan for anything that is measured (scan
   matching is off).

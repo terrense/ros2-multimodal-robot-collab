@@ -24,6 +24,7 @@ setup(
             "gesture_recognizer_node = robot_collab_perception.gesture_recognizer_node:main",
             "openpose_gesture_node = robot_collab_perception.openpose_gesture_node:main",
             "zone_occupancy_node = robot_collab_perception.zone_occupancy_node:main",
+            "gz_cloud_converter = robot_collab_perception.gz_cloud_converter:main",
         ],
     },
 )

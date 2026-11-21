@@ -226,6 +226,7 @@ bash scripts/run_gz_sim_demo.sh --gui      # 带窗口
 | 底盘 | 导航说往哪开，底盘就往哪开：`tool_shelf` 停在 (1.15, -0.66)（工位在 (1.25, -0.75)），`station_a` 停在 (3.06, 0.38)（工位在 (3.20, 0.40)），这一趟里程计和车体差 0.014 m |
 | 相机 | 图像、深度、点云、camera_info 都有，IMU 有，时钟有（5 秒 1129 帧） |
 | 窗口 | `ign gazebo -g` 单独一个进程连到服务器上，场景看得见，机器人也看得见 |
+| 整条任务 | 校验操作员 → 底盘开到工具架 → 机械臂取工具 → 开到 `station_a` 交付，整条 mission 在 gz-sim 上跑通了（节点跟 Classic 一套，不多不少） |
 
 机器人描述只有一份（`robot_description.py gz-sim` 把 Classic 的控制器插件换成
 gz-sim 的那个），实验场景也是一份（`scripts/make_gz_sim_world.py` 从 classic 的
@@ -243,8 +244,9 @@ Classic 一样（`/camera/depth/points`、`/imu/data`……），所以下游的
 | 窗口 | Classic GUI | `ign gazebo -g`（`-g` 是"只有 GUI"，服务器另起一个进程 `-s`） |
 | 原地掉头 | 不能（轮子横向打滑，只能走弧线） | 能（导航参数 `pivot_capable`，Classic 那套保持默认关闭，已测数字不变） |
 
-**还没搬完的**：车间场景的三台机械臂（关节要控制器，而可用的 `gz_ros2_control`
-会把服务器带崩）、2D 激光、Velodyne 的点云；导航绕不过工位旁边那张工作台
+**还没搬完的**：车间场景（带三台官方机械臂的那个）整体还没进 gz-sim；
+机械臂的关节也没接（可用的 `gz_ros2_control` 会把服务器带崩）；
+2D 激光、Velodyne 的点云；导航绕不过工位旁边那张工作台
 （直线路径撞上去，Classic 也一样）。哪些跑过、哪些还没跑、为什么，
 都写在 [`docs/gz_sim_port.md`](docs/gz_sim_port.md)。
 
