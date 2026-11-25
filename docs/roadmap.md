@@ -8,7 +8,7 @@ every phase reference below carries the prefix of its line. The full map is in
 ┌─ R  Robot body ────────────── src/robot_collab_* ────────────────────────┐
 │  the ROS 2 robot: sensors, arms, navigation, simulation, then hardware    │
 │  R0 scaffold · R1 lab demo · R2 real hardware · R3 multi-agent ·          │
-│  R4 post-training (the PT line below)                                     │
+│  R4 post-training (the PT line below) · R5 closed loop over physics       │
 └───────────────────────────────────────────────────────────────────────────┘
 ┌─ PT Post-training ────────── agent_env/ + training/ ──────────────────────┐
 │  the learning stack: an L1 simulator, rewards, credit assignment, and the │
@@ -67,6 +67,38 @@ Full detail: the R phases below. The current state of the simulation is in
 - Multi-robot task allocation when a second base exists.
 
 ### R4: Post-training — see the PT line below.
+
+### R5: A closed loop over real physics — the next line
+
+The master task, with the milestones and their acceptance gates:
+[`plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md`](plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md).
+
+Why this line exists: the agent does not observe (`PlanMacroPolicy.decide()`
+ignores the view), the arm does not move anything
+(`arm_skill_server.py` sleeps and reports success), and a recovery cannot be
+verified before it is remembered (`training/counterfactual.py` refuses
+counterfactuals without a verified restore, and there is no verified restore
+on the physical stack).
+
+- **R5.1** A gripper that holds: the arm's six joints are `type="fixed"`
+  today; the official CR10 description has them with limits, a ros2_control
+  block and a MoveIt configuration. The gate is the tool's pose changing
+  with the gripper, in the simulator's own model states.
+- **R5.2** A verified restore: gz-sim's `set_pose_vector` sets every model's
+  pose in one call; the state hash from `training/counterfactual.py` decides
+  whether a restore may be used.
+- **R5.3** The loop closes: observe -> decide -> verify -> replan, inside a
+  budget, instead of replaying a macro.
+- **R5.4** The workcell: a scripted human with four measurable perturbations,
+  objects with state, stations, a seeded task generator.
+- **R5.5** The embodiment layer: robot profiles and four feasibility gates
+  (semantic, kinematic, collision, runtime) with `true / false / unknown`.
+- **R5.6** The benchmark: leave-one-robot-out, the six arms, and the metrics
+  that separate success from a safe refusal.
+
+The two simulators are now both running
+([`gz_sim_port.md`](gz_sim_port.md)), which is an asset for the paper: the
+simulated half of a Sim-to-Real claim has two independent stacks.
 
 ## PT — Post-training
 

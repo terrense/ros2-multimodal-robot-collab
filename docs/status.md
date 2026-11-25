@@ -4,7 +4,7 @@ Three lines of work, one status page. The per-phase detail is in
 [`specs/README.md`](specs/README.md); this is the answer to "what is actually
 true right now, and what is in the way".
 
-Updated 2026-11-12.
+Updated 2026-11-25.
 
 ---
 
@@ -34,6 +34,7 @@ trained**, because that needs a GPU.
 | Arm execution | **simulated** | `arm_skill_server` sleeps `simulate_step_seconds`; no MoveIt2 |
 | Face auth / gesture / voice | stubs or vendored source | no camera-driven recognition in the loop |
 | Headless stack + one dispatch | **in CI** | `ci.yml` simulation smoke step: gzserver, no window, real delivery |
+| gz-sim (ros_gz) port | **works** | the lab and the workshop; the base drives, a mission runs end to end — [`docs/gz_sim_port.md`](gz_sim_port.md) |
 | Real hardware | **not started** | needs separate authorization, and calibration first |
 
 The gap that matters: **the arm does not really grasp.** Every grasp in this
@@ -143,11 +144,34 @@ from a validated fault model. Both probes were rewritten to require their scene.
 
 Ordered by what unblocks the most.
 
+### 0. The loop is open
+
+Before any GPU and before any hardware, the loop itself has to close. Today
+`PlanMacroPolicy.decide()` begins with `del view` — the decision does not
+read the world — and `arm_skill_server.py` sleeps and reports success, so no
+failure is a physical failure and no recovery can be verified before it is
+remembered (`training/counterfactual.py` refuses counterfactuals without a
+verified restore, and the physical stack has none).
+
+The next line, with its milestones and their acceptance gates, is
+[`docs/plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md`](plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md).
+Its first milestone is a spike with a yes-or-no answer: can a gripper hold
+the tool box in the simulator, with the arm's six joints actually movable?
+The official CR10 description has them (with limits, a ros2_control block and
+a MoveIt configuration); the copy on the chassis has all six frozen to
+`type="fixed"`.
+
 ### 1. GPU time
 
 Blocks: the six experiment arms, and therefore the entire supervision-source
 comparison. Nothing else in the repository is waiting on it and nothing else can
 substitute for it.
+
+What the machine actually has, checked 2026-11-25: an NVIDIA GTX 1650 with
+4 GB, visible from WSL, and **no torch installed**. A 30B teacher is out of
+the question; a 1.5-3B student with LoRA is not; and the hosted API already
+wired into `agent_harness/agent/hosted_model.py` is both cheaper and more
+reproducible as the teacher.
 
 ### 2. Real-stack verification is in CI now — and it found a fourth bug
 

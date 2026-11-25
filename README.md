@@ -91,6 +91,13 @@ echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 > 会让 Fast DDS 跨进程丢 Topic 数据（发现和服务还能用）。仓库的所有脚本都默认
 > `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`，缺这个包会看到节点都在、话题却没数据。
 
+> **换机器 / 新会话接手**：装完依赖后按下面第 2 步构建，再装 gz-sim 那一个包
+> （`ros-humble-ros-gz` + `gz-fortress`），然后**先读这三份**：
+> [`docs/status.md`](docs/status.md)（现状页）、
+> [`docs/plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md`](docs/plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md)（下一条主线和验收门）、
+> [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)（每个实验的记录，含坑）。
+> 本地状态一次性的，跑之前不用清：仿真栈是脚本起的，停了就没了。
+
 ### 2. 构建
 
 ```bash
@@ -308,6 +315,7 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 | **Agent 闭环** | observe → 决定**一个**动作 → 校验 → 提交 → 等回执；轮数/字符/墙钟预算 | 单测 |
 | **观测快照** | D435 快照 + `map→camera_link` + 评估字段隔离 | 仿真 |
 | **仿真车间** | 见上节 | Gazebo 实测 |
+| **gz-sim 移植** | 实验室 + 车间两个场景都能跑；物理引擎、窗口、底盘驱动、位姿真值、点云坐标系都对；整条任务在 gz-sim 上跑通 | 见 [`docs/gz_sim_port.md`](docs/gz_sim_port.md) |
 | **传感器** | D435（RGB-D）、VLP-16、16 线激光、2D 雷达、IMU | 话题实测 |
 | **导航** | Nav2 `NavigateToPose` 打通；SLAM 用 odometry 建图 | 仿真实测（scan matching 已关闭，见下） |
 | **L2 适配器** | 实时栈装进 L1 的 `reset()/step()`；动作映射写全，不支持的动作带原因拒绝；同一套评测给实时栈打分并产出回执指标 | **逻辑已测；ROS 路径已跑过一次十任务的评估** |
@@ -326,10 +334,13 @@ bash scripts/run_gazebo_demo.sh --workshop --nav2 # 再加 SLAM + Nav2
 - **机械臂执行是仿真的。** `arm_skill_server` 用 `simulate_step_seconds` 模拟动作，没有接 MoveIt2 或厂商 SDK。
 - **人脸 / 语音 / 手势是桩或用 vendored 源码跑，没有真机。**
 - **六条模型实验臂没跑过。** `docs/results.md` 里 pending 的行就是它们。
+- **决策还是开环的。** `PlanMacroPolicy.decide()` 不看观测（第一行就是 `del view`）：失败就终止，不重规划；机械臂的"成功"是报告出来的，不是物理事实。
 
 > 上表是模块清单。**哪条线卡在哪、下一步该动什么**，见
 > [`docs/status.md`](docs/status.md) —— 全项目现状页。一句话版本：
-> **机器人和运行时都通了，但一个模型都还没训**，因为那要 GPU。
+> **机器人和运行时都通了，但一个模型都还没训**，因为那要 GPU；
+> 而且在训之前，闭环本身要先闭上**（物理结果 → 观测 → 重规划 → 经验证的恢复记忆）**，
+> 路线在 [`docs/plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md`](docs/plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md)。
 
 ---
 
@@ -921,9 +932,11 @@ python3 scripts/calibration_scene.py clear visual_occlusion  # 撤掉
 - [x] **模型被中断**（Phase 5 最后一条验收）：中断是一等结果——episode 结束为 `interrupted`、成功性**未知而非失败**、**物理作业不被取消**、报告写明还有多少命令在跑。等回执改成可中断，否则一条 30 秒的命令会把已死的 episode 拖住 30 秒
 - [x] **线缆故障注入真跑**（判据 12 条，六套场景）：整个实验在 user+network 命名空间里跑，免 sudo。95% 丢包下命令以 `unknown` 收场（不是 `failed`）、账本挡住后续派发直到人工认领 —— 12 条全过
 - [x] **校准探针和线缆故障实验进 CI**：探针坏了、或者故障压根没注进去，现在会让构建变红，而不是像从前那样安静地报"没测成"
+- [x] **gz-sim 移植跑通**：实验室 + 车间两个场景，物理引擎、窗口、底盘驱动、位姿真值、点云坐标系全对；整条任务在 gz-sim 上跑通（见 `docs/gz_sim_port.md`）
 
 待做：
 
+- [ ] **闭环闭上（下一条主线）**：物理结果的 verifier → 观测进决策 → 预算内重规划 → 经验证过的恢复记忆 → episode 级记录。路线和验收门在 [`docs/plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md`](docs/plans/CLOSED_LOOP_AGENT_RESEARCH_MASTER_PLAN.md)；第一个里程碑是个只有 yes/no 答案的 spike：**夹爪在仿真里能不能真的夹住工具**（底盘上那六个关节现在是 `type="fixed"`）
 - [ ] **在 GPU 上跑完六条实验臂**并填满 `docs/results.md`（显存预算见 post_training.md §15）
 - [x] **让 `visual_occlusion` 这族能测**：检测器读深度点云，工具被挡住就是低置信度，换个位置看就恢复；底盘也真的挪得动了（见「已知限制」）
 - [ ] CI 里再往前一步：驱动 Nav2（现在只到"图起来 + 一条计划派发 + 一次校准探针 + 一次线缆故障"）
